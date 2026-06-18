@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+.env
+.venv/
+venv/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+
+# SafePlate run outputs, caches, logs, and benchmark snapshots.
+data/
+
+# Local Claude Code config (machine-specific; not needed to run or deploy).
+.claude/settings.local.json
+.claude/launch.json

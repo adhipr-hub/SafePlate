@@ -1,0 +1,41 @@
+# Render Blueprint for the SafePlate live app.
+#
+# Optional convenience: Render Dashboard -> New -> Blueprint -> pick this repo,
+# then fill in the secret values (marked `sync: false`) in the dashboard.
+# If the Blueprint ever errors on schema, just create the service by hand using
+# the same Build/Start commands -- see DEPLOY.md. Either way works.
+#
+# IMPORTANT: set SAFEPLATE_PASSWORD (gates the whole site) and a budget cap on
+# your Google/Gemini keys BEFORE going live -- see DEPLOY.md.
+services:
+  - type: web
+    name: safeplate
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/start_safeplate_app.py --host 0.0.0.0 --port $PORT --no-browser
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      # Auth -- REQUIRED for a public deploy. Without it the site is open to
+      # anyone (and to bots that will spend your API credits).
+      - key: SAFEPLATE_PASSWORD
+        sync: false
+      - key: SAFEPLATE_USERNAME
+        sync: false
+      # Abuse/cost backstop: max paid (search/menu) requests per IP per minute.
+      - key: SAFEPLATE_RATE_LIMIT_PER_MIN
+        value: "20"
+      # Provider API keys -- live mode spends real money on these. All optional
+      # (the app falls back to free OpenStreetMap data), but better with them.
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: BRAVE_SEARCH_API_KEY
+        sync: false
+      - key: GEOAPIFY_API_KEY
+        sync: false
+      - key: SAFEPLATE_USER_AGENT
+        sync: false

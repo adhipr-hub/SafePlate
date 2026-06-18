@@ -1,0 +1,86 @@
+{
+  "scenario": "menu_backed_nut_risk",
+  "menuSources": [
+    {
+      "restaurant_name": "Demo Thai Kitchen",
+      "restaurant_source_id": "demo-thai-kitchen",
+      "website_url": "https://demo.safeplate.local/thai-kitchen",
+      "candidate_url": "https://demo.safeplate.local/thai-kitchen/menu",
+      "source_type": "website_link",
+      "link_text": "Menu",
+      "confidence": 0.96,
+      "evidence_grade": "A",
+      "reason": "Demo fixture menu page",
+      "is_primary_menu_candidate": true,
+      "validation_status": "validated",
+      "validation_reason": "Fixture menu contains menu sections and prices",
+      "fetched_at": "2026-06-16T17:00:00+00:00",
+      "raw_payload": {"demo": true}
+    }
+  ],
+  "menuText": [
+    {
+      "restaurant_name": "Demo Thai Kitchen",
+      "restaurant_source_id": "demo-thai-kitchen",
+      "menu_source_url": "https://demo.safeplate.local/thai-kitchen/menu",
+      "source_type": "website_link",
+      "extraction_method": "demo_fixture",
+      "char_count": 320,
+      "price_count": 4,
+      "dietary_terms": ["vegetarian"],
+      "allergen_terms": ["peanut", "cashew"],
+      "fetched_at": "2026-06-16T17:00:00+00:00",
+      "extracted_text": "Pad Thai with crushed peanuts $17. Massaman Curry with cashews $19. Basil Tofu vegetarian $16. Please tell your server about food allergies before ordering."
+    }
+  ],
+  "menuItems": [
+    {
+      "restaurant_name": "Demo Thai Kitchen",
+      "restaurant_source_id": "demo-thai-kitchen",
+      "menu_source_url": "https://demo.safeplate.local/thai-kitchen/menu",
+      "category": "Noodles",
+      "item_name": "Pad Thai",
+      "description": "Rice noodles, tamarind sauce, egg, tofu, crushed peanuts",
+      "price": "$17",
+      "dietary_terms": [],
+      "allergen_terms": ["peanut", "egg"],
+      "source_type": "website_link",
+      "extraction_method": "demo_fixture",
+      "confidence": 0.96,
+      "raw_text": "Pad Thai - rice noodles, tamarind sauce, egg, tofu, crushed peanuts - $17",
+      "fetched_at": "2026-06-16T17:00:00+00:00"
+    },
+    {
+      "restaurant_name": "Demo Thai Kitchen",
+      "restaurant_source_id": "demo-thai-kitchen",
+      "menu_source_url": "https://demo.safeplate.local/thai-kitchen/menu",
+      "category": "Curries",
+      "item_name": "Massaman Curry",
+      "description": "Coconut curry with potatoes, onion, and cashews",
+      "price": "$19",
+      "dietary_terms": [],
+      "allergen_terms": ["cashew", "tree nut"],
+      "source_type": "website_link",
+      "extraction_method": "demo_fixture",
+      "confidence": 0.94,
+      "raw_text": "Massaman Curry - coconut curry with potatoes, onion, and cashews - $19",
+      "fetched_at": "2026-06-16T17:00:00+00:00"
+    },
+    {
+      "restaurant_name": "Demo Thai Kitchen",
+      "restaurant_source_id": "demo-thai-kitchen",
+      "menu_source_url": "https://demo.safeplate.local/thai-kitchen/menu",
+      "category": "Entrees",
+      "item_name": "Basil Tofu",
+      "description": "Stir fried tofu, basil, bell pepper, jasmine rice",
+      "price": "$16",
+      "dietary_terms": ["vegetarian"],
+      "allergen_terms": ["soy"],
+      "source_type": "website_link",
+      "extraction_method": "demo_fixture",
+      "confidence": 0.9,
+      "raw_text": "Basil Tofu - stir fried tofu, basil, bell pepper, jasmine rice - $16",
+      "fetched_at": "2026-06-16T17:00:00+00:00"
+    }
+  ]
+}

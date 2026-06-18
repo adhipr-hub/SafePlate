@@ -1,0 +1,70 @@
+{
+  "scenario": "allergy_disclaimer",
+  "menuSources": [
+    {
+      "restaurant_name": "Demo Allergen Grill",
+      "restaurant_source_id": "demo-allergen-grill",
+      "website_url": "https://demo.safeplate.local/allergen-grill",
+      "candidate_url": "https://demo.safeplate.local/allergen-grill/allergen-menu",
+      "source_type": "nutrition_or_allergen_page",
+      "link_text": "Allergen Menu",
+      "confidence": 0.98,
+      "evidence_grade": "A",
+      "reason": "Demo fixture allergen guide",
+      "is_primary_menu_candidate": true,
+      "validation_status": "validated",
+      "validation_reason": "Fixture allergen page includes explicit policy language",
+      "fetched_at": "2026-06-16T17:00:00+00:00",
+      "raw_payload": {"demo": true}
+    }
+  ],
+  "menuText": [
+    {
+      "restaurant_name": "Demo Allergen Grill",
+      "restaurant_source_id": "demo-allergen-grill",
+      "menu_source_url": "https://demo.safeplate.local/allergen-grill/allergen-menu",
+      "source_type": "nutrition_or_allergen_page",
+      "extraction_method": "demo_fixture",
+      "char_count": 360,
+      "price_count": 2,
+      "dietary_terms": ["gluten-free"],
+      "allergen_terms": ["milk", "wheat"],
+      "fetched_at": "2026-06-16T17:00:00+00:00",
+      "extracted_text": "Food allergy notice: please inform your server of any allergy. Our kitchen uses shared fryers and cross-contact may occur. Nut-free claim: our house vinaigrette contains no peanuts or tree nuts."
+    }
+  ],
+  "menuItems": [
+    {
+      "restaurant_name": "Demo Allergen Grill",
+      "restaurant_source_id": "demo-allergen-grill",
+      "menu_source_url": "https://demo.safeplate.local/allergen-grill/allergen-menu",
+      "category": "Mains",
+      "item_name": "Grilled Chicken Plate",
+      "description": "Chicken, rice, seasonal vegetables. Contains no peanuts or tree nuts according to allergen guide.",
+      "price": "$18",
+      "dietary_terms": ["gluten-free"],
+      "allergen_terms": [],
+      "source_type": "nutrition_or_allergen_page",
+      "extraction_method": "demo_fixture",
+      "confidence": 0.92,
+      "raw_text": "Grilled Chicken Plate - contains no peanuts or tree nuts - $18",
+      "fetched_at": "2026-06-16T17:00:00+00:00"
+    },
+    {
+      "restaurant_name": "Demo Allergen Grill",
+      "restaurant_source_id": "demo-allergen-grill",
+      "menu_source_url": "https://demo.safeplate.local/allergen-grill/allergen-menu",
+      "category": "Sides",
+      "item_name": "Shared Fryer Fries",
+      "description": "Fries cooked in shared fryer; cross-contact with wheat may occur.",
+      "price": "$7",
+      "dietary_terms": [],
+      "allergen_terms": ["wheat"],
+      "source_type": "nutrition_or_allergen_page",
+      "extraction_method": "demo_fixture",
+      "confidence": 0.89,
+      "raw_text": "Shared Fryer Fries - cross-contact with wheat may occur - $7",
+      "fetched_at": "2026-06-16T17:00:00+00:00"
+    }
+  ]
+}

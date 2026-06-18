@@ -1,0 +1,761 @@
+"""Cuisine x dish x location allergen *prior* (nut-focused, extensible).
+
+This layer answers the question the menu-evidence pipeline cannot: "how likely
+is this dish / cuisine / place to involve nuts, *even when the menu never says
+so*?" It is deterministic and free — a curated knowledge base plus simple,
+transparent combination rules — so it works for every nearby restaurant,
+including the many that have no usable menu online.
+
+Design contract:
+- Absence of an allergen mention is NOT evidence of absence. The prior exists
+  precisely to catch hidden nuts (pad thai -> peanuts, pesto -> pine nuts,
+  korma -> cashew) that surface-text matching misses.
+- Every score carries a ``basis`` and ``rationale`` so the eventual ranking can
+  explain itself and never present a bare "safe" verdict.
+- Risk values are documented heuristic seeds, meant to be calibrated against
+  real outcomes, not treated as ground truth.
+
+The menu-evidence stage (Gemini / text extraction) should *update* these priors,
+not replace them: an explicit "contains walnuts" pushes risk up; a verified
+"nut-free kitchen" pushes it down.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+import re
+
+# Allergen keys. "nuts" is the convenience union of the two nut families, which
+# is what most users mean and what the project's examples target.
+PEANUTS = "peanuts"
+TREE_NUTS = "tree_nuts"
+NUTS = "nuts"
+_NUT_FAMILY = {PEANUTS, TREE_NUTS}
+
+
+def _expand_allergen(allergen: str) -> set[str]:
+    if allergen == NUTS:
+        return set(_NUT_FAMILY)
+    return {allergen}
+
+
+@dataclass(frozen=True)
+class AllergenPrior:
+    allergen: str
+    risk: float  # 0..1 prior probability the allergen is present
+    confidence: float  # 0..1 how much to trust this prior itself
+    basis: str  # dish_knowledge | cuisine_baseline | nut_free_claim | default
+    rationale: list[str] = field(default_factory=list)
+    # How much an *absence* of allergen labels should reassure at this location,
+    # i.e. regulatory/labeling culture. Used by the downstream scorer.
+    labeling_trust: float = 0.35
+
+
+# --------------------------------------------------------------------------- #
+# Dish knowledge base: dishes that frequently contain nuts regardless of where
+# they are served. Matched as substrings on normalized "name + description".
+# Each entry: (pattern, allergens, risk, note). Highest-risk match wins.
+# --------------------------------------------------------------------------- #
+DISH_NUT_KNOWLEDGE: list[tuple[str, set[str], float, str]] = [
+    # explicit nut ingredients
+    ("peanut", {PEANUTS}, 0.97, "named peanut ingredient"),
+    ("groundnut", {PEANUTS}, 0.95, "groundnut = peanut"),
+    ("almond", {TREE_NUTS}, 0.95, "named almond"),
+    ("amandine", {TREE_NUTS}, 0.93, "amandine = with almonds"),
+    ("cashew", {TREE_NUTS}, 0.95, "named cashew"),
+    ("walnut", {TREE_NUTS}, 0.95, "named walnut"),
+    ("pecan", {TREE_NUTS}, 0.95, "named pecan"),
+    ("pistachio", {TREE_NUTS}, 0.96, "named pistachio"),
+    ("hazelnut", {TREE_NUTS}, 0.95, "named hazelnut"),
+    ("macadamia", {TREE_NUTS}, 0.95, "named macadamia"),
+    ("pine nut", {TREE_NUTS}, 0.95, "named pine nut"),
+    ("pignoli", {TREE_NUTS}, 0.95, "pignoli = pine nut"),
+    ("brazil nut", {TREE_NUTS}, 0.95, "named brazil nut"),
+    ("mixed nut", {PEANUTS, TREE_NUTS}, 0.97, "mixed nuts"),
+    ("tree nut", {TREE_NUTS}, 0.95, "named tree nut"),
+    # nut-derived preparations
+    ("pesto", {TREE_NUTS}, 0.85, "pesto usually contains pine nuts"),
+    ("nutella", {TREE_NUTS}, 0.95, "Nutella = hazelnut"),
+    ("gianduja", {TREE_NUTS}, 0.95, "gianduja = hazelnut chocolate"),
+    ("frangelico", {TREE_NUTS}, 0.9, "hazelnut liqueur"),
+    ("praline", {TREE_NUTS}, 0.9, "praline = caramelized nuts"),
+    ("marzipan", {TREE_NUTS}, 0.95, "marzipan = almond paste"),
+    ("frangipane", {TREE_NUTS}, 0.9, "frangipane = almond cream"),
+    ("financier", {TREE_NUTS}, 0.85, "financier = almond cake"),
+    ("amaretto", {TREE_NUTS}, 0.85, "amaretto = almond"),
+    ("amaretti", {TREE_NUTS}, 0.85, "amaretti = almond cookie"),
+    ("nougat", {TREE_NUTS}, 0.85, "nougat usually contains nuts"),
+    ("bakewell", {TREE_NUTS}, 0.9, "bakewell = almond frangipane"),
+    ("dukkah", {TREE_NUTS}, 0.85, "dukkah = nut/seed blend"),
+    ("dukka", {TREE_NUTS}, 0.85, "dukkah = nut/seed blend"),
+    ("muhammara", {TREE_NUTS}, 0.9, "muhammara = walnut dip"),
+    ("romesco", {TREE_NUTS}, 0.85, "romesco = almond/hazelnut sauce"),
+    ("baklava", {TREE_NUTS}, 0.95, "baklava = nut pastry"),
+    ("baklawa", {TREE_NUTS}, 0.95, "baklava = nut pastry"),
+    ("waldorf", {TREE_NUTS}, 0.85, "waldorf salad = walnuts"),
+    # nut-sauce / nut-forward dishes
+    ("pad thai", {PEANUTS}, 0.9, "pad thai = peanuts"),
+    ("satay", {PEANUTS}, 0.9, "satay = peanut sauce"),
+    ("sate", {PEANUTS}, 0.88, "sate = peanut sauce"),
+    ("massaman", {PEANUTS, TREE_NUTS}, 0.85, "massaman curry = peanuts/cashew"),
+    ("gado gado", {PEANUTS}, 0.85, "gado-gado = peanut sauce"),
+    ("gado-gado", {PEANUTS}, 0.85, "gado-gado = peanut sauce"),
+    ("kung pao", {PEANUTS}, 0.85, "kung pao = peanuts"),
+    ("gong bao", {PEANUTS}, 0.85, "gong bao = peanuts"),
+    ("korma", {TREE_NUTS}, 0.85, "korma = cashew/almond gravy"),
+    ("qorma", {TREE_NUTS}, 0.85, "korma = cashew/almond gravy"),
+    ("mole", {PEANUTS, TREE_NUTS}, 0.7, "mole often contains nuts"),
+    ("rendang", {TREE_NUTS}, 0.4, "rendang sometimes uses candlenut"),
+]
+
+# Multilingual nut INGREDIENT terms so non-English menus aren't a blind spot.
+# Deliberately excludes words that collide with coconut/nutmeg in other
+# languages (es nuez, fr noix, it noce, de nuss, ja ナッツ) to protect precision.
+# (pattern, allergens, risk, note)
+_MULTILINGUAL_NUT_TERMS: list[tuple[str, set[str], float, str]] = [
+    # peanut
+    ("cacahuete", {PEANUTS}, 0.95, "peanut (es)"),
+    ("cacahuate", {PEANUTS}, 0.95, "peanut (es)"),
+    ("cacahuète", {PEANUTS}, 0.95, "peanut (fr)"),
+    ("arachide", {PEANUTS}, 0.95, "peanut (fr/it)"),
+    ("arachidi", {PEANUTS}, 0.95, "peanut (it)"),
+    ("erdnuss", {PEANUTS}, 0.95, "peanut (de)"),
+    ("amendoim", {PEANUTS}, 0.95, "peanut (pt)"),
+    ("đậu phộng", {PEANUTS}, 0.95, "peanut (vi)"),
+    ("fıstığı", {PEANUTS, TREE_NUTS}, 0.9, "nut (tr; peanut/pistachio)"),
+    ("落花生", {PEANUTS}, 0.95, "peanut (ja)"),
+    ("ピーナッツ", {PEANUTS}, 0.95, "peanut (ja)"),
+    ("花生", {PEANUTS}, 0.95, "peanut (zh)"),
+    ("땅콩", {PEANUTS}, 0.95, "peanut (ko)"),
+    ("ถั่วลิสง", {PEANUTS}, 0.95, "peanut (th)"),
+    ("मूंगफली", {PEANUTS}, 0.95, "peanut (hi)"),
+    ("арахис", {PEANUTS}, 0.95, "peanut (ru)"),
+    ("فول سوداني", {PEANUTS}, 0.95, "peanut (ar)"),
+    # almond
+    ("almendra", {TREE_NUTS}, 0.95, "almond (es)"),
+    ("amande", {TREE_NUTS}, 0.95, "almond (fr)"),
+    ("mandel", {TREE_NUTS}, 0.93, "almond (de/sv)"),
+    ("mandorla", {TREE_NUTS}, 0.95, "almond (it)"),
+    ("amêndoa", {TREE_NUTS}, 0.95, "almond (pt)"),
+    ("badem", {TREE_NUTS}, 0.95, "almond (tr)"),
+    ("hạnh nhân", {TREE_NUTS}, 0.95, "almond (vi)"),
+    ("アーモンド", {TREE_NUTS}, 0.95, "almond (ja)"),
+    ("杏仁", {TREE_NUTS}, 0.95, "almond (zh)"),
+    ("아몬드", {TREE_NUTS}, 0.95, "almond (ko)"),
+    ("बादाम", {TREE_NUTS}, 0.95, "almond (hi)"),
+    ("миндаль", {TREE_NUTS}, 0.95, "almond (ru)"),
+    ("لوز", {TREE_NUTS}, 0.95, "almond (ar)"),
+    # cashew (avoid bare 'caju' -> 'cajun')
+    ("anacardo", {TREE_NUTS}, 0.95, "cashew (es)"),
+    ("anacardi", {TREE_NUTS}, 0.95, "cashew (it)"),
+    ("cajou", {TREE_NUTS}, 0.95, "cashew (fr)"),
+    ("cashewkern", {TREE_NUTS}, 0.95, "cashew (de)"),
+    ("カシューナッツ", {TREE_NUTS}, 0.95, "cashew (ja)"),
+    ("腰果", {TREE_NUTS}, 0.95, "cashew (zh)"),
+    ("hạt điều", {TREE_NUTS}, 0.95, "cashew (vi)"),
+    ("काजू", {TREE_NUTS}, 0.95, "cashew (hi)"),
+    ("كاجو", {TREE_NUTS}, 0.95, "cashew (ar)"),
+    # hazelnut
+    ("avellana", {TREE_NUTS}, 0.92, "hazelnut (es)"),
+    ("noisette", {TREE_NUTS}, 0.88, "hazelnut (fr)"),
+    ("haselnuss", {TREE_NUTS}, 0.92, "hazelnut (de)"),
+    ("nocciola", {TREE_NUTS}, 0.92, "hazelnut (it)"),
+    ("avelã", {TREE_NUTS}, 0.92, "hazelnut (pt)"),
+    ("fındık", {TREE_NUTS}, 0.92, "hazelnut (tr)"),
+    ("ヘーゼルナッツ", {TREE_NUTS}, 0.92, "hazelnut (ja)"),
+    ("بندق", {TREE_NUTS}, 0.92, "hazelnut (ar)"),
+    ("фундук", {TREE_NUTS}, 0.92, "hazelnut (ru)"),
+    ("кешью", {TREE_NUTS}, 0.95, "cashew (ru)"),
+    ("фисташки", {TREE_NUTS}, 0.95, "pistachio (ru)"),
+    # pistachio
+    ("pistacho", {TREE_NUTS}, 0.95, "pistachio (es)"),
+    ("pistache", {TREE_NUTS}, 0.95, "pistachio (fr)"),
+    ("pistazie", {TREE_NUTS}, 0.95, "pistachio (de)"),
+    ("pistacchio", {TREE_NUTS}, 0.95, "pistachio (it)"),
+    ("ピスタチオ", {TREE_NUTS}, 0.95, "pistachio (ja)"),
+    ("开心果", {TREE_NUTS}, 0.95, "pistachio (zh)"),
+    ("فستق", {TREE_NUTS}, 0.93, "pistachio (ar)"),
+    # walnut (only unambiguous forms)
+    ("walnuss", {TREE_NUTS}, 0.93, "walnut (de)"),
+    ("くるみ", {TREE_NUTS}, 0.93, "walnut (ja)"),
+    ("クルミ", {TREE_NUTS}, 0.93, "walnut (ja)"),
+    ("核桃", {TREE_NUTS}, 0.93, "walnut (zh)"),
+    ("호두", {TREE_NUTS}, 0.93, "walnut (ko)"),
+    ("अखरोट", {TREE_NUTS}, 0.93, "walnut (hi)"),
+    ("ceviz", {TREE_NUTS}, 0.93, "walnut (tr)"),
+    # pine nut
+    ("piñón", {TREE_NUTS}, 0.9, "pine nut (es)"),
+    ("pinoli", {TREE_NUTS}, 0.9, "pine nut (it)"),
+    ("松子", {TREE_NUTS}, 0.9, "pine nut (zh)"),
+    ("잣", {TREE_NUTS}, 0.9, "pine nut (ko)"),
+    # native-script names of common nut dishes
+    ("팟타이", {PEANUTS}, 0.9, "pad thai (ko)"),
+    ("パッタイ", {PEANUTS}, 0.9, "pad thai (ja)"),
+    ("馬薩曼", {PEANUTS, TREE_NUTS}, 0.85, "massaman (zh)"),
+    ("サテ", {PEANUTS}, 0.9, "satay (ja)"),
+    ("사테", {PEANUTS}, 0.9, "satay (ko)"),
+    ("バクラヴァ", {TREE_NUTS}, 0.95, "baklava (ja)"),
+]
+
+DISH_NUT_KNOWLEDGE.extend(_MULTILINGUAL_NUT_TERMS)
+
+# Explicit nut-free claims lower the prior. Conservative: this only sets a prior,
+# the downstream scorer must still treat allergy decisions cautiously.
+NUT_FREE_PATTERNS = [
+    "nut free",
+    "nut-free",
+    "no nuts",
+    "without nuts",
+    "free of nuts",
+    "peanut free",
+    "peanut-free",
+]
+
+# --------------------------------------------------------------------------- #
+# Cuisine baseline nut risk (0..1). Heuristic seeds; calibrate later.
+# --------------------------------------------------------------------------- #
+CUISINE_NUT_BASELINE: dict[str, float] = {
+    "thai": 0.60,
+    "indonesian": 0.60,
+    "malaysian": 0.58,
+    "vietnamese": 0.50,
+    "indian": 0.55,
+    "pakistani": 0.55,
+    "afghan": 0.55,
+    "middle_eastern": 0.55,
+    "west_african": 0.50,
+    "chinese": 0.40,
+    "mediterranean": 0.40,
+    "italian": 0.35,
+    "mexican": 0.35,
+    "spanish": 0.30,
+    "french": 0.30,
+    "korean": 0.25,
+    "japanese": 0.20,
+    "ethiopian": 0.20,
+    "american": 0.20,
+    "bbq": 0.15,
+    "seafood": 0.15,
+    "breakfast": 0.18,
+    # Wider world coverage (heuristic seeds, calibratable). Elevated where a
+    # cuisine traditionally leans on nuts; low for meat/seafood-forward ones.
+    "north_african": 0.60,   # tagines, pastilla, almond pastries
+    "taiwanese": 0.45,       # heavy peanut use
+    "filipino": 0.40,        # kare-kare (peanut), some
+    "burmese": 0.55,         # peanut oil, tea-leaf salad nuts
+    "cambodian": 0.45,
+    "laotian": 0.45,
+    "georgian": 0.60,        # walnut-forward (satsivi, pkhali, churchkhela)
+    "uzbek": 0.45,           # plov, halva
+    "hawaiian": 0.40,        # macadamia
+    "soul_food": 0.35,       # pecan, peanut
+    "east_african": 0.35,
+    "south_african": 0.30,
+    "peruvian": 0.30,
+    "brazilian": 0.30,
+    "argentinian": 0.20,
+    "colombian": 0.25,
+    "cuban": 0.20,
+    "caribbean": 0.30,
+    "jamaican": 0.30,
+    "portuguese": 0.35,
+    "german": 0.30,
+    "polish": 0.30,
+    "russian": 0.30,
+    "ukrainian": 0.30,
+    "british": 0.30,
+    "mongolian": 0.20,
+    "asian": 0.40,          # generic pan-Asian tag (cautious moderate)
+    # Baked goods / desserts disproportionately involve nuts (toppings, fillings,
+    # praline, marzipan), so they carry an elevated baseline.
+    "bakery": 0.45,
+    "dessert": 0.45,
+    "ice_cream": 0.35,
+    # Beverage-forward spots are low base risk.
+    "cafe": 0.18,
+}
+DEFAULT_CUISINE_BASELINE = 0.30
+
+# Countries where a cuisine is "at home", so recipes tend to be more authentic
+# (and less likely to omit traditional nut ingredients). Boosts the baseline.
+CUISINE_HOME_REGIONS: dict[str, set[str]] = {
+    "thai": {"TH"},
+    "indonesian": {"ID"},
+    "malaysian": {"MY"},
+    "vietnamese": {"VN"},
+    "indian": {"IN", "PK", "BD", "LK", "NP"},
+    "pakistani": {"PK", "IN"},
+    "afghan": {"AF"},
+    "middle_eastern": {"LB", "SY", "JO", "IL", "TR", "EG", "IR", "SA", "AE", "IQ"},
+    "west_african": {"NG", "GH", "SN", "CI", "ML"},
+    "chinese": {"CN", "TW", "HK"},
+    "mexican": {"MX"},
+    "ethiopian": {"ET"},
+    "north_african": {"MA", "DZ", "TN", "EG", "LY"},
+    "east_african": {"KE", "TZ", "SO", "ER"},
+    "south_african": {"ZA"},
+    "taiwanese": {"TW"},
+    "filipino": {"PH"},
+    "burmese": {"MM"},
+    "cambodian": {"KH"},
+    "laotian": {"LA"},
+    "georgian": {"GE"},
+    "uzbek": {"UZ"},
+    "peruvian": {"PE"},
+    "brazilian": {"BR"},
+    "argentinian": {"AR"},
+    "colombian": {"CO"},
+    "cuban": {"CU"},
+    "jamaican": {"JM"},
+    "portuguese": {"PT"},
+    "german": {"DE", "AT", "CH"},
+    "polish": {"PL"},
+    "russian": {"RU"},
+    "ukrainian": {"UA"},
+    "british": {"GB", "IE"},
+    "mongolian": {"MN"},
+}
+
+# Allergen-labeling culture: how much a *missing* nut label can be trusted.
+# High in places with allergen-labeling regulation, low elsewhere.
+HIGH_LABELING_COUNTRIES = {
+    "US", "CA", "GB", "IE", "AU", "NZ",
+    "FR", "DE", "IT", "ES", "NL", "BE", "SE", "DK", "FI", "NO",
+    "PT", "AT", "PL", "CZ", "GR", "CH", "JP", "SG", "KR", "HK",
+}
+HIGH_LABELING_TRUST = 0.70
+LOW_LABELING_TRUST = 0.35
+
+
+# --------------------------------------------------------------------------- #
+# Cuisine + region normalization (handles OSM, Google, Geoapify category styles)
+# --------------------------------------------------------------------------- #
+CUISINE_ALIASES: dict[str, str] = {
+    "thai": "thai",
+    "indonesian": "indonesian",
+    "malaysian": "malaysian",
+    "vietnamese": "vietnamese",
+    "indian": "indian",
+    "pakistani": "pakistani",
+    "afghan": "afghan",
+    "afghani": "afghan",
+    "bangladeshi": "indian",
+    "nepalese": "indian",
+    "sri_lankan": "indian",
+    "middle_eastern": "middle_eastern",
+    "middle eastern": "middle_eastern",
+    "lebanese": "middle_eastern",
+    "turkish": "middle_eastern",
+    "persian": "middle_eastern",
+    "iranian": "middle_eastern",
+    "arab": "middle_eastern",
+    "syrian": "middle_eastern",
+    "israeli": "middle_eastern",
+    "kebab": "middle_eastern",
+    "shawarma": "middle_eastern",
+    "falafel": "middle_eastern",
+    "mediterranean_middle_eastern": "middle_eastern",
+    "mediterranean": "mediterranean",
+    "greek": "mediterranean",
+    "chinese": "chinese",
+    "szechuan": "chinese",
+    "sichuan": "chinese",
+    "cantonese": "chinese",
+    "dim_sum": "chinese",
+    "korean": "korean",
+    "japanese": "japanese",
+    "sushi": "japanese",
+    "ramen": "japanese",
+    "udon": "japanese",
+    "soba": "japanese",
+    "mexican": "mexican",
+    "tex-mex": "mexican",
+    "italian": "italian",
+    "pizza": "italian",
+    "french": "french",
+    "spanish": "spanish",
+    "tapas": "spanish",
+    "ethiopian": "ethiopian",
+    "west_african": "west_african",
+    "nigerian": "west_african",
+    "ghanaian": "west_african",
+    "senegalese": "west_african",
+    "american": "american",
+    "burger": "american",
+    "diner": "american",
+    "steak_house": "american",
+    "barbecue": "bbq",
+    "bbq": "bbq",
+    "seafood": "seafood",
+    "breakfast": "breakfast",
+    "brunch": "breakfast",
+    "sandwich": "american",
+    "deli": "american",
+    "bakery": "bakery",
+    "pastry": "bakery",
+    "donut": "bakery",
+    "doughnut": "bakery",
+    "dessert": "dessert",
+    "ice_cream": "ice_cream",
+    "gelato": "ice_cream",
+    "cafe": "cafe",
+    "coffee_shop": "cafe",
+    "coffee": "cafe",
+    "bubble_tea": "cafe",
+    "boba": "cafe",
+    "tea": "cafe",
+    "juice": "cafe",
+    # Wider world coverage
+    "egyptian": "north_african",
+    "moroccan": "north_african",
+    "algerian": "north_african",
+    "tunisian": "north_african",
+    "libyan": "north_african",
+    "north_african": "north_african",
+    "kenyan": "east_african",
+    "tanzanian": "east_african",
+    "somali": "east_african",
+    "eritrean": "east_african",
+    "south_african": "south_african",
+    "taiwanese": "taiwanese",
+    "filipino": "filipino",
+    "singaporean": "malaysian",
+    "burmese": "burmese",
+    "myanmar": "burmese",
+    "cambodian": "cambodian",
+    "khmer": "cambodian",
+    "laotian": "laotian",
+    "lao": "laotian",
+    "peruvian": "peruvian",
+    "brazilian": "brazilian",
+    "argentinian": "argentinian",
+    "argentine": "argentinian",
+    "colombian": "colombian",
+    "venezuelan": "colombian",
+    "cuban": "cuban",
+    "caribbean": "caribbean",
+    "jamaican": "jamaican",
+    "haitian": "caribbean",
+    "portuguese": "portuguese",
+    "german": "german",
+    "austrian": "german",
+    "swiss": "german",
+    "polish": "polish",
+    "russian": "russian",
+    "georgian": "georgian",
+    "ukrainian": "ukrainian",
+    "armenian": "middle_eastern",
+    "hawaiian": "hawaiian",
+    "british": "british",
+    "english": "british",
+    "scottish": "british",
+    "irish": "british",
+    "uzbek": "uzbek",
+    "afghani": "afghan",
+    "mongolian": "mongolian",
+    "soul_food": "soul_food",
+    "soul": "soul_food",
+    "cajun": "soul_food",
+    "creole": "soul_food",
+    # Generic provider tags Google/OSM actually emit
+    "taco": "mexican",
+    "asian": "asian",
+    "pan_asian": "asian",
+    "noodle": "asian",
+    "noodles": "asian",
+    "fast_food": "american",
+    "fried_chicken": "american",
+    "chicken_wings": "american",
+    "wings": "american",
+    "hamburger": "american",
+    "bistro": "french",
+    "gastropub": "british",
+    "pub": "british",
+}
+
+COUNTRY_ALIASES: dict[str, str] = {
+    "usa": "US", "u.s.a": "US", "u.s.a.": "US", "us": "US",
+    "united states": "US", "united states of america": "US",
+    "canada": "CA",
+    "united kingdom": "GB", "uk": "GB", "england": "GB", "scotland": "GB", "wales": "GB",
+    "ireland": "IE",
+    "australia": "AU", "new zealand": "NZ",
+    "india": "IN", "pakistan": "PK", "bangladesh": "BD", "sri lanka": "LK", "nepal": "NP",
+    "thailand": "TH", "vietnam": "VN", "indonesia": "ID", "malaysia": "MY",
+    "china": "CN", "taiwan": "TW", "hong kong": "HK", "japan": "JP", "south korea": "KR",
+    "lebanon": "LB", "syria": "SY", "jordan": "JO", "israel": "IL", "turkey": "TR",
+    "egypt": "EG", "iran": "IR", "saudi arabia": "SA",
+    "united arab emirates": "AE", "uae": "AE", "iraq": "IQ", "afghanistan": "AF",
+    "mexico": "MX", "france": "FR", "germany": "DE", "italy": "IT", "spain": "ES",
+    "netherlands": "NL", "ethiopia": "ET", "nigeria": "NG", "ghana": "GH",
+    "brazil": "BR", "singapore": "SG", "peru": "PE", "chile": "CL",
+    "argentina": "AR", "colombia": "CO", "venezuela": "VE", "cuba": "CU",
+    "jamaica": "JM", "morocco": "MA", "algeria": "DZ", "tunisia": "TN",
+    "libya": "LY", "kenya": "KE", "tanzania": "TZ", "south africa": "ZA",
+    "russia": "RU", "georgia": "GE", "ukraine": "UA", "denmark": "DK",
+    "sweden": "SE", "norway": "NO", "finland": "FI", "poland": "PL",
+    "czech republic": "CZ", "czechia": "CZ", "austria": "AT", "switzerland": "CH",
+    "belgium": "BE", "portugal": "PT", "greece": "GR", "philippines": "PH",
+    "myanmar": "MM", "burma": "MM", "cambodia": "KH", "laos": "LA",
+    "uzbekistan": "UZ", "mongolia": "MN", "qatar": "QA", "kuwait": "KW",
+    "bahrain": "BH", "oman": "OM", "armenia": "AM",
+}
+
+# US state abbreviations imply a US address even without "USA" at the end.
+_US_STATE_CODES = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL",
+    "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT",
+    "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+    "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
+}
+
+
+def normalize_cuisine(categories: list[str] | None) -> list[str]:
+    """Map provider category strings to canonical cuisine keys (order-preserving)."""
+    found: list[str] = []
+    for raw in categories or []:
+        for token in _cuisine_tokens(raw):
+            canonical = CUISINE_ALIASES.get(token)
+            if canonical and canonical not in found:
+                found.append(canonical)
+    return found
+
+
+def _cuisine_tokens(raw: str) -> list[str]:
+    value = raw.strip().lower()
+    # Drop provider key prefixes: "cuisine:indian", "primary_type:indian_restaurant".
+    if ":" in value:
+        value = value.split(":", 1)[1]
+    # Geoapify dotted categories: "catering.restaurant.indian".
+    value = value.replace("catering.", "").replace("restaurant.", "")
+    # OSM multi-value: "indian;thai".
+    pieces = re.split(r"[;.,/]", value)
+    tokens = []
+    for piece in pieces:
+        piece = piece.strip().replace(" ", "_")
+        if piece.endswith("_restaurant"):
+            piece = piece[: -len("_restaurant")]
+        if piece:
+            tokens.append(piece)
+            tokens.append(piece.replace("_", " "))
+    return tokens
+
+
+def region_from_address(
+    address: str | None,
+    *,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> str:
+    """Best-effort ISO-ish country code from an address string. 'unknown' if unsure."""
+    if not address:
+        return "unknown"
+    segments = [seg.strip() for seg in address.split(",") if seg.strip()]
+    if not segments:
+        return "unknown"
+
+    # Try the trailing segments as a country name first.
+    for seg in reversed(segments):
+        country = COUNTRY_ALIASES.get(seg.lower())
+        if country:
+            return country
+
+    # Fall back to a US state code in the last segment ("San Jose, CA 95129").
+    for token in re.split(r"\s+", segments[-1].upper()):
+        if token in _US_STATE_CODES:
+            return "US"
+    return "unknown"
+
+
+def labeling_trust_for_region(region: str) -> float:
+    return HIGH_LABELING_TRUST if region in HIGH_LABELING_COUNTRIES else LOW_LABELING_TRUST
+
+
+# --------------------------------------------------------------------------- #
+# Scoring
+# --------------------------------------------------------------------------- #
+def score_menu_item_prior(
+    *,
+    item_name: str | None,
+    description: str | None = None,
+    cuisines: list[str] | None = None,
+    region: str = "unknown",
+    allergen: str = NUTS,
+) -> AllergenPrior:
+    """Prior risk that a specific menu item involves ``allergen``.
+
+    Dish knowledge (specific) overrides the cuisine baseline (general); an
+    explicit nut-free claim lowers the prior.
+    """
+    wanted = _expand_allergen(allergen)
+    text = _normalize(f"{item_name or ''} {description or ''}")
+    trust = labeling_trust_for_region(region)
+
+    if any(pattern in text for pattern in NUT_FREE_PATTERNS):
+        return AllergenPrior(
+            allergen=allergen,
+            risk=0.08,
+            confidence=0.6,
+            basis="nut_free_claim",
+            rationale=["menu text states a nut-free claim (still verify directly)"],
+            labeling_trust=trust,
+        )
+
+    dish_match = _best_dish_match(text, wanted)
+    baseline = score_restaurant_prior(
+        cuisines=cuisines, region=region, allergen=allergen
+    )
+
+    if dish_match is not None:
+        risk, note = dish_match
+        # Authentic-region preparations are a little less likely to omit nuts.
+        risk = _apply_home_boost(risk, cuisines, region, weight=0.10)
+        rationale = [f"dish knowledge: {note}"]
+        if baseline.basis == "cuisine_baseline":
+            rationale.extend(baseline.rationale)
+        return AllergenPrior(
+            allergen=allergen,
+            risk=_clamp(risk),
+            confidence=0.8,
+            basis="dish_knowledge",
+            rationale=rationale,
+            labeling_trust=trust,
+        )
+
+    return baseline
+
+
+def score_restaurant_prior(
+    *,
+    cuisines: list[str] | None,
+    region: str = "unknown",
+    allergen: str = NUTS,
+) -> AllergenPrior:
+    """Cuisine x location prior — the fallback when no menu evidence exists."""
+    trust = labeling_trust_for_region(region)
+    if not cuisines:
+        return AllergenPrior(
+            allergen=allergen,
+            risk=DEFAULT_CUISINE_BASELINE,
+            confidence=0.25,
+            basis="default",
+            rationale=["no cuisine signal; using default baseline"],
+            labeling_trust=trust,
+        )
+
+    best_cuisine = max(
+        cuisines, key=lambda c: CUISINE_NUT_BASELINE.get(c, DEFAULT_CUISINE_BASELINE)
+    )
+    base = CUISINE_NUT_BASELINE.get(best_cuisine, DEFAULT_CUISINE_BASELINE)
+    boosted = _apply_home_boost(base, cuisines, region, weight=0.25)
+
+    rationale = [f"cuisine baseline: {best_cuisine} ({base:.2f})"]
+    if boosted > base + 1e-9:
+        rationale.append(f"served in home region ({region}); prevalence boosted")
+
+    return AllergenPrior(
+        allergen=allergen,
+        risk=_clamp(boosted),
+        confidence=0.4,
+        basis="cuisine_baseline",
+        rationale=rationale,
+        labeling_trust=trust,
+    )
+
+
+@dataclass(frozen=True)
+class RestaurantNutRisk:
+    risk: float
+    confidence: float
+    rationale: list[str]
+    labeling_trust: float
+    riskiest_items: list[tuple[str, float]]  # (item_name, risk), high to low
+
+
+def restaurant_nut_risk(
+    *,
+    cuisines: list[str] | None,
+    region: str = "unknown",
+    menu_items: list[dict[str, str]] | None = None,
+    allergen: str = NUTS,
+    risky_threshold: float = 0.5,
+) -> RestaurantNutRisk:
+    """Combine the cuisine/location prior with per-item dish priors.
+
+    The cuisine/location prior is the floor (works with no menu); known risky
+    dishes raise it. This is a prior summary, NOT a final safety verdict — the
+    menu-evidence stage should still refine it.
+    """
+    base = score_restaurant_prior(cuisines=cuisines, region=region, allergen=allergen)
+    item_scores: list[tuple[str, float]] = []
+    for item in menu_items or []:
+        prior = score_menu_item_prior(
+            item_name=item.get("item_name") or item.get("name"),
+            description=item.get("description"),
+            cuisines=cuisines,
+            region=region,
+            allergen=allergen,
+        )
+        name = (item.get("item_name") or item.get("name") or "").strip()
+        if name:
+            item_scores.append((name, prior.risk))
+
+    item_scores.sort(key=lambda pair: pair[1], reverse=True)
+    risky = [pair for pair in item_scores if pair[1] >= risky_threshold]
+
+    if item_scores:
+        top = item_scores[0][1]
+        risk = max(base.risk, top)
+        confidence = 0.8 if risky else 0.55
+        rationale = list(base.rationale)
+        if risky:
+            rationale.append(
+                f"{len(risky)} menu item(s) match known nut-risk dishes "
+                f"(e.g. {risky[0][0]})"
+            )
+        else:
+            rationale.append("no listed items matched known nut-risk dishes")
+    else:
+        risk, confidence, rationale = base.risk, base.confidence, list(base.rationale)
+        rationale.append("no menu items available; cuisine/location prior only")
+
+    return RestaurantNutRisk(
+        risk=_clamp(risk),
+        confidence=confidence,
+        rationale=rationale,
+        labeling_trust=base.labeling_trust,
+        riskiest_items=item_scores[:5],
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Helpers
+# --------------------------------------------------------------------------- #
+def _best_dish_match(text: str, wanted: set[str]) -> tuple[float, str] | None:
+    best: tuple[float, str] | None = None
+    for pattern, allergens, risk, note in DISH_NUT_KNOWLEDGE:
+        if not (allergens & wanted):
+            continue
+        if pattern in text:
+            if best is None or risk > best[0]:
+                best = (risk, note)
+    return best
+
+
+def _apply_home_boost(
+    risk: float, cuisines: list[str] | None, region: str, *, weight: float
+) -> float:
+    if region == "unknown" or not cuisines:
+        return risk
+    for cuisine in cuisines:
+        if region in CUISINE_HOME_REGIONS.get(cuisine, set()):
+            return _clamp(risk * (1.0 + weight))
+    return risk
+
+
+def _normalize(text: str) -> str:
+    return re.sub(r"\s+", " ", text.lower()).strip()
+
+
+def _clamp(value: float) -> float:
+    return max(0.0, min(0.97, value))

@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SafePlate — Allergy-aware dining</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── Design tokens ─── */
+    :root {
+      --page:    #F5F3EF;
+      --surface: #FFFFFF;
+      --border:  #E3DDD5;
+      --border2: #C9C2B8;
+
+      --tx:  #1A1714;
+      --tx2: #6A5F57;
+      --tx3: #A09088;
+
+      /* Brand */
+      --g0: #166534;   /* deep green */
+      --g1: #16A34A;   /* mid green  */
+      --g2: #22C55E;   /* vivid ring */
+      --gt: #DCFCE7;   /* tint       */
+
+      /* Risk text (readable on white) */
+      --lo: #15803D;  --md: #92400E;  --hi: #991B1B;
+      /* Risk ring (vivid) */
+      --rl: #22C55E;  --rm: #FBBF24;  --rh: #F87171;
+      /* Risk tint bg */
+      --tl: #F0FDF4;  --tm: #FFFBEB;  --th: #FEF2F2;
+      /* Risk border */
+      --bl: #BBF7D0;  --bm: #FDE68A;  --bh: #FECACA;
+
+      /* Elevation */
+      --e1: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+      --e2: 0 4px 16px -2px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.05);
+      --e3: 0 12px 36px -6px rgba(0,0,0,0.14), 0 3px 10px rgba(0,0,0,0.06);
+      --e4: 0 24px 64px -10px rgba(0,0,0,0.18), 0 6px 20px rgba(0,0,0,0.07);
+      --ed: -10px 0 44px -4px rgba(0,0,0,0.13);
+
+      --rXS: 8px;  --rS: 12px;  --rM: 16px;  --rL: 20px;  --rXL: 24px;  --pill: 999px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--page);
+      color: var(--tx);
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-size: 15px;
+      letter-spacing: -0.011em;
+    }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+    /* ─── Topbar ─── */
+    .topbar {
+      position: sticky; top: 0; z-index: 30;
+      background: rgba(255,255,255,0.86);
+      backdrop-filter: blur(20px) saturate(1.8);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-inner { display: flex; align-items: center; height: 60px; gap: 12px; }
+
+    .brand { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+    .brand-mark {
+      width: 30px; height: 30px; border-radius: 9px; flex: none;
+      background: linear-gradient(145deg, #15803D, #16A34A);
+      display: grid; place-items: center;
+      box-shadow: 0 3px 10px -2px rgba(21,128,61,0.5);
+    }
+    .brand-mark svg { width: 16px; height: 16px; }
+    .brand-name { font-weight: 800; font-size: 16.5px; letter-spacing: -0.035em; color: var(--tx); }
+    .brand-name em { font-style: normal; color: var(--g1); }
+
+    .topbar-pill {
+      margin-left: auto; display: flex; align-items: center; gap: 7px;
+      padding: 5px 11px; border-radius: var(--pill);
+      border: 1px solid var(--border); background: var(--surface);
+      font-size: 12px; font-weight: 500; color: var(--tx2);
+    }
+    .s-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex: none; }
+    .s-dot.live { background: var(--g2); box-shadow: 0 0 7px rgba(34,197,94,0.7); }
+
+    /* ─── Hero ─── */
+    .hero { padding: 58px 0 32px; text-align: center; position: relative; overflow: hidden; }
+    .hero::before {
+      content: ""; pointer-events: none; position: absolute;
+      width: 640px; height: 520px; border-radius: 50%; top: -220px; left: -180px;
+      background: radial-gradient(circle, rgba(22,163,74,0.11) 0%, transparent 68%);
+    }
+    .hero::after {
+      content: ""; pointer-events: none; position: absolute;
+      width: 520px; height: 420px; border-radius: 50%; top: -120px; right: -120px;
+      background: radial-gradient(circle, rgba(14,165,233,0.08) 0%, transparent 65%);
+    }
+
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 6px; position: relative; z-index: 1;
+      font-size: 11.5px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
+      color: var(--g0); padding: 5px 13px; border-radius: var(--pill);
+      border: 1.5px solid rgba(22,101,52,0.2); background: rgba(22,101,52,0.07);
+      margin-bottom: 22px;
+    }
+    .eyebrow-pip { width: 5px; height: 5px; border-radius: 50%; background: var(--g1); flex: none; }
+
+    h1 {
+      font-family: "Fraunces", Georgia, serif; font-weight: 700; position: relative; z-index: 1;
+      font-size: clamp(36px, 5.2vw, 62px); line-height: 1.01; letter-spacing: -0.027em;
+      margin-bottom: 16px;
+    }
+    h1 .grad {
+      background: linear-gradient(125deg, #15803D 5%, #0284C7 92%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero-sub {
+      font-size: 17px; color: var(--tx2); line-height: 1.6;
+      max-width: 470px; margin: 0 auto 28px; position: relative; z-index: 1;
+    }
+
+    /* ─── Search ─── */
+    .search-card {
+      max-width: 670px; margin: 0 auto; position: relative; z-index: 1;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--rXL); box-shadow: var(--e4); padding: 13px;
+    }
+    .search-row { display: flex; gap: 8px; }
+    .search-field {
+      flex: 1; display: flex; align-items: center; gap: 9px; padding: 0 14px;
+      background: var(--page); border: 1.5px solid var(--border); border-radius: var(--rM);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search-field:focus-within {
+      border-color: var(--g1);
+      box-shadow: 0 0 0 3px rgba(22,163,74,0.12);
+    }
+    .search-icon { width: 17px; height: 17px; color: var(--tx3); flex: none; }
+    .search-input {
+      flex: 1; background: none; border: none; outline: none; font-family: inherit;
+      font-size: 15px; color: var(--tx); padding: 14px 0;
+    }
+    .search-input::placeholder { color: var(--tx3); }
+
+    .geo-btn {
+      width: 50px; height: 50px; flex: none; background: var(--page);
+      border: 1.5px solid var(--border); border-radius: var(--rM); cursor: pointer;
+      display: grid; place-items: center; color: var(--tx2); transition: all .15s;
+    }
+    .geo-btn:hover { background: var(--surface); border-color: var(--border2); color: var(--tx); }
+    .geo-btn:disabled { opacity: .38; cursor: default; }
+    .geo-btn svg { width: 17px; height: 17px; }
+
+    .go-btn {
+      padding: 0 20px; height: 50px; border: none; cursor: pointer;
+      background: linear-gradient(145deg, #16A34A, #15803D);
+      color: #fff; font-family: inherit; font-size: 14.5px; font-weight: 700;
+      border-radius: var(--rM); white-space: nowrap;
+      box-shadow: 0 4px 16px -4px rgba(21,128,61,0.52);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .go-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px -4px rgba(21,128,61,0.52); }
+    .go-btn:active { transform: none; }
+    .go-btn:disabled { opacity: .42; cursor: default; transform: none; box-shadow: none; }
+
+    .allergen-row {
+      display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+      margin-top: 11px; padding: 0 2px;
+    }
+    .allergen-label { font-size: 12px; font-weight: 600; color: var(--tx3); }
+    .allergen-chip {
+      font-size: 12.5px; font-weight: 500; padding: 5px 12px; border-radius: var(--pill);
+      border: 1.5px solid var(--border); background: var(--surface); color: var(--tx2);
+      cursor: pointer; user-select: none; transition: all .15s;
+    }
+    .allergen-chip.on {
+      border-color: var(--g1); background: var(--gt); color: var(--g0); font-weight: 600;
+    }
+    .allergen-chip.locked { opacity: .32; cursor: not-allowed; }
+    .cc-hint { font-size: 11px; color: var(--tx3); cursor: help; opacity: .7; }
+
+    /* ─── Results bar ─── */
+    .results { padding: 0 0 80px; }
+    .results.hidden { display: none; }
+    .results-bar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin: 22px 0 14px;
+    }
+    .results-title { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+    .results-where { font-size: 13.5px; color: var(--tx2); }
+    .sort-row { margin-left: auto; display: flex; gap: 3px; }
+    .sort-btn {
+      font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 9px;
+      cursor: pointer; font-family: inherit;
+      border: 1.5px solid var(--border); background: var(--surface); color: var(--tx2);
+      transition: all .15s;
+    }
+    .sort-btn.on { background: var(--tx); border-color: var(--tx); color: #fff; }
+
+    /* ─── Card grid ─── */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(334px, 1fr)); gap: 12px; }
+
+    .rcard {
+      display: flex; background: var(--surface); border-radius: var(--rL);
+      border: 1.5px solid var(--border); box-shadow: var(--e1); overflow: hidden;
+      cursor: pointer; opacity: 0; transform: translateY(10px);
+      animation: riseIn .36s forwards;
+      transition: transform .2s ease, box-shadow .2s ease, border-color .2s;
+    }
+    @keyframes riseIn { to { opacity: 1; transform: none; } }
+    .rcard:hover { transform: translateY(-2px); box-shadow: var(--e3); border-color: var(--border2); }
+
+    .card-stripe { width: 5px; flex: none; }
+    .card-body   { flex: 1; padding: 17px 17px 15px; display: flex; gap: 13px; min-width: 0; }
+    .card-info   { flex: 1; min-width: 0; }
+
+    .card-name {
+      font-size: 15.5px; font-weight: 700; letter-spacing: -0.015em;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px;
+    }
+    .card-meta {
+      font-size: 12.5px; color: var(--tx2);
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .meta-sep { color: var(--border2); }
+    .star { color: #FBBF24; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+    .ctag {
+      font-size: 11.5px; font-weight: 500; padding: 3px 8px; border-radius: 7px;
+      background: var(--page); border: 1px solid var(--border); color: var(--tx2);
+    }
+    .card-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 9px; }
+    .cbadge {
+      font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: var(--pill);
+      border: 1.5px solid var(--border); color: var(--tx2); background: var(--page);
+    }
+    .cbadge.menu   { color: var(--g0); border-color: rgba(22,101,52,0.28); background: rgba(22,101,52,0.07); }
+    .cbadge.nomenu { color: var(--md); border-color: rgba(146,64,14,0.22); background: rgba(146,64,14,0.07); }
+    .cbadge.live   { color: #2563EB;   border-color: rgba(37,99,235,0.22);  background: rgba(37,99,235,0.06); }
+
+    .card-risk {
+      display: flex; flex-direction: column; align-items: center; flex: none; padding-top: 1px;
+    }
+    .risk-word {
+      font-size: 10.5px; font-weight: 700; text-align: center;
+      text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;
+    }
+    .risk-conf { font-size: 10px; color: var(--tx3); text-align: center; margin-top: 1px; }
+
+    /* ─── Ring ─── */
+    .ring { position: relative; flex: none; }
+    .ring svg { transform: rotate(-90deg); display: block; }
+    .ring-mid { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    .ring-num {
+      font-size: 17px; font-weight: 800; letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums; line-height: 1;
+    }
+
+    /* ─── Drawer ─── */
+    .scrim {
+      position: fixed; inset: 0; background: rgba(8,8,8,0.32);
+      opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 40;
+    }
+    .scrim.open { opacity: 1; pointer-events: auto; }
+    .drawer {
+      position: fixed; top: 0; right: 0; height: 100vh; width: min(560px, 96vw);
+      z-index: 50; background: var(--surface); display: flex; flex-direction: column;
+      border-left: 1.5px solid var(--border);
+      transform: translateX(100%); transition: transform .3s cubic-bezier(.22,.9,.22,1);
+      box-shadow: var(--ed);
+    }
+    .drawer.open { transform: none; }
+
+    .d-head {
+      flex: none; padding: 20px 22px 16px; border-bottom: 1.5px solid var(--border);
+      background: var(--surface); position: relative;
+    }
+    .d-close {
+      position: absolute; top: 16px; right: 16px; width: 32px; height: 32px;
+      border-radius: var(--rXS); border: 1.5px solid var(--border);
+      background: var(--page); color: var(--tx2); cursor: pointer;
+      display: grid; place-items: center; font-size: 15px; transition: all .15s;
+    }
+    .d-close:hover { background: var(--surface); border-color: var(--border2); color: var(--tx); }
+    .d-name { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; padding-right: 44px; margin-bottom: 3px; }
+    .d-addr { font-size: 13px; color: var(--tx2); }
+
+    .d-body { flex: 1; overflow-y: auto; background: var(--page); }
+
+    /* Drawer sections */
+    .ds { padding: 16px 22px 0; }
+    .ds:last-child { padding-bottom: 48px; }
+
+    .sec-head {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.13em;
+      color: var(--tx3); margin-bottom: 10px;
+    }
+
+    /* Verdict */
+    .verdict {
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--rL); padding: 16px 17px;
+      box-shadow: var(--e1); display: flex; gap: 15px; align-items: flex-start;
+    }
+    .verdict-body { flex: 1; min-width: 0; }
+    .verdict-label { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .verdict-rationale { font-size: 13px; color: var(--tx2); line-height: 1.5; }
+    .verdict-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+
+    /* Awareness chips */
+    .sig-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sig-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12.5px; font-weight: 500; padding: 6px 11px; border-radius: var(--pill);
+      border: 1.5px solid var(--border); background: var(--surface); color: var(--tx2);
+    }
+    .sig-chip.yes { color: var(--g0); border-color: rgba(22,101,52,0.3); background: rgba(22,101,52,0.07); }
+    .sig-pip { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex: none; }
+    .sig-chip.yes .sig-pip { background: var(--g2); }
+
+    /* Riskiest items */
+    .warning-box {
+      background: var(--th); border: 1.5px solid var(--bh);
+      border-radius: var(--rM); padding: 13px 15px;
+    }
+    .warning-head {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 13px; font-weight: 700; color: var(--hi); margin-bottom: 8px;
+    }
+    .warning-head svg { flex: none; }
+    .risky-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 0; font-size: 13px;
+    }
+    .risky-name { color: var(--tx); font-weight: 500; flex: 1; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 12px; }
+    .risky-pct { font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+    /* Menu items */
+    .menu-cat {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--tx3); margin: 14px 0 7px;
+    }
+    .menu-cat:first-child { margin-top: 0; }
+    .mitem { padding: 11px 0; border-bottom: 1px solid var(--border); }
+    .mitem:last-child { border-bottom: none; }
+    .mi-row { display: flex; align-items: baseline; gap: 8px; }
+    .mi-name { font-size: 13.5px; font-weight: 600; flex: 1; }
+    .mi-name.danger { color: var(--hi); }
+    .mi-price { font-size: 13px; color: var(--tx2); white-space: nowrap; }
+    .mi-desc { font-size: 12.5px; color: var(--tx3); margin-top: 2px; line-height: 1.4; }
+    .mi-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .mchip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+    .mchip-nut   { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+    .mchip-other { background: #FEF9C3; color: #854D0E; border: 1px solid #FEF08A; }
+    .mchip-diet  { background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; }
+
+    /* States */
+    .spinner-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 36px 20px; gap: 12px; color: var(--tx2);
+    }
+    .spinner {
+      width: 24px; height: 24px; border-radius: 50%;
+      border: 2.5px solid var(--border); border-top-color: var(--g1);
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-label { font-size: 13.5px; }
+
+    .empty-msg {
+      text-align: center; color: var(--tx2); padding: 40px 20px;
+    }
+    .empty-msg svg { margin-bottom: 10px; }
+    .empty-msg p { font-size: 13.5px; line-height: 1.55; }
+
+    /* Skeleton cards */
+    .skel {
+      display: flex; background: var(--surface); border-radius: var(--rL);
+      border: 1.5px solid var(--border); height: 148px; overflow: hidden;
+    }
+    .skel-stripe { width: 5px; flex: none; background: linear-gradient(var(--border), var(--border2)); }
+    .skel-body { flex: 1; padding: 17px; overflow: hidden; position: relative; }
+    .skel-body::after {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 25%, rgba(0,0,0,0.035) 50%, transparent 75%);
+      background-size: 200% 100%; animation: shimmer 1.5s ease infinite;
+    }
+    @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    .skel-line { height: 12px; border-radius: 5px; background: var(--border); }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 22px; left: 50%; z-index: 60;
+      transform: translateX(-50%) translateY(14px); opacity: 0; pointer-events: none;
+      background: var(--tx); color: #fff; padding: 11px 17px; border-radius: 12px;
+      font-size: 14px; font-weight: 500; box-shadow: var(--e3);
+      white-space: nowrap; transition: all .22s ease;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%); }
+    .toast.err  { background: var(--hi); }
+
+    .disclaimer {
+      text-align: center; color: var(--tx3); font-size: 12px; line-height: 1.6;
+      margin: 30px auto 0; max-width: 480px; padding: 0 8px;
+    }
+
+    @media (max-width: 540px) {
+      .search-row { flex-direction: column; }
+      .go-btn { height: 48px; }
+      .geo-btn { width: 100%; height: 44px; }
+      h1 { font-size: 34px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 21s-7-4.5-7-10a7 7 0 0 1 14 0c0 5.5-7 10-7 10Z" fill="rgba(255,255,255,0.18)"/>
+          <path d="M9.5 11.5l1.8 1.8 3.4-3.6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="brand-name">Safe<em>Plate</em></span>
+    </a>
+    <div class="topbar-pill">
+      <span class="s-dot" id="cfgDot"></span>
+      <span id="cfgText">Connecting…</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <div class="eyebrow"><span class="eyebrow-pip"></span>Allergy-aware dining</div>
+    <h1>Eat out without<br/><span class="grad">the guesswork</span>.</h1>
+    <p class="hero-sub">Find restaurants near you ranked by how likely their menu involves nuts — built from real menu evidence, cuisine, and location.</p>
+
+    <div class="search-card">
+      <div class="search-row">
+        <label class="search-field">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11Z" stroke="currentColor" stroke-width="1.7"/>
+            <circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.7"/>
+          </svg>
+          <input id="loc" class="search-input" placeholder="City, neighbourhood, or address" autocomplete="off" />
+        </label>
+        <button class="geo-btn" id="geoBtn" aria-label="Use my location">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.7"/>
+            <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="go-btn" id="goBtn">Find safe places</button>
+      </div>
+      <div class="allergen-row">
+        <span class="allergen-label">Avoiding</span>
+        <span class="allergen-chip on">🥜 Tree nuts &amp; peanuts</span>
+        <span class="allergen-chip locked" title="Coming soon">Sesame</span>
+        <span class="allergen-chip locked" title="Coming soon">Dairy</span>
+        <span class="allergen-chip locked" title="Coming soon">Gluten</span>
+      </div>
+      <div class="allergen-row">
+        <span class="allergen-label">How serious</span>
+        <span class="allergen-chip sev" data-sev="avoid_preference" style="cursor:pointer">Preference</span>
+        <span class="allergen-chip sev" data-sev="intolerance" style="cursor:pointer">Intolerance</span>
+        <span class="allergen-chip sev on" data-sev="allergy" style="cursor:pointer">Allergy</span>
+        <span class="allergen-chip sev" data-sev="anaphylaxis" style="cursor:pointer">Anaphylaxis</span>
+      </div>
+      <div class="allergen-row">
+        <span class="allergen-label">Cross-contact
+          <span class="cc-hint" title="How much trace / shared-kitchen exposure matters to you — separate from how serious a reaction is. Defaults to your severity; tap to override.">ⓘ</span>
+        </span>
+        <span class="allergen-chip cc" data-cc="not_concerned" style="cursor:pointer">Not a concern</span>
+        <span class="allergen-chip cc" data-cc="moderate" style="cursor:pointer">Somewhat careful</span>
+        <span class="allergen-chip cc" data-cc="strict" style="cursor:pointer">Very careful</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="results hidden" id="results">
+    <div class="results-bar">
+      <span class="results-title" id="resCount"></span>
+      <span class="results-where" id="resWhere"></span>
+      <div class="sort-row">
+        <button class="sort-btn on" data-sort="risk">Safest first</button>
+        <button class="sort-btn" data-sort="distance">Nearest</button>
+        <button class="sort-btn" data-sort="rating">Top rated</button>
+      </div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <p class="disclaimer">SafePlate estimates risk from menu evidence, cuisine, and location — not a medical guarantee. Always confirm with the restaurant before ordering with a serious allergy.</p>
+  </section>
+</main>
+
+<!-- Drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="d-head">
+    <button class="d-close" id="dclose" aria-label="Close">✕</button>
+    <div class="d-name" id="dName"></div>
+    <div class="d-addr" id="dAddr"></div>
+  </div>
+  <div class="d-body" id="dBody"></div>
+</aside>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ── utilities ── */
+const $  = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cap = s => { s = String(s||"").replace(/_/g," "); return s.charAt(0).toUpperCase()+s.slice(1); };
+const asList = v => Array.isArray(v) ? v : v ? String(v).split(";").map(x=>x.trim()).filter(Boolean) : [];
+const isNut  = t => /nut|peanut|almond|cashew|walnut|pecan|pistachio|hazelnut|pine|macadamia|praline|nutella|gianduja/i.test(t);
+const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", demoMode:false, defaultDemoLocation:"" };
+
+/* Cross-contact defaults to a severity-derived level until the user overrides it
+   (mirrors _CC_DEFAULT_BY_SEVERITY server-side). state.crossContact "" == auto. */
+const CC_DEFAULT_BY_SEV = { avoid_preference:"not_concerned", intolerance:"moderate", allergy:"moderate", anaphylaxis:"strict" };
+function effectiveCC() { return state.crossContact || CC_DEFAULT_BY_SEV[state.severity] || "moderate"; }
+function paintCC() {
+  const eff = effectiveCC();
+  document.querySelectorAll(".allergen-chip.cc").forEach(x => x.classList.toggle("on", x.dataset.cc === eff));
+}
+
+/* ── risk helpers ── */
+function band(r)       { return r < 0.30 ? "lo" : r < 0.55 ? "md" : "hi"; }
+function ringClr(r)    { return {"lo":"var(--rl)","md":"var(--rm)","hi":"var(--rh)"}[band(r)]; }
+function textClr(r)    { return {"lo":"var(--lo)","md":"var(--md)","hi":"var(--hi)"}[band(r)]; }
+function stripeClr(r)  { return ringClr(r); }
+function riskWord(r)   { return {"lo":"Lower risk","md":"Moderate risk","hi":"Higher risk"}[band(r)]; }
+
+/* ── ring SVG ── */
+function ring(risk, px) {
+  const R = px * 0.395, C = 2*Math.PI*R, off = C*(1-risk);
+  return `<div class="ring" style="width:${px}px;height:${px}px">
+    <svg width="${px}" height="${px}">
+      <circle cx="${px/2}" cy="${px/2}" r="${R}" stroke="#EAE5DF" stroke-width="5.5" fill="none"/>
+      <circle cx="${px/2}" cy="${px/2}" r="${R}" stroke="${ringClr(risk)}" stroke-width="5.5" fill="none"
+        stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
+        style="transition:stroke-dashoffset .65s ease"/>
+    </svg>
+    <div class="ring-mid"><span class="ring-num" style="color:${textClr(risk)}">${Math.round(risk*100)}</span></div>
+  </div>`;
+}
+
+/* ── badge helpers ── */
+function covLabel(s) { return s==="menu_backed"?"Menu-backed":s==="no_menu_found"?"No online menu":"Cuisine estimate"; }
+function covClass(s) { return s==="menu_backed"?"menu":s==="no_menu_found"?"nomenu":""; }
+function cbadge(label,cls) { return `<span class="cbadge ${cls||""}">${esc(label)}</span>`; }
+
+/* ── config ── */
+async function loadConfig() {
+  try {
+    const c = await (await fetch("/api/config")).json();
+    state.demoMode = !!c.demoMode;
+    state.defaultDemoLocation = c.defaultDemoLocation || "";
+    if (state.demoMode && !$("#loc").value) $("#loc").value = state.defaultDemoLocation;
+    const ok = c.googleConfigured || c.geoapifyConfigured;
+    $("#cfgDot").classList.toggle("live", ok || state.demoMode);
+    $("#cfgText").textContent = state.demoMode ? "Demo mode"
+      : ok ? (c.googleConfigured ? "Google Places" : "Geoapify")
+      : "OpenStreetMap";
+  } catch { $("#cfgText").textContent = "Offline"; }
+}
+
+/* ── toast ── */
+function toast(msg, err) {
+  const t = $("#toast");
+  t.textContent = msg; t.className = "toast show"+(err?" err":"");
+  clearTimeout(t._t); t._t = setTimeout(()=>t.className="toast", 3200);
+}
+
+/* ── search ── */
+async function search(opts={}) {
+  const loc = $("#loc").value.trim();
+  const hasCoords = opts.latitude != null && opts.longitude != null;
+  if (!loc && !hasCoords) { toast("Enter a location first", true); return; }
+  const btn = $("#goBtn"); btn.disabled=true; btn.textContent="Reading menus…";
+  $("#results").classList.remove("hidden");
+  $("#grid").innerHTML = Array.from({length:6}).map(()=>`
+    <div class="skel">
+      <div class="skel-stripe"></div>
+      <div class="skel-body">
+        <div class="skel-line" style="width:58%;margin-bottom:10px"></div>
+        <div class="skel-line" style="width:38%;margin-bottom:18px"></div>
+        <div class="skel-line" style="width:28%"></div>
+      </div>
+    </div>`).join("");
+  try {
+    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact };
+    if (hasCoords) { req.location = opts.location||"Current location"; req.latitude=opts.latitude; req.longitude=opts.longitude; }
+    else { req.location = loc; }
+    const data = await (await fetch("/api/search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(req)})).json();
+    if (data.error) throw new Error(data.error);
+    state.rows = (data.rows||[]).filter(r=>r.name);
+    state.where = data.location || req.location || loc;
+    renderResults();
+  } catch(e) {
+    toast(e.message||"Search failed",true);
+    $("#grid").innerHTML = `<div class="empty-msg" style="grid-column:1/-1">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" color="currentColor">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <p>Could not load places.<br/>Try a different location.</p>
+    </div>`;
+  } finally { btn.disabled=false; btn.textContent="Find safe places"; }
+}
+
+/* ── geo ── */
+function useBrowserLocation() {
+  if (!navigator.geolocation) { toast("Browser location not available",true); return; }
+  const btn = $("#geoBtn"); btn.disabled=true;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      btn.disabled=false;
+      $("#loc").value="Current location";
+      search({location:"Current location",latitude:pos.coords.latitude,longitude:pos.coords.longitude});
+    },
+    () => { btn.disabled=false; toast("Location blocked — check browser settings",true); },
+    {enableHighAccuracy:false,timeout:10000,maximumAge:300000}
+  );
+}
+
+/* ── sort & render cards ── */
+function sortRows(rows) {
+  return [...rows].sort((a,b)=>{
+    if (state.sort==="risk")     return (a.allergenPrior?.risk??1)-(b.allergenPrior?.risk??1);
+    if (state.sort==="distance") return (a.distance_meters??9e9)-(b.distance_meters??9e9);
+    if (state.sort==="rating")   return (b.rating??0)-(a.rating??0);
+    return 0;
+  });
+}
+
+function renderResults() {
+  const rows = sortRows(state.rows);
+  const n = rows.length;
+  $("#resCount").textContent = `${n} place${n!==1?"s":""}`;
+  $("#resWhere").textContent = state.where ? `near ${state.where}` : "";
+  if (!n) {
+    $("#grid").innerHTML = `<div class="empty-msg" style="grid-column:1/-1"><p>No restaurants found here.</p></div>`;
+    return;
+  }
+  $("#grid").innerHTML = rows.map((r,i) => {
+    const p = r.allergenPrior||{risk:0.3};
+    const risk = p.risk;
+    const coverage = r.coverageStatus||(r.menuBackedRisk?.isMenuBacked?"menu_backed":"cuisine_estimate");
+    const cz = (p.cuisines?.length?p.cuisines:(r.categories||[]).map(c=>c.split(":").pop())).slice(0,2);
+    const dist = r.distance_meters
+      ? (r.distance_meters<1000?Math.round(r.distance_meters)+" m":(r.distance_meters/1000).toFixed(1)+" km")
+      : "";
+    const conf = p.confidence!=null?Math.round(p.confidence*100)+"%":"";
+    const metaParts=[];
+    if (r.rating) metaParts.push(`<span class="star">★</span> ${r.rating}${r.review_count?` (${r.review_count})`:""}`);
+    if (dist) metaParts.push(dist);
+    return `<article class="rcard" style="animation-delay:${i*32}ms" data-i="${state.rows.indexOf(r)}">
+      <div class="card-stripe" style="background:${stripeClr(risk)}"></div>
+      <div class="card-body">
+        <div class="card-info">
+          <div class="card-name">${esc(r.name)}</div>
+          <div class="card-meta">${metaParts.join('<span class="meta-sep">·</span>')}</div>
+          <div class="card-tags">${cz.map(c=>`<span class="ctag">${esc(cap(c))}</span>`).join("")}</div>
+          <div class="card-badges">
+            ${p.tier?`<span class="cbadge" style="border-color:${textClr(risk)};color:${textClr(risk)}">${({likely_ok:"Likely OK",caution:"Caution",avoid:"Avoid"}[p.tier])||""}</span>`:""}
+            ${cbadge(covLabel(coverage),covClass(coverage))}
+            ${state.demoMode?cbadge("Demo","live"):""}
+          </div>
+        </div>
+        <div class="card-risk">
+          ${ring(risk,56)}
+          <div class="risk-word" style="color:${textClr(risk)}">${riskWord(risk)}</div>
+          ${conf?`<div class="risk-conf">${conf} conf.</div>`:""}
+        </div>
+      </div>
+    </article>`;
+  }).join("");
+  document.querySelectorAll(".rcard").forEach(el=>el.onclick=()=>openDetail(state.rows[+el.dataset.i]));
+}
+
+/* ── drawer ── */
+function riskForRow(r) {
+  return r.menuBackedRisk||r.allergenPrior||{risk:0.3,confidence:0.25,rationale:["Estimated from cuisine and location."]};
+}
+
+function verdictHtml(risk, coverage) {
+  const v = risk?.risk??0.3;
+  const rationale = asList(risk?.rationale).join(" ")||"Estimated from cuisine and location.";
+  const conf = risk?.confidence!=null?Math.round(risk.confidence*100)+"% confidence":"";
+  const trust = (risk?.labelingTrust??0)>=0.6?"Strong allergen labeling":"Limited allergen labeling";
+  const tierLbl = {avoid:"Avoid",caution:"Caution",likely_ok:"Likely OK"}[risk?.tier]||"";
+  return `<div class="verdict" id="riskVerdict">
+    ${ring(v,68)}
+    <div class="verdict-body">
+      <div class="verdict-label" style="color:${textClr(v)}">${riskWord(v)} for nuts</div>
+      <div class="verdict-rationale">${esc(rationale)} ${esc(trust)} in this area.</div>
+      <div class="verdict-badges">
+        ${tierLbl?`<span class="cbadge" style="border-color:${textClr(v)};color:${textClr(v)}">${esc(tierLbl)}</span>`:""}
+        ${cbadge(covLabel(coverage),covClass(coverage))}
+        ${conf?cbadge(conf,""):""}
+      </div>
+    </div>
+  </div>`;
+}
+
+let _menuSeq = 0;             // monotonic id of the latest drawer open
+const _menuCache = new Map(); // memoize /api/menu by restaurant + preferences
+
+async function openDetail(r) {
+  $("#dName").textContent = r.name;
+  $("#dAddr").textContent = r.address||"";
+  const drawer = $("#drawer");
+  drawer.setAttribute("aria-hidden","false");
+  $("#scrim").classList.add("open");
+  drawer.classList.add("open");
+  const riskData = riskForRow(r);
+  const coverage = r.coverageStatus||"cuisine_estimate";
+  $("#dBody").innerHTML = `
+    <div class="ds">${verdictHtml(riskData,coverage)}</div>
+    <div class="ds" id="menuZone">
+      <div class="spinner-wrap"><div class="spinner"></div><div class="spinner-label">Reading the menu…</div></div>
+    </div>`;
+  // Race guard: only the most recent open may render, so a slow earlier fetch can't
+  // overwrite a newer drawer. Memo: same restaurant + same preferences -> instant.
+  const seq = ++_menuSeq;
+  // Instant path: the search already extracted this restaurant and embedded the full
+  // menu in the card -> render with NO /api/menu round-trip (no spinner, no re-read).
+  if (r.menuDetail) { renderMenu(r.menuDetail, r); return; }
+  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact].join("|");
+  try {
+    let m = _menuCache.get(key);
+    if (!m) {
+      m = await (await fetch("/api/menu",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact})
+      })).json();
+      if (!m.error) _menuCache.set(key, m);  // don't memoize errors -> allow retry
+    }
+    if (seq !== _menuSeq) return;            // a newer open superseded this one
+    renderMenu(m,r);
+  } catch {
+    if (seq !== _menuSeq) return;
+    $("#menuZone").innerHTML=`<div class="empty-msg"><p>Couldn't load the menu.</p></div>`;
+  }
+}
+
+function renderMenu(m,r) {
+  const items   = m.menuItems||[];
+  const summary = m.summary||{};
+  const menuRisk= summary.menuBackedRisk;
+
+  if (menuRisk) {
+    r.menuBackedRisk = menuRisk;
+    r.coverageStatus = summary.coverageStatus||(menuRisk.isMenuBacked?"menu_backed":"cuisine_estimate");
+    const v = $("#riskVerdict");
+    if (v) v.outerHTML = verdictHtml(menuRisk,r.coverageStatus);
+  }
+
+  const sig = summary.restaurantSignals||{};
+  const coverage = summary.coverageStatus||r.coverageStatus||"cuisine_estimate";
+  const riskiestItems = (menuRisk?.riskiestItems||[]).filter(x=>x.risk>0.15).slice(0,5);
+  const nutItems = items.filter(it=>asList(it.allergen_terms).some(isNut));
+
+  let html = "";
+
+  /* awareness signals */
+  const sigDefs = [
+    ["Allergy disclaimer",      sig.has_allergy_disclaimer],
+    ["Cross-contact warning",    sig.has_cross_contact_warning],
+    ["Staff allergy protocol",   sig.mentions_staff_allergy_instruction],
+    ["Nut-free claim",           sig.has_nut_free_claim],
+  ].filter(([,v])=>v!==undefined);
+  if (sigDefs.length) {
+    html += `<div class="ds">
+      <div class="sec-head">Allergy awareness</div>
+      <div class="sig-row">
+        ${sigDefs.map(([lbl,val])=>`<span class="sig-chip${val?" yes":""}">
+          <span class="sig-pip"></span>${esc(lbl)}
+        </span>`).join("")}
+      </div>
+    </div>`;
+  }
+
+  /* allergy notes — grounded quotes from the restaurant's allergy pages (v2) */
+  const allergyQuotes = [...new Set((m.allergySignals||[]).flatMap(s=>asList(s.statements)))].slice(0,4);
+  if (allergyQuotes.length) {
+    html += `<div class="ds">
+      <div class="sec-head">What they say about allergies</div>
+      ${allergyQuotes.map(q=>`<div class="mi-desc" style="margin:6px 0 0">“${esc(q)}”</div>`).join("")}
+    </div>`;
+  }
+
+  /* community notes — what diners report about allergies (web search, Tier C) */
+  const communityQuotes = [...new Set(m.communityQuotes||[])].slice(0,3);
+  if (communityQuotes.length) {
+    html += `<div class="ds">
+      <div class="sec-head">What diners report</div>
+      ${communityQuotes.map(q=>`<div class="mi-desc" style="margin:6px 0 0">“${esc(q)}” <span style="opacity:.55">— from reviews</span></div>`).join("")}
+    </div>`;
+  }
+
+  /* riskiest items banner */
+  if (riskiestItems.length) {
+    html += `<div class="ds">
+      <div class="warning-box">
+        <div class="warning-head">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          ${riskiestItems.length} item${riskiestItems.length>1?"s":""} likely contain nuts
+        </div>
+        ${riskiestItems.map(it=>`<div class="risky-row">
+          <span class="risky-name">${esc(it.itemName)}</span>
+          <span class="risky-pct" style="color:${textClr(it.risk)}">${Math.round(it.risk*100)}%</span>
+        </div>`).join("")}
+      </div>
+    </div>`;
+  } else if (!riskiestItems.length && nutItems.length) {
+    html += `<div class="ds">
+      <div class="warning-box">
+        <div class="warning-head">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          ${nutItems.length} menu item${nutItems.length>1?"s":""} mention nuts
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /* menu items */
+  html += `<div class="ds">
+    <div class="sec-head">Menu${items.length?` · ${items.length} items`:""}</div>`;
+
+  if (!items.length) {
+    html += `<div class="empty-msg" style="padding:24px 0">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" color="currentColor">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M8 7h8M8 11h5M8 15h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <p>No machine-readable menu found.<br/>Risk above is from cuisine &amp; location — call ahead to confirm.</p>
+    </div>`;
+  } else {
+    /* group by category */
+    const byCategory = {};
+    items.slice(0,80).forEach(it => {
+      const cat = cap(it.category||"Other");
+      (byCategory[cat] = byCategory[cat]||[]).push(it);
+    });
+    const cats = Object.keys(byCategory);
+    const showCatHeaders = cats.length > 1;
+    html += cats.map(cat => {
+      const catItems = byCategory[cat];
+      return (showCatHeaders?`<div class="menu-cat">${esc(cat)}</div>`:"") +
+        catItems.map(it => {
+          const al = asList(it.allergen_terms), di = asList(it.dietary_terms);
+          const hasNut = al.some(isNut);
+          const chips = al.map(a=>`<span class="mchip ${isNut(a)?"mchip-nut":"mchip-other"}">${esc(a)}</span>`).join("")
+            + di.map(d=>`<span class="mchip mchip-diet">${esc(d)}</span>`).join("");
+          return `<div class="mitem">
+            <div class="mi-row">
+              <span class="mi-name${hasNut?" danger":""}">${esc(it.item_name||"")}</span>
+              ${it.price?`<span class="mi-price">${esc(it.price)}</span>`:""}
+            </div>
+            ${it.description?`<div class="mi-desc">${esc(it.description)}</div>`:""}
+            ${chips?`<div class="mi-chips">${chips}</div>`:""}
+          </div>`;
+        }).join("");
+    }).join("");
+  }
+  html += `</div>`; /* close menu ds */
+
+  /* extra coverage badges */
+  const extras=[];
+  const ebMap={allergen_matrix:"Based on allergen chart",menu_evidence:"Based on menu text",
+               restaurant_signal:"Based on allergy page",dish_prior:"Cuisine estimate",cuisine_prior:"Cuisine estimate"};
+  if (summary.evidenceBasis && ebMap[summary.evidenceBasis]) extras.push(cbadge(ebMap[summary.evidenceBasis],""));
+  if (summary.braveFallbackUsed) extras.push(cbadge("Brave search used","live"));
+  if (summary.geminiValidationEnabled) extras.push(cbadge("Gemini validation","live"));
+  if (extras.length) html += `<div class="ds"><div class="card-badges">${extras.join("")}</div></div>`;
+
+  $("#menuZone").outerHTML = html;
+}
+
+/* ── drawer close ── */
+function closeDrawer() {
+  const d = $("#drawer");
+  d.classList.remove("open"); d.setAttribute("aria-hidden","true");
+  $("#scrim").classList.remove("open");
+}
+
+/* ── events ── */
+$("#goBtn").onclick  = () => search();
+$("#geoBtn").onclick = useBrowserLocation;
+$("#loc").addEventListener("keydown", e => { if (e.key==="Enter") search(); });
+$("#dclose").onclick = closeDrawer;
+document.querySelectorAll(".allergen-chip.sev").forEach(el => el.onclick = () => {
+  document.querySelectorAll(".allergen-chip.sev").forEach(x => x.classList.remove("on"));
+  el.classList.add("on");
+  state.severity = el.dataset.sev;
+  paintCC();                         // auto cross-contact follows severity
+  if (state.rows.length) search();   // re-rank the list for the new severity
+});
+document.querySelectorAll(".allergen-chip.cc").forEach(el => el.onclick = () => {
+  state.crossContact = el.dataset.cc;  // explicit override, decoupled from severity
+  paintCC();
+  if (state.rows.length) search();
+});
+paintCC();  // highlight the severity-derived default on load
+$("#scrim").onclick  = closeDrawer;
+document.addEventListener("keydown", e => { if (e.key==="Escape") closeDrawer(); });
+document.querySelectorAll(".sort-btn").forEach(b => b.onclick=()=>{
+  document.querySelectorAll(".sort-btn").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); state.sort=b.dataset.sort; renderResults();
+});
+
+loadConfig();
+</script>
+</body>
+</html>

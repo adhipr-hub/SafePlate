@@ -1,0 +1,2 @@
+"""SafePlate data collection package."""
+

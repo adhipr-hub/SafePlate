@@ -1,0 +1,10 @@
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+requests>=2.31.0
+pypdf>=4.0.0
+pdfplumber>=0.11.0
+
+# Optional: headless-browser rendering for JavaScript menus (fetch_mode=dynamic).
+# playwright>=1.40.0
+# Optional: render allergen-matrix PDFs to images for Gemini vision extraction.
+# pypdfium2>=4.0.0
