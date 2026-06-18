@@ -20,7 +20,6 @@ def _brave_results(*texts):
 
 class CommunitySignalsTests(unittest.TestCase):
     def setUp(self):
-        # Isolate the on-disk cache to a throwaway dir per test.
         import tempfile
         from pathlib import Path
         self._tmp = tempfile.mkdtemp()
@@ -35,33 +34,51 @@ class CommunitySignalsTests(unittest.TestCase):
         illm._call_with_retry = self._orig_llm
 
     def test_grounded_handling_and_dishes(self):
-        snippet = "Amazing with my nut allergy and the Cashew Chicken is incredible"
+        # On-topic snippet (names the restaurant) -> classified.
+        snippet = "Golden Diner is amazing with my nut allergy and the Cashew Chicken is incredible"
         brave.brave_web_search = lambda **k: _brave_results(snippet)
         illm._call_with_retry = lambda *a, **k: {
             "handling": [{"type": "good_handling", "allergen": "nuts",
-                          "quote": "Amazing with my nut allergy"}],
+                          "quote": "amazing with my nut allergy"}],
             "dishes": ["Cashew Chicken"],
         }
         res = cs.fetch_community_signals(
-            restaurant_name="Test Diner", address="1 Main St, Townsville, CA",
+            restaurant_name="Golden Diner", address="1 Main St, Townsville, CA",
             user_agent="t", brave_api_key="k", gemini_api_key="k",
             gemini_model="m", want_dishes=True,
         )
         self.assertEqual(len(res.signals), 1)
         self.assertEqual(res.signals[0].type, "good_handling")
-        self.assertEqual(len(res.dishes), 1)
-        self.assertEqual(res.dishes[0].item_name, "Cashew Chicken")
+        self.assertEqual([d.item_name for d in res.dishes], ["Cashew Chicken"])
         self.assertEqual(res.dishes[0].extraction_method, "community_mention")
 
+    def test_offrestaurant_results_are_filtered(self):
+        # SAFETY: snippets about a DIFFERENT place / generic guides must be dropped
+        # BEFORE the LLM, so we never misattribute another restaurant's allergy info.
+        brave.brave_web_search = lambda **k: _brave_results(
+            "Golden Corral allergen statement and buffet info",
+            "NYC restaurants safe for peanut allergies: a city guide",
+        )
+        def _boom(*a, **k):
+            raise AssertionError("classify must not run on off-restaurant snippets")
+        illm._call_with_retry = _boom
+        res = cs.fetch_community_signals(
+            restaurant_name="Golden Diner", address="123 Madison St, New York, NY",
+            user_agent="t", brave_api_key="k", gemini_api_key="k", gemini_model="m",
+            want_dishes=True,
+        )
+        self.assertEqual(res.signals, [])
+        self.assertEqual(res.dishes, [])
+
     def test_ungrounded_quote_is_dropped(self):
-        brave.brave_web_search = lambda **k: _brave_results("Nice place, good coffee")
+        brave.brave_web_search = lambda **k: _brave_results("Bistro2 is a nice place with good coffee")
         illm._call_with_retry = lambda *a, **k: {
             "handling": [{"type": "adverse_event", "allergen": "peanut",
                           "quote": "I had a severe peanut reaction here"}],  # NOT in snippet
             "dishes": [],
         }
         res = cs.fetch_community_signals(
-            restaurant_name="Test2", address=None, user_agent="t",
+            restaurant_name="Bistro2", address=None, user_agent="t",
             brave_api_key="k", gemini_api_key="k", gemini_model="m",
         )
         self.assertEqual(res.signals, [])  # hallucinated quote rejected
@@ -81,10 +98,10 @@ class CommunitySignalsTests(unittest.TestCase):
         self.assertEqual(called["n"], 0)
 
     def test_dishes_omitted_when_not_requested(self):
-        brave.brave_web_search = lambda **k: _brave_results("The Pad Thai is great")
+        brave.brave_web_search = lambda **k: _brave_results("Bistro3 -- the Pad Thai is great")
         illm._call_with_retry = lambda *a, **k: {"handling": [], "dishes": ["Pad Thai"]}
         res = cs.fetch_community_signals(
-            restaurant_name="Test3", address=None, user_agent="t",
+            restaurant_name="Bistro3", address=None, user_agent="t",
             brave_api_key="k", gemini_api_key="k", gemini_model="m",
             want_dishes=False,
         )
@@ -92,7 +109,7 @@ class CommunitySignalsTests(unittest.TestCase):
 
     def test_adverse_signal_raises_score(self):
         # End-to-end: a grounded community adverse report must raise the fused risk.
-        snippet = "My son had an allergic reaction to nuts at this place"
+        snippet = "At Bistro4 my son had an allergic reaction to nuts"
         brave.brave_web_search = lambda **k: _brave_results(snippet)
         illm._call_with_retry = lambda *a, **k: {
             "handling": [{"type": "adverse_event", "allergen": "nuts",
@@ -100,7 +117,7 @@ class CommunitySignalsTests(unittest.TestCase):
             "dishes": [],
         }
         res = cs.fetch_community_signals(
-            restaurant_name="Test4", address=None, user_agent="t",
+            restaurant_name="Bistro4", address=None, user_agent="t",
             brave_api_key="k", gemini_api_key="k", gemini_model="m",
         )
         profile = UserProfile.for_nuts(Severity.ALLERGY)

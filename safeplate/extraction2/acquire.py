@@ -50,7 +50,7 @@ def acquire(url: str, *, source_type: str, user_agent: str | None = None) -> Pay
     pooled HTTP / robots infra. (The offline eval harness builds payloads from
     snapshots via the helpers above and does not call this.)"""
     user_agent = user_agent or get_user_agent()
-    low = url.lower()
+    low = url.lower().split("?")[0]  # ignore ?v= cache-busters (Shopify etc.) for type sniffing
     if source_type == "image" or low.endswith(IMAGE_EXTS):
         resp = http_get(url, user_agent=user_agent, timeout=30, use_cache=True)
         return Payload(url=url, source_type="image", kind=PayloadKind.VISUAL,

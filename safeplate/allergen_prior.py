@@ -581,11 +581,14 @@ def score_menu_item_prior(
     cuisines: list[str] | None = None,
     region: str = "unknown",
     allergen: str = NUTS,
+    baseline: "AllergenPrior | None" = None,
 ) -> AllergenPrior:
     """Prior risk that a specific menu item involves ``allergen``.
 
     Dish knowledge (specific) overrides the cuisine baseline (general); an
-    explicit nut-free claim lowers the prior.
+    explicit nut-free claim lowers the prior. ``baseline`` lets a caller scoring
+    many items for one restaurant pass the (identical) cuisine/location prior in
+    once instead of having it recomputed per item.
     """
     wanted = _expand_allergen(allergen)
     text = _normalize(f"{item_name or ''} {description or ''}")
@@ -602,9 +605,10 @@ def score_menu_item_prior(
         )
 
     dish_match = _best_dish_match(text, wanted)
-    baseline = score_restaurant_prior(
-        cuisines=cuisines, region=region, allergen=allergen
-    )
+    if baseline is None:
+        baseline = score_restaurant_prior(
+            cuisines=cuisines, region=region, allergen=allergen
+        )
 
     if dish_match is not None:
         risk, note = dish_match
@@ -695,6 +699,7 @@ def restaurant_nut_risk(
             cuisines=cuisines,
             region=region,
             allergen=allergen,
+            baseline=base,  # reuse the one cuisine/location prior; don't recompute per item
         )
         name = (item.get("item_name") or item.get("name") or "").strip()
         if name:
@@ -731,15 +736,49 @@ def restaurant_nut_risk(
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
+# Short dish patterns that are literal substrings of unrelated, non-nut words.
+# As in ``menu_text._ALLERGEN_FALSE_FRIENDS`` we keep substring matching (so
+# "satays", "kormas", "moles" still match) but ignore an occurrence that sits
+# entirely inside one of these known false-friend words. Without this guard
+# "mole" (Mexican mole sauce) fires on every "guacamole" / "molecular".
+_DISH_FALSE_FRIENDS: dict[str, set[str]] = {
+    "mole": {"guacamole", "guacamoles", "molecular"},
+}
+
+
 def _best_dish_match(text: str, wanted: set[str]) -> tuple[float, str] | None:
     best: tuple[float, str] | None = None
     for pattern, allergens, risk, note in DISH_NUT_KNOWLEDGE:
         if not (allergens & wanted):
             continue
-        if pattern in text:
+        if _pattern_present(pattern, text):
             if best is None or risk > best[0]:
                 best = (risk, note)
     return best
+
+
+def _pattern_present(pattern: str, text: str) -> bool:
+    """``pattern in text``, but a pattern with known false friends only counts
+    when at least one occurrence is not buried inside a false-friend word."""
+    false_friends = _DISH_FALSE_FRIENDS.get(pattern)
+    if not false_friends:
+        return pattern in text
+    index = text.find(pattern)
+    while index != -1:
+        if _enclosing_word(text, index, len(pattern)) not in false_friends:
+            return True
+        index = text.find(pattern, index + 1)
+    return False
+
+
+def _enclosing_word(text: str, start: int, length: int) -> str:
+    begin = start
+    while begin > 0 and text[begin - 1].isalpha():
+        begin -= 1
+    end = start + length
+    while end < len(text) and text[end].isalpha():
+        end += 1
+    return text[begin:end]
 
 
 def _apply_home_boost(

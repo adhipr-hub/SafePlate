@@ -105,12 +105,20 @@ def discover_sources(
     """Return menu / allergen / nutrition page candidates for a restaurant site."""
     candidates: list[Candidate] = []
 
+    # Harvest the given URL AND the site root: a chain's Places URL is often a
+    # location landing (/locations/<city>) whose menu just links to a JS ordering
+    # page, while the actual menu/category links live on the homepage.
     links: list[tuple[str, str]] = []
-    try:
-        html = fetch_html_page(website_url, user_agent=user_agent).html
-        links = _harvest_links(html, website_url)
-    except PageFetchError:
-        links = []
+    seen_link_urls: set[str] = set()
+    for seed in _seed_urls(website_url):
+        try:
+            html = fetch_html_page(seed, user_agent=user_agent).html
+        except PageFetchError:
+            continue
+        for url, text in _harvest_links(html, seed):
+            if url not in seen_link_urls:
+                seen_link_urls.add(url)
+                links.append((url, text))
 
     for (url, text), kind in _select_links(links[:max_links], api_key=api_key, model=model):
         candidates.append(Candidate(url=url, anchor_text=text, kind=kind, source="link"))
@@ -127,7 +135,7 @@ def discover_sources(
     # "nutrition calculator" link) yields nothing to the static parser, so it must
     # not suppress the hunt for a parseable PDF.
     has_static_allergen_doc = any(
-        c.kind in ("allergen", "nutrition") and c.url.lower().endswith(".pdf")
+        c.kind in ("allergen", "nutrition") and _is_pdf_url(c.url)
         for c in candidates
     )
     if brave_api_key and restaurant_name and not has_static_allergen_doc:
@@ -386,7 +394,7 @@ def discover_and_extract(
     # Acquire all candidates CONCURRENTLY (network-bound -- big latency win, no
     # accuracy change).
     def _acquire(cand: Candidate):
-        low = cand.url.lower()
+        low = cand.url.lower().split("?")[0]
         source_type = "pdf" if low.endswith(".pdf") else (
             "image" if low.endswith(IMAGE_EXTS) else "website_link")
         try:
@@ -582,11 +590,53 @@ def discover_and_extract(
     return candidates, result
 
 
+_TWO_LEVEL_TLDS = {
+    "co.uk", "org.uk", "com.au", "net.au", "co.nz", "co.jp", "com.br", "co.za",
+    "com.sg", "co.in", "com.mx", "co.kr", "com.hk", "com.tw",
+}
+
+
+def _is_pdf_url(url: str) -> bool:
+    """True for PDF links even with a query/fragment (Shopify & many CDNs serve
+    '...menu.pdf?v=123' -- a bare endswith('.pdf') misses those)."""
+    return url.lower().split("?")[0].split("#")[0].endswith(".pdf")
+
+
+def _registrable_domain(host: str) -> str:
+    """eTLD+1 (approx) so subdomains of the SAME site count as on-site:
+    orders.lazydogrestaurants.com -> lazydogrestaurants.com. Handles common
+    two-level TLDs (co.uk etc.)."""
+    host = (host or "").lower().split(":")[0]
+    if host.startswith("www."):
+        host = host[4:]
+    labels = [seg for seg in host.split(".") if seg]
+    if len(labels) <= 2:
+        return ".".join(labels)
+    if ".".join(labels[-2:]) in _TWO_LEVEL_TLDS:
+        return ".".join(labels[-3:])
+    return ".".join(labels[-2:])
+
+
+def _seed_urls(website_url: str) -> list[str]:
+    """Discovery seeds: the given URL, plus the site ROOT when the given URL is a
+    deeper page (e.g. a chain's /locations/<city> landing). The full menu / per-
+    category links frequently live only on the homepage, not the location page."""
+    seeds = [website_url]
+    p = urlparse(website_url)
+    if p.netloc and p.path.strip("/"):
+        root = f"{p.scheme or 'https'}://{p.netloc}/"
+        if root != website_url:
+            seeds.append(root)
+    return seeds
+
+
 def _harvest_links(html: str, base_url: str) -> list[tuple[str, str]]:
-    """All on-site links (+ any PDF, since allergen PDFs are often on a CDN host),
-    as (absolute_url, anchor_text). Purely mechanical -- no keyword filtering."""
+    """All same-SITE links (any subdomain of the registrable domain -- restaurants
+    often put the menu on order./orders./menu. subdomains) plus any PDF (allergen
+    PDFs frequently live on a CDN host), as (absolute_url, anchor_text). Mechanical,
+    no keyword filtering."""
     soup = make_soup(html)
-    base_host = urlparse(base_url).netloc.lower().lstrip("www.")
+    base_reg = _registrable_domain(urlparse(base_url).netloc)
     seen: set[str] = set()
     out: list[tuple[str, str]] = []
     for anchor in soup.find_all("a", href=True):
@@ -596,10 +646,13 @@ def _harvest_links(html: str, base_url: str) -> list[tuple[str, str]]:
         url = urljoin(base_url, href).split("#")[0]
         if not url.startswith(("http://", "https://")) or url in seen:
             continue
-        host = urlparse(url).netloc.lower().lstrip("www.")
-        is_pdf = url.lower().endswith(".pdf")
-        if host != base_host and not is_pdf:
-            continue  # drop off-site non-PDF links (social, partners, etc.)
+        host = urlparse(url).netloc.lower().split(":")[0]
+        if host.startswith("www."):
+            host = host[4:]
+        is_pdf = _is_pdf_url(url)
+        same_site = bool(base_reg) and (host == base_reg or host.endswith("." + base_reg))
+        if not same_site and not is_pdf:
+            continue  # drop genuinely off-site non-PDF links (social, partners, etc.)
         seen.add(url)
         text = " ".join((anchor.get_text(" ", strip=True) or "").split())[:140]
         out.append((url, text))
@@ -623,13 +676,29 @@ def _harvest_second_hop(candidates: list[Candidate], *, user_agent: str) -> list
     from safeplate.extraction2.classify import IMAGE_EXTS
 
     seen = {c.url for c in candidates}
-    pages = [
+    eligible = [
         c for c in candidates
         if c.kind in ("menu", "allergen", "nutrition", "allergy_info")
         and not c.url.lower().split("?")[0].endswith((".pdf",) + IMAGE_EXTS)
     ]
+    # Follow allergen/nutrition pages FIRST (they hold the matrices) and dedupe
+    # near-identical URLs (e.g. /menu vs /menu?utm_source=...) so the few hops we
+    # spend aren't wasted on the same page or on low-value pages before the allergen one.
+    _hop_rank = {"allergen": 0, "nutrition": 1, "allergy_info": 2, "menu": 3}
+    eligible.sort(key=lambda c: _hop_rank.get(c.kind, 9))
+    pages: list[Candidate] = []
+    seen_norm: set[str] = set()
+    for c in eligible:
+        norm = c.url.lower().split("?")[0].split("#")[0]
+        if norm in seen_norm:
+            continue
+        seen_norm.add(norm)
+        pages.append(c)
+        if len(pages) >= _SECOND_HOP_PAGES:
+            break
+
     out: list[Candidate] = []
-    for parent in pages[:_SECOND_HOP_PAGES]:
+    for parent in pages:
         try:
             html = fetch_html_page(parent.url, user_agent=user_agent).html
         except PageFetchError:
@@ -711,6 +780,6 @@ def _finalize(candidates: list[Candidate], max_candidates: int) -> list[Candidat
     # the same kind -- a PDF is parseable; a JS tool often renders to nothing.
     ordered = sorted(
         best.values(),
-        key=lambda c: (_KIND_PRIORITY[c.kind], 0 if c.url.lower().endswith(".pdf") else 1),
+        key=lambda c: (_KIND_PRIORITY[c.kind], 0 if _is_pdf_url(c.url) else 1),
     )
     return ordered[:max_candidates]

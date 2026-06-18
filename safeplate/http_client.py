@@ -49,10 +49,18 @@ _thread_local = threading.local()
 # Bounded, process-wide cache of GET responses. This lets multiple pipeline
 # stages that run in the same process (e.g. menu-text and menu-item extraction,
 # or the local app's discovery + extraction) reuse a page fetched once instead
-# of hitting the network again. Keyed by user agent + URL.
-_CACHE: "OrderedDict[str, HttpResponse]" = OrderedDict()
+# of hitting the network again. Keyed by user agent + URL. Each entry stores its
+# fetch time so a long-running server can expire stale pages (see
+# config.get_http_memory_cache_ttl) rather than serving startup data forever.
+_CACHE: "OrderedDict[str, tuple[float, HttpResponse]]" = OrderedDict()
 _CACHE_LOCK = threading.Lock()
 _CACHE_MAX_ENTRIES = 256
+
+
+def _memory_cache_ttl() -> int:
+    from safeplate.config import get_http_memory_cache_ttl
+
+    return get_http_memory_cache_ttl()
 
 
 def _session() -> "requests.Session":
@@ -75,16 +83,19 @@ def http_get(
     """Fetch a URL, reusing connections and decompressing gzip/deflate."""
     cache_key = f"{user_agent}\n{url}" if use_cache else None
     if cache_key is not None:
+        ttl = _memory_cache_ttl()
         with _CACHE_LOCK:
-            cached = _CACHE.get(cache_key)
-            if cached is not None:
-                _CACHE.move_to_end(cache_key)
-                return cached
+            entry = _CACHE.get(cache_key)
+            if entry is not None:
+                fetched_at, cached = entry
+                if ttl <= 0 or (time.time() - fetched_at) <= ttl:
+                    _CACHE.move_to_end(cache_key)
+                    return cached
+                del _CACHE[cache_key]  # expired -> refetch below
         disk_cached = _disk_get(cache_key)  # opt-in, across separate runs
         if disk_cached is not None:
             with _CACHE_LOCK:
-                _CACHE[cache_key] = disk_cached
-                _CACHE.move_to_end(cache_key)
+                _cache_store(cache_key, disk_cached)
             return disk_cached
 
     if _HAS_REQUESTS:
@@ -94,12 +105,18 @@ def http_get(
 
     if cache_key is not None:
         with _CACHE_LOCK:
-            _CACHE[cache_key] = response
-            _CACHE.move_to_end(cache_key)
-            while len(_CACHE) > _CACHE_MAX_ENTRIES:
-                _CACHE.popitem(last=False)
+            _cache_store(cache_key, response)
         _disk_put(cache_key, response)
     return response
+
+
+def _cache_store(cache_key: str, response: "HttpResponse") -> None:
+    """Insert/refresh an entry (timestamped) and evict LRU overflow. Caller holds
+    ``_CACHE_LOCK``."""
+    _CACHE[cache_key] = (time.time(), response)
+    _CACHE.move_to_end(cache_key)
+    while len(_CACHE) > _CACHE_MAX_ENTRIES:
+        _CACHE.popitem(last=False)
 
 
 def _disk_paths(cache_key: str) -> "tuple[Path, Path]":
@@ -162,7 +179,14 @@ def clear_cache() -> None:
 def _http_get_requests(
     url: str, *, user_agent: str, timeout: float
 ) -> HttpResponse:
-    headers = {"User-Agent": user_agent, "Accept-Encoding": "gzip, deflate"}
+    headers = {
+        "User-Agent": user_agent,
+        "Accept-Encoding": "gzip, deflate",
+        # Real clients always send Accept / Accept-Language; some bot-protection (e.g.
+        # Toast's order pages, which are robots-allowed) 403s requests that omit them.
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
     try:
         response = _session().get(url, headers=headers, timeout=timeout)
     except requests.exceptions.RequestException as exc:  # type: ignore[union-attr]
@@ -182,7 +206,14 @@ def _http_get_requests(
 
 
 def _http_get_urllib(url: str, *, user_agent: str, timeout: float) -> HttpResponse:
-    headers = {"User-Agent": user_agent, "Accept-Encoding": "gzip, deflate"}
+    headers = {
+        "User-Agent": user_agent,
+        "Accept-Encoding": "gzip, deflate",
+        # Real clients always send Accept / Accept-Language; some bot-protection (e.g.
+        # Toast's order pages, which are robots-allowed) 403s requests that omit them.
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
     request = Request(url, headers=headers)
     try:
         with urlopen(request, timeout=timeout) as response:

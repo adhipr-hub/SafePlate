@@ -786,16 +786,21 @@ def assess_restaurant_record(
     menu_items: Sequence[Any] | None = None,
     signals: RestaurantSignals | None = None,
     community: Sequence[CommunitySignal] | None = None,
+    cuisines: list[str] | None = None,
+    region: str | None = None,
 ) -> UserAllergenAssessment:
     """Derive cuisines + region from a ``RestaurantRecord``-shaped object, then
     score. The core ``score_restaurant_for_user`` stays pure (cuisines + region
-    explicit) for testability."""
-    cuisines = normalize_cuisine(getattr(record, "categories", None) or [])
-    region = region_from_address(
-        getattr(record, "address", None),
-        latitude=getattr(record, "latitude", None),
-        longitude=getattr(record, "longitude", None),
-    )
+    explicit) for testability. A caller that already derived ``cuisines`` /
+    ``region`` (e.g. to render the prior) can pass them in to avoid recomputing."""
+    if cuisines is None:
+        cuisines = normalize_cuisine(getattr(record, "categories", None) or [])
+    if region is None:
+        region = region_from_address(
+            getattr(record, "address", None),
+            latitude=getattr(record, "latitude", None),
+            longitude=getattr(record, "longitude", None),
+        )
     return score_restaurant_for_user(
         profile,
         cuisines=cuisines,

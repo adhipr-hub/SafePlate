@@ -20,7 +20,7 @@ from safeplate.json_extract import (
     extract_records_from_html,
     first_string as _first_string,
 )
-from safeplate.menu_text import MenuItemRecord, _matched_terms, ALLERGEN_TERMS, DIETARY_TERMS
+from safeplate.menu_text import MenuItemRecord, _dietary_and_allergen_terms
 
 _PRICE_KEYS = {
     "price", "amount", "cost", "baseprice", "base_price", "pricev2",
@@ -50,6 +50,7 @@ def _item_from_object(obj: dict[str, Any]) -> MenuItemRecord | None:
 
     description = _first_string(obj, _DESC_KEYS) or ""
     raw_text = f"{name} {description} {price}".strip()
+    dietary_terms, allergen_terms = _dietary_and_allergen_terms(raw_text)
     return MenuItemRecord(
         restaurant_name="",
         restaurant_source_id="",
@@ -58,8 +59,8 @@ def _item_from_object(obj: dict[str, Any]) -> MenuItemRecord | None:
         item_name=name.strip(),
         description=description.strip(),
         price=price,
-        dietary_terms=_matched_terms(raw_text, DIETARY_TERMS),
-        allergen_terms=_matched_terms(raw_text, ALLERGEN_TERMS),
+        dietary_terms=dietary_terms,
+        allergen_terms=allergen_terms,
         source_type="",
         extraction_method="embedded_json",
         confidence=0.6,

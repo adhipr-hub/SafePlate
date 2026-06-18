@@ -335,6 +335,7 @@ def _stage_workers(max_workers, fetch_mode):
 def _build_text_record(row, raw_text, extraction_method, max_chars):
     source_type = row.get("source_type", "")
     text = _clean_text(raw_text)[:max_chars]
+    dietary_terms, allergen_terms = _dietary_and_allergen_terms(text)
     return MenuTextRecord(
         restaurant_name=row.get("restaurant_name", ""),
         restaurant_source_id=row.get("restaurant_source_id", ""),
@@ -346,8 +347,8 @@ def _build_text_record(row, raw_text, extraction_method, max_chars):
             text,
             allow_bare_prices=source_type in PDF_MENU_SOURCE_TYPES + IMAGE_MENU_SOURCE_TYPES,
         ),
-        dietary_terms=_matched_terms(text, DIETARY_TERMS),
-        allergen_terms=_matched_terms(text, ALLERGEN_TERMS),
+        dietary_terms=dietary_terms,
+        allergen_terms=allergen_terms,
         fetched_at=datetime.now(timezone.utc).isoformat(),
         extracted_text=text,
     )
@@ -811,8 +812,7 @@ def _extract_menu_items_from_soup(
                     continue
                 seen.add(key)
 
-                dietary_terms = _matched_terms(raw_text, DIETARY_TERMS)
-                allergen_terms = _matched_terms(raw_text, ALLERGEN_TERMS)
+                dietary_terms, allergen_terms = _dietary_and_allergen_terms(raw_text)
                 records.append(
                     MenuItemRecord(
                         restaurant_name="",
@@ -937,8 +937,7 @@ def _build_html_item_record(
     *, name: str, description: str, price: str, category: str, extraction_method: str
 ) -> MenuItemRecord:
     raw_text = f"{name} {description} {price}".strip()
-    dietary_terms = _matched_terms(raw_text, DIETARY_TERMS)
-    allergen_terms = _matched_terms(raw_text, ALLERGEN_TERMS)
+    dietary_terms, allergen_terms = _dietary_and_allergen_terms(raw_text)
     return MenuItemRecord(
         restaurant_name="", restaurant_source_id="", menu_source_url="",
         category=category, item_name=name.strip(), description=description.strip(),
@@ -1043,8 +1042,7 @@ def _schema_menu_item_record(
     if not raw_text:
         return None
 
-    dietary_terms = _matched_terms(raw_text, DIETARY_TERMS)
-    allergen_terms = _matched_terms(raw_text, ALLERGEN_TERMS)
+    dietary_terms, allergen_terms = _dietary_and_allergen_terms(raw_text)
     confidence = 0.9
     if price:
         confidence += 0.05
@@ -1227,8 +1225,7 @@ def _extract_menu_items_from_text(text: str) -> list[MenuItemRecord]:
             if key in seen:
                 continue
             seen.add(key)
-            dietary_terms = _matched_terms(raw_text, DIETARY_TERMS)
-            allergen_terms = _matched_terms(raw_text, ALLERGEN_TERMS)
+            dietary_terms, allergen_terms = _dietary_and_allergen_terms(raw_text)
             records.append(
                 MenuItemRecord(
                     restaurant_name="",
@@ -1621,8 +1618,23 @@ _ALLERGEN_FALSE_FRIENDS = {
 
 
 def _matched_terms(text: str, terms: list[str]) -> list[str]:
+    return _matched_terms_in(text.lower(), terms)
+
+
+def _matched_terms_in(normalized_text: str, terms: list[str]) -> list[str]:
+    """Match ``terms`` against text that is ALREADY lower-cased -- lets callers
+    that match several vocabularies over one source lower-case it just once."""
+    return sorted({term for term in terms if _term_present(term, normalized_text)})
+
+
+def _dietary_and_allergen_terms(text: str) -> tuple[list[str], list[str]]:
+    """Dietary + allergen hits are always needed together on the same source
+    text; lower-case once and match both, instead of lowering twice."""
     normalized = text.lower()
-    return sorted({term for term in terms if _term_present(term, normalized)})
+    return (
+        _matched_terms_in(normalized, DIETARY_TERMS),
+        _matched_terms_in(normalized, ALLERGEN_TERMS),
+    )
 
 
 def _term_present(term: str, normalized_text: str) -> bool:

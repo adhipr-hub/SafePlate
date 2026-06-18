@@ -77,6 +77,26 @@ def get_http_cache_ttl() -> int:
     return max(0, value)
 
 
+DEFAULT_HTTP_MEMORY_CACHE_TTL = 3600
+
+
+def get_http_memory_cache_ttl() -> int:
+    """Seconds a page stays reusable in the *in-process* GET cache. Unlike the
+    opt-in on-disk cache, this one is always on (it dedupes the discovery →
+    extraction fetches within a single search). A long-running server would
+    otherwise serve a page cached at startup forever, so entries older than this
+    TTL are treated as misses. Default 1h keeps within-request reuse free while
+    bounding cross-request staleness; <= 0 disables expiry (old behaviour).
+    Override with SAFEPLATE_HTTP_MEMORY_CACHE_TTL."""
+    raw_value = os.environ.get("SAFEPLATE_HTTP_MEMORY_CACHE_TTL")
+    if raw_value is None or not raw_value.strip():
+        return DEFAULT_HTTP_MEMORY_CACHE_TTL
+    try:
+        return int(raw_value.strip())
+    except ValueError:
+        return DEFAULT_HTTP_MEMORY_CACHE_TTL
+
+
 def _positive_int_env(name: str, default: int) -> int:
     raw_value = os.environ.get(name)
     if not raw_value:

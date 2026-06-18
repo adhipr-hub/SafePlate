@@ -571,12 +571,16 @@ def _extract_and_assess_v2(
     profile: Any,
     user_agent: str,
     api_key: str | None,
+    cuisines: list[str] | None = None,
+    region: str | None = None,
 ):
     """Run the v2 extraction (result-cached) + Layer #5 assessment for one
     restaurant. Shared by the menu drawer and the menu-backed search list so both
     speak from the SAME extraction + scorer; the result cache means the second
-    caller (whichever fires later) pays nothing. Returns
-    (assessment, menu_items, allergy_signals, coverage, errors)."""
+    caller (whichever fires later) pays nothing. ``cuisines`` / ``region`` are
+    derived by the scorer when not supplied; callers that already have them (the
+    search card renders the prior first) pass them in to skip the re-derivation.
+    Returns (assessment, menu_items, allergy_signals, coverage, errors)."""
     from safeplate.allergen_score import (
         RestaurantSignals,
         assess_restaurant_record,
@@ -617,7 +621,8 @@ def _extract_and_assess_v2(
         website_url=website_url,  # lets the scorer judge source provenance
     )
     assessment = assess_restaurant_record(
-        record, profile, menu_items=menu_items, signals=signals
+        record, profile, menu_items=menu_items, signals=signals,
+        cuisines=cuisines, region=region,
     )
     return assessment, menu_items, allergy_signals, coverage, errors
 
@@ -697,16 +702,26 @@ def _run_v2_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Restaurant name is required.")
 
     profile = _user_profile_from_payload(payload)
+    latitude = _optional_float(payload.get("latitude"))
+    longitude = _optional_float(payload.get("longitude"))
+    # Derive cuisines/region once and reuse for both the extraction-stage score and
+    # the community re-score below, instead of each call re-deriving them.
+    from safeplate.allergen_prior import normalize_cuisine, region_from_address
+
+    cuisines = normalize_cuisine(categories)
+    region = region_from_address(address, latitude=latitude, longitude=longitude)
     assessment, menu_items, allergy_signals, coverage, errors = _extract_and_assess_v2(
         name=restaurant_name,
         website_url=website_url,
         address=address,
         categories=categories,
-        latitude=_optional_float(payload.get("latitude")),
-        longitude=_optional_float(payload.get("longitude")),
+        latitude=latitude,
+        longitude=longitude,
         profile=profile,
         user_agent=get_user_agent(),
         api_key=get_gemini_api_key(),
+        cuisines=cuisines,
+        region=region,
     )
 
     # Community layer (DRAWER ONLY -- one restaurant, cacheable; the list stays cheap):
@@ -730,14 +745,14 @@ def _run_v2_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
                 menu_items = cres.dishes  # no-menu dish-context -> feeds the dish prior
             record = SimpleNamespace(
                 categories=categories, address=address,
-                latitude=_optional_float(payload.get("latitude")),
-                longitude=_optional_float(payload.get("longitude")),
+                latitude=latitude, longitude=longitude,
                 website_url=website_url,
             )
             assessment = assess_restaurant_record(
                 record, profile, menu_items=menu_items,
                 signals=RestaurantSignals.from_allergy_signals(allergy_signals),
                 community=cres.signals or None,
+                cuisines=cuisines, region=region,
             )
     except Exception as exc:  # community is best-effort; never break the drawer
         errors.append({"source": "community_signals", "error": str(exc)})
@@ -1385,6 +1400,8 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
         profile=profile,
         user_agent=user_agent,
         api_key=api_key,
+        cuisines=cuisines,  # already derived above for the prior; don't recompute
+        region=region,
     )
     payload["allergenPrior"] = {
         "allergen": "nuts",
@@ -1433,8 +1450,11 @@ def _build_search_cards(
     if engine != "v2":
         return [_restaurant_payload(row, engine=engine, severity=severity) for row in rows]
 
-    import time
-    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import (
+        ThreadPoolExecutor,
+        TimeoutError as FuturesTimeout,
+        as_completed,
+    )
 
     profile = _user_profile_from_payload(payload)
     user_agent = get_user_agent()
@@ -1458,12 +1478,19 @@ def _build_search_cards(
             ): i
             for i in deep
         }
-        deadline = time.monotonic() + _LIST_ASSESS_BUDGET_S
-        for fut, i in futures.items():
-            try:
-                results[i] = fut.result(timeout=max(0.0, deadline - time.monotonic()))
-            except Exception:
-                results[i] = _prior(rows[i])
+        # Collect in COMPLETION order under a shared wall-clock budget, so one slow
+        # or rate-limited site can't keep us from banking cards that already
+        # finished. Anything unfinished when the budget expires falls back to the
+        # cuisine prior below (and keeps running to warm the cache for next time).
+        try:
+            for fut in as_completed(futures, timeout=_LIST_ASSESS_BUDGET_S):
+                i = futures[fut]
+                try:
+                    results[i] = fut.result()
+                except Exception:
+                    results[i] = _prior(rows[i])
+        except FuturesTimeout:
+            pass  # budget hit; remaining restaurants degrade to the prior
     finally:
         # Don't wait on stragglers -- they keep running and warm the cache for next time.
         executor.shutdown(wait=False, cancel_futures=True)
