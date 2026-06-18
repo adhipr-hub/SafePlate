@@ -1,0 +1,31 @@
+# Keep the image small and SECRET-FREE. Anything matched here is NOT copied into
+# the container by `COPY . .`.
+
+# Secrets — never bake API keys into an image (it would leak if the image is pushed).
+.env
+.env.example
+
+# Version control and local editor/tooling config.
+.git
+.gitignore
+.claude/
+*.bat
+
+# Python caches and virtual environments (rebuilt inside the image anyway).
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts and large local data (HTTP/robots cache, benchmark snapshots, reports).
+build/
+data/
+
+# Dev-only material not needed to run the server.
+tests/
+eval/
+*.md
