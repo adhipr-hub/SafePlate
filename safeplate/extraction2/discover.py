@@ -277,8 +277,13 @@ def _pdf_mentions(text: str, restaurant_name: str) -> bool:
 # changes; menus themselves are stable within the TTL.
 # v2: second-hop discovery (menu-page -> menu-PDF) -- invalidates results cached
 # before it (e.g. restaurants that wrongly cached as "no menu").
-_RESULT_CACHE_VERSION = "2"
+# v3: nut-free-claim detection (+ scanning nut-free-mentioning pages for signals).
+_RESULT_CACHE_VERSION = "3"
 _RESULT_CACHE_TTL = 7 * 24 * 60 * 60
+# "Nothing found" (no items + no signals) is cached too -- so a dead/empty site
+# doesn't re-run discovery + the Brave fallback every search -- but with a SHORTER
+# TTL than a real hit, since the restaurant may add a menu/allergen page soon.
+_RESULT_CACHE_NEGATIVE_TTL = 24 * 60 * 60
 
 
 # Hosts where MANY distinct restaurants live under one domain, so website_url alone
@@ -326,7 +331,10 @@ def _load_result_cache(website_url: str, model: str, discriminator: str = ""):
         )
     except (OSError, ValueError):
         return None
-    if time.time() - blob.get("at", 0) > _RESULT_CACHE_TTL:
+    # A negative (empty) cache entry expires sooner so we re-try dead/thin sites.
+    is_negative = not blob.get("items") and not blob.get("signals")
+    ttl = _RESULT_CACHE_NEGATIVE_TTL if is_negative else _RESULT_CACHE_TTL
+    if time.time() - blob.get("at", 0) > ttl:
         return None
     try:
         return MenuExtractionResult(
@@ -555,6 +563,7 @@ def discover_and_extract(
         from safeplate.extraction2.allergy_signals import extract_allergy_signals
 
         signal_payloads: list[Any] = []
+        # 1) Narrative allergy/nutrition pages (richest allergy-handling prose).
         for cand in candidates:
             if len(signal_payloads) >= 2:  # 2 is plenty; chain location pages dupe
                 break
@@ -565,6 +574,19 @@ def discover_and_extract(
             if payload is None or getattr(payload, "source_type", "") == "pdf":
                 continue
             signal_payloads.append(payload)
+        # 2) Fill remaining slots with any extracted HTML page that LITERALLY mentions
+        #    nut-free (catches a dedicated nut-free kitchen whose claim sits on a menu/
+        #    main page, not a narrative allergy page). Cheap text pre-filter -> no extra
+        #    LLM call unless the page actually says it.
+        if len(signal_payloads) < 2:
+            chosen = {getattr(p, "url", "") for p in signal_payloads}
+            for url, payload in payload_by_url.items():
+                if len(signal_payloads) >= 2:
+                    break
+                if url in chosen or getattr(payload, "source_type", "") == "pdf":
+                    continue
+                if _mentions_nut_free(getattr(payload, "text", "") or ""):
+                    signal_payloads.append(payload)
         seen_sig: set[tuple] = set()
         for signal in map_concurrent(
             lambda p: extract_allergy_signals(p, api_key=api_key, model=model),
@@ -576,7 +598,7 @@ def discover_and_extract(
             # Dedupe near-identical signals (same flags + same statements).
             sig_key = (
                 signal.allergy_friendly_claim, signal.cross_contact_warning,
-                signal.ask_staff, signal.allergen_menu_available,
+                signal.ask_staff, signal.allergen_menu_available, signal.nut_free_claim,
                 tuple(sorted(signal.statements)),
             )
             if sig_key not in seen_sig:
@@ -600,6 +622,16 @@ def _is_pdf_url(url: str) -> bool:
     """True for PDF links even with a query/fragment (Shopify & many CDNs serve
     '...menu.pdf?v=123' -- a bare endswith('.pdf') misses those)."""
     return url.lower().split("?")[0].split("#")[0].endswith(".pdf")
+
+
+def _mentions_nut_free(text: str) -> bool:
+    """Cheap pre-filter: does the page text literally claim nut-free? Used to decide
+    whether a non-narrative page is worth an allergy-signal LLM call."""
+    low = (text or "").lower()
+    return any(p in low for p in (
+        "nut free", "nut-free", "no nuts", "without nuts", "free of nuts",
+        "free from nuts", "peanut free", "peanut-free", "tree nut free", "tree-nut-free",
+    ))
 
 
 def _registrable_domain(host: str) -> str:
@@ -720,12 +752,30 @@ def _select_links(
 ) -> list[tuple[tuple[str, str], str]]:
     if not links:
         return []
+    # COST WIN: when the cheap token heuristic already found an unambiguous
+    # high-value page (an allergen/allergy/nutrition link, or a menu/allergen PDF),
+    # skip the Gemini link-select call entirely -- the LLM is only worth its quota on
+    # AMBIGUOUS sites (generic anchor text, no obvious tokens).
+    heuristic = _heuristic_select(links)
+    if _heuristic_is_confident(heuristic):
+        return heuristic
     if api_key:
         try:
             return _llm_select(links, api_key=api_key, model=model or DEFAULT_MODEL)
         except GeminiMenuError:
             pass  # fall back to the token heuristic
-    return _heuristic_select(links)
+    return heuristic
+
+
+def _heuristic_is_confident(selected: list[tuple[tuple[str, str], str]]) -> bool:
+    """True when the heuristic found something we'd be happy to extract without the
+    LLM: an allergen/allergy/nutrition page (the matrices we most want), or any
+    PDF (a static, parseable document). A plain '/menu' alone is NOT enough -- the
+    LLM often finds a better allergen page among ambiguous links."""
+    for (url, _text), kind in selected:
+        if kind in ("allergen", "allergy_info", "nutrition") or _is_pdf_url(url):
+            return True
+    return False
 
 
 def _llm_select(

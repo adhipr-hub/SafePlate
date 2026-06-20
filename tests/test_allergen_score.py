@@ -134,7 +134,8 @@ class CrossContactDecouplingTests(unittest.TestCase):
             menu_items=self._navigable_matrix(), official_domain="official.test",
         )
         self.assertEqual(r.tier, Tier.CAUTION.value)
-        self.assertTrue(any("not a concern" in x.lower() for x in r.per_allergen[0].rationale))
+        # Navigable: the explanation tells the user they can avoid the flagged dishes.
+        self.assertTrue(any("eat safely" in x.lower() for x in r.per_allergen[0].rationale))
 
     def test_default_anaphylaxis_still_avoids(self) -> None:
         # No explicit cross-contact -> derives STRICT -> AVOID (back-compat preserved).
@@ -177,6 +178,24 @@ class CrossContactDecouplingTests(unittest.TestCase):
             signals=RestaurantSignals(cross_contact_warning=True),
         )
         self.assertGreaterEqual(r.overall_risk, 0.45 - 1e-9)
+
+
+class VeganCueTests(unittest.TestCase):
+    """Vegan/vegetarian kitchens lean on nuts (cashew cheese, nut milks) -- the type
+    must be recognized and carry an elevated baseline, not be mistaken for 'safe'."""
+
+    def test_vegan_type_recognized_and_elevated(self):
+        from safeplate.allergen_prior import normalize_cuisine, score_restaurant_prior
+        cz = normalize_cuisine(["primary_type:vegan_restaurant", "japanese"])
+        self.assertIn("vegan", cz)
+        prior = score_restaurant_prior(cuisines=cz, region="US", allergen="nuts")
+        self.assertGreaterEqual(prior.risk, 0.4)
+
+    def test_vegan_kitchen_is_caution_not_likely_ok(self):
+        from safeplate.allergen_prior import normalize_cuisine
+        cz = normalize_cuisine(["primary_type:vegan_restaurant", "japanese"])
+        r = score_restaurant_for_user(NUT_ALLERGY, cuisines=cz, region="US")
+        self.assertEqual(r.tier, Tier.CAUTION.value)
 
 
 class TierContractTests(unittest.TestCase):
@@ -429,6 +448,176 @@ class ConvenienceWrapperTests(unittest.TestCase):
         result = assess_restaurant_record(record, NUT_ALLERGY)
         self.assertEqual(result.tier, Tier.CAUTION.value)
         self.assertEqual(result.evidence_basis, "cuisine_prior")
+
+
+class SuspectedNutsTests(unittest.TestCase):
+    """Option-2 recall: dishes whose TYPE often hides nuts are flagged as an
+    assumption -- moderate risk, LOW confidence -- not treated as clearly safe."""
+
+    NUT = UserProfile.for_nuts(Severity.ALLERGY, cross_contact=CrossContactSensitivity.MODERATE)
+
+    def _score(self, menu, cuisines=("american",)):
+        return score_restaurant_for_user(self.NUT, cuisines=list(cuisines), region="US",
+                                         menu_items=menu)
+
+    def test_suspected_dish_flips_clean_menu_to_caution_at_low_confidence(self):
+        clean = self._score([_item("Burger")] + [_item(f"Dish {i}") for i in range(20)])
+        withb = self._score([_item("Chocolate Brownie")] + [_item(f"Dish {i}") for i in range(20)])
+        self.assertEqual(clean.tier, Tier.LIKELY_OK.value)
+        self.assertEqual(withb.tier, Tier.CAUTION.value)          # assumption made
+        self.assertGreater(withb.overall_risk, clean.overall_risk)
+        self.assertLessEqual(withb.per_allergen[0].confidence, 0.45)  # but low confidence
+        self.assertEqual(withb.per_allergen[0].menu_suspected, 1)
+
+    def test_named_nut_keeps_high_confidence_vs_suspected(self):
+        named = self._score([_item("Peanut Noodles")] + [_item(f"Dish {i}") for i in range(20)])
+        susp = self._score([_item("Brownie")] + [_item(f"Dish {i}") for i in range(20)])
+        self.assertGreater(named.per_allergen[0].confidence, susp.per_allergen[0].confidence)
+        self.assertEqual(named.per_allergen[0].menu_flagged, 1)
+
+    def test_suspected_only_stays_in_caution_band_not_avoid(self):
+        r = self._score([_item(n) for n in ["Brownie", "Cookie Sundae", "Carrot Cake", "Gelato"]])
+        self.assertEqual(r.tier, Tier.CAUTION.value)              # never likely_ok, never avoid
+        self.assertEqual(r.evidence_basis, "suspected_nuts")
+
+    def test_suspected_never_lowers_risk_below_clean(self):
+        clean = self._score([_item(f"Dish {i}") for i in range(20)]).overall_risk
+        susp = self._score([_item("Curry")] + [_item(f"Dish {i}") for i in range(20)]).overall_risk
+        self.assertGreaterEqual(susp, clean)                     # recall raises, never lowers
+
+    def test_vegan_dairy_analogue_is_suspected(self):
+        r = score_restaurant_for_user(
+            self.NUT, cuisines=["vegan"], region="US",
+            menu_items=[_item("House Cheese Plate")] + [_item(f"Dish {i}") for i in range(10)])
+        # 'cheese' at a vegan kitchen -> suspected cashew (the hidden-nut trap)
+        self.assertTrue(any(it.get("suspected") for it in r.per_allergen[0].riskiest_items))
+
+
+class NavigabilityTests(unittest.TestCase):
+    """Phase F: the score answers 'can I eat safely here?', not 'any nuts in the
+    kitchen?'. A labeled chain with a few avoidable nut dishes must rank SAFER than
+    an unlabeled high-nut independent -- transparency is rewarded, not punished."""
+
+    NUT = UserProfile.for_nuts(
+        Severity.ANAPHYLAXIS, cross_contact=CrossContactSensitivity.MODERATE
+    )
+
+    def _menu(self, safe_n, nutty_names, *, method="gemini_text"):
+        items = [_item(f"House Dish {i}") for i in range(safe_n)]
+        terms = ["peanut"] if method != "gemini_text" else []
+        items += [_item(n, allergen_terms=terms, method=method) for n in nutty_names]
+        return items
+
+    def _risk(self, **kw):
+        return score_restaurant_for_user(self.NUT, **kw)
+
+    def test_labeled_chain_ranks_below_unlabeled_independent(self) -> None:
+        bjs = self._risk(
+            cuisines=["american"], region="US",
+            menu_items=self._menu(88, ["Peanut Butter S'mores", "Macadamia Nut Pizookie"]),
+            signals=RestaurantSignals(allergy_disclaimer=True, ask_staff=True),
+        )
+        indian = self._risk(cuisines=["indian"], region="US")  # unlabeled, no menu
+        self.assertLess(bjs.overall_risk, indian.overall_risk)   # the headline fix
+        self.assertEqual(bjs.tier, Tier.CAUTION.value)
+        self.assertLess(bjs.overall_risk, 0.45)                  # not pinned at 0.97
+
+    def test_confirmed_chart_beats_dishname_beats_unlabeled(self) -> None:
+        chart = self._risk(
+            cuisines=["american"], region="US",
+            menu_items=self._menu(88, ["Satay"], method="gemini_allergen_matrix"))
+        names = self._risk(
+            cuisines=["american"], region="US",
+            menu_items=self._menu(88, ["Peanut Satay"]))
+        unlabeled = self._risk(cuisines=["american"], region="US")
+        self.assertLess(chart.overall_risk, names.overall_risk)  # confirmed labels safest
+
+    def test_pervasive_nuts_stays_high(self) -> None:
+        r = self._risk(
+            cuisines=["thai"], region="US",
+            menu_items=[_item(n) for n in
+                        ["Pad Thai", "Satay", "Peanut Curry", "Cashew Chicken", "Massaman"]]
+            + [_item("Jasmine Rice")])
+        self.assertGreater(r.overall_risk, 0.7)   # nuts unavoidable -> high
+
+    def test_trace_sensitive_user_gets_high_score(self) -> None:
+        strict = UserProfile.for_nuts(
+            Severity.ANAPHYLAXIS, cross_contact=CrossContactSensitivity.STRICT)
+        r = score_restaurant_for_user(
+            strict, cuisines=["american"], region="US",
+            menu_items=self._menu(88, ["Satay"], method="gemini_allergen_matrix"))
+        self.assertEqual(r.tier, Tier.AVOID.value)   # nut kitchen disqualifying for traces
+
+    def test_handling_signals_lower_the_score(self) -> None:
+        menu = self._menu(88, ["Peanut Butter Pie"])
+        bare = self._risk(cuisines=["american"], region="US", menu_items=menu)
+        aware = self._risk(cuisines=["american"], region="US", menu_items=menu,
+                           signals=RestaurantSignals(allergy_disclaimer=True, ask_staff=True))
+        self.assertLess(aware.overall_risk, bare.overall_risk)
+
+
+class CoverageDeQuantizationTests(unittest.TestCase):
+    """Phase A: same-cuisine places must diverge by how much menu we actually
+    parsed, instead of every same-cuisine restaurant snapping to one constant."""
+
+    def _risk(self, menu):
+        return score_restaurant_for_user(
+            NUT_ALLERGY, cuisines=["chinese"], region="US", menu_items=menu
+        ).overall_risk
+
+    def test_parsed_clean_menu_ranks_below_no_menu_same_cuisine(self) -> None:
+        no_menu = self._risk([])
+        parsed = self._risk([_item(f"Dish {i}") for i in range(20)])
+        self.assertLess(parsed, no_menu)  # the tie is broken
+        self.assertGreater(parsed, 0.12)  # but never "safe" -- floored
+
+    def test_more_coverage_lowers_risk_continuously(self) -> None:
+        small = self._risk([_item(f"Dish {i}") for i in range(3)])
+        large = self._risk([_item(f"Dish {i}") for i in range(20)])
+        no_menu = self._risk([])
+        # Monotone: more clean coverage -> lower risk, all below the no-menu prior.
+        self.assertLess(large, small)
+        self.assertLess(small, no_menu)
+
+    def test_evidence_ladder_orders_correctly(self) -> None:
+        clean_menu = [_item(f"Dish {i}") for i in range(20)]
+        clean_chart = [_matrix_item(f"Dish {i}", allergen_terms=["milk"]) for i in range(20)]
+        nut_dish = [_item("Kung Pao Chicken with peanuts", allergen_terms=["peanut"],
+                          method="gemini_text")]
+        chart_risk = score_restaurant_for_user(
+            NUT_ALLERGY, cuisines=["chinese"], region="US", menu_items=clean_chart
+        ).overall_risk
+        # Confirmed clean chart < informal menu review < no menu < confirmed nut dish.
+        self.assertLess(chart_risk, self._risk(clean_menu))
+        self.assertLess(self._risk(clean_menu), self._risk([]))
+        self.assertLess(self._risk([]), self._risk(nut_dish))
+
+    def test_coverage_discount_does_not_apply_when_nut_dish_present(self) -> None:
+        # A named nut dish keeps the dish_prior basis -- no clean-coverage discount.
+        result = score_restaurant_for_user(
+            NUT_ALLERGY, cuisines=["chinese"], region="US",
+            menu_items=[_item("Pad Thai with peanuts")]
+            + [_item(f"Dish {i}") for i in range(20)],
+        )
+        self.assertNotEqual(result.evidence_basis, "menu_coverage")
+
+    def test_mandate_region_clean_menu_reassures_more_than_us(self) -> None:
+        menu = [_item(f"Dish {i}") for i in range(20)]
+        us = score_restaurant_for_user(
+            NUT_ALLERGY, cuisines=["chinese"], region="US", menu_items=menu
+        ).overall_risk
+        gb = score_restaurant_for_user(
+            NUT_ALLERGY, cuisines=["chinese"], region="GB", menu_items=menu
+        ).overall_risk
+        # UK mandates restaurant allergen disclosure -> a clean menu means more.
+        self.assertLess(gb, us)
+
+    def test_parsed_clean_menu_sets_menu_coverage_basis(self) -> None:
+        result = score_restaurant_for_user(
+            NUT_ALLERGY, cuisines=["chinese"], region="US",
+            menu_items=[_item(f"Dish {i}") for i in range(20)],
+        )
+        self.assertEqual(result.evidence_basis, "menu_coverage")
 
 
 if __name__ == "__main__":

@@ -13,18 +13,18 @@ class LocalAppBraveFallbackTests(unittest.TestCase):
         normal_source = _menu_source("https://example.com/menu")
 
         with _patched_menu_file_writes(), patch(
-            "safeplate.local_app.get_brave_search_api_key",
+            "safeplate.legacy_extraction.get_brave_search_api_key",
             return_value="brave-key",
         ), patch(
-            "safeplate.local_app.discover_menu_sources_for_url",
+            "safeplate.legacy_extraction.discover_menu_sources_for_url",
             return_value=[normal_source],
         ) as normal_discovery, patch(
-            "safeplate.local_app.discover_menu_sources_with_brave"
+            "safeplate.legacy_extraction.discover_menu_sources_with_brave"
         ) as brave_discovery, patch(
-            "safeplate.local_app.extract_menu_text_from_sources",
+            "safeplate.legacy_extraction.extract_menu_text_from_sources",
             return_value=[],
         ), patch(
-            "safeplate.local_app.extract_menu_items_from_sources",
+            "safeplate.legacy_extraction.extract_menu_items_from_sources",
             return_value=[],
         ):
             response = run_menu_extraction(
@@ -46,10 +46,10 @@ class LocalAppBraveFallbackTests(unittest.TestCase):
         recovered_source = _menu_source("https://jennychinese.com/menu")
 
         with _patched_menu_file_writes(), patch(
-            "safeplate.local_app.get_brave_search_api_key",
+            "safeplate.legacy_extraction.get_brave_search_api_key",
             return_value="brave-key",
         ), patch(
-            "safeplate.local_app.recover_restaurant_website_with_brave",
+            "safeplate.legacy_extraction.recover_restaurant_website_with_brave",
             return_value={
                 "status": "recovered",
                 "website_url": "https://jennychinese.com/",
@@ -59,15 +59,15 @@ class LocalAppBraveFallbackTests(unittest.TestCase):
                 "candidates": [],
             },
         ) as recovery, patch(
-            "safeplate.local_app.discover_menu_sources_for_url",
+            "safeplate.legacy_extraction.discover_menu_sources_for_url",
             return_value=[recovered_source],
         ) as normal_discovery, patch(
-            "safeplate.local_app.discover_menu_sources_with_brave"
+            "safeplate.legacy_extraction.discover_menu_sources_with_brave"
         ) as brave_discovery, patch(
-            "safeplate.local_app.extract_menu_text_from_sources",
+            "safeplate.legacy_extraction.extract_menu_text_from_sources",
             return_value=[],
         ), patch(
-            "safeplate.local_app.extract_menu_items_from_sources",
+            "safeplate.legacy_extraction.extract_menu_items_from_sources",
             return_value=[],
         ):
             response = run_menu_extraction(
@@ -110,25 +110,25 @@ def _menu_source(url: str) -> MenuSourceRecord:
 def _patched_menu_file_writes():
     patches = [
         patch(
-            "safeplate.local_app.build_menu_output_paths",
+            "safeplate.legacy_extraction.build_menu_output_paths",
             return_value=(Path("menu_sources.json"), Path("menu_sources.csv")),
         ),
         patch(
-            "safeplate.local_app.build_menu_text_output_paths",
+            "safeplate.legacy_extraction.build_menu_text_output_paths",
             return_value=(Path("menu_text.json"), Path("menu_text.csv")),
         ),
         patch(
-            "safeplate.local_app.build_menu_item_output_paths",
+            "safeplate.legacy_extraction.build_menu_item_output_paths",
             return_value=(Path("menu_items.json"), Path("menu_items.csv")),
         ),
-        patch("safeplate.local_app._build_local_validation_output_path", return_value=Path("validation.json")),
-        patch("safeplate.local_app.write_menu_sources_json"),
-        patch("safeplate.local_app.write_menu_sources_csv"),
-        patch("safeplate.local_app.write_menu_text_json"),
-        patch("safeplate.local_app.write_menu_text_csv"),
-        patch("safeplate.local_app.write_menu_items_json"),
-        patch("safeplate.local_app.write_menu_items_csv"),
-        patch("safeplate.local_app._write_menu_validation_json"),
+        patch("safeplate.legacy_extraction._build_local_validation_output_path", return_value=Path("validation.json")),
+        patch("safeplate.legacy_extraction.write_menu_sources_json"),
+        patch("safeplate.legacy_extraction.write_menu_sources_csv"),
+        patch("safeplate.legacy_extraction.write_menu_text_json"),
+        patch("safeplate.legacy_extraction.write_menu_text_csv"),
+        patch("safeplate.legacy_extraction.write_menu_items_json"),
+        patch("safeplate.legacy_extraction.write_menu_items_csv"),
+        patch("safeplate.legacy_extraction._write_menu_validation_json"),
     ]
     return _PatchStack(patches)
 

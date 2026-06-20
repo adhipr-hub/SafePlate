@@ -199,6 +199,55 @@ _MULTILINGUAL_NUT_TERMS: list[tuple[str, set[str], float, str]] = [
 
 DISH_NUT_KNOWLEDGE.extend(_MULTILINGUAL_NUT_TERMS)
 
+# --------------------------------------------------------------------------- #
+# SUSPECTED-nuts layer (RECALL, not precision): dish TYPES that frequently HIDE
+# nuts even when the name doesn't say so -- desserts/baked goods (walnut brownies,
+# almond-flour cakes), curries/stir-fries (nut-thickened sauces, peanut oil), etc.
+# These are ASSUMPTIONS, so they carry a MODERATE risk at LOW confidence -- enough
+# to stop the scorer from treating the dish as clearly safe, not enough to claim a
+# confirmed nut dish. Matched only when no explicit nut term is found.
+# --------------------------------------------------------------------------- #
+_SUSPECTED_RISK = 0.40
+_SUSPECTED_CONF = 0.30
+SUSPECTED_NUT_PATTERNS: list[tuple[str, set[str], str]] = [
+    # baked goods & desserts (nuts very common, often unstated)
+    ("brownie", {PEANUTS, TREE_NUTS}, "brownies often contain nuts"),
+    ("blondie", {TREE_NUTS}, "blondies often contain nuts"),
+    ("cookie", {PEANUTS, TREE_NUTS}, "cookies often contain nuts"),
+    ("biscotti", {TREE_NUTS}, "biscotti often contain nuts"),
+    ("cake", {TREE_NUTS}, "cakes often contain nuts"),
+    ("torte", {TREE_NUTS}, "tortes often contain nuts"),
+    ("tart", {TREE_NUTS}, "tarts often contain nuts"),
+    ("muffin", {TREE_NUTS}, "muffins often contain nuts"),
+    ("scone", {TREE_NUTS}, "scones often contain nuts"),
+    ("granola", {TREE_NUTS}, "granola usually contains nuts"),
+    ("muesli", {TREE_NUTS}, "muesli usually contains nuts"),
+    ("parfait", {TREE_NUTS}, "parfaits often contain nut granola"),
+    ("sundae", {PEANUTS, TREE_NUTS}, "sundaes often contain nut toppings"),
+    ("gelato", {TREE_NUTS}, "gelato often contains nuts"),
+    ("ice cream", {PEANUTS, TREE_NUTS}, "ice cream often contains nut flavors/toppings"),
+    ("pastry", {TREE_NUTS}, "pastries often contain nuts"),
+    ("strudel", {TREE_NUTS}, "strudel often contains nuts"),
+    ("crumble", {TREE_NUTS}, "crumbles often contain nuts"),
+    ("cobbler", {TREE_NUTS}, "cobblers sometimes contain nuts"),
+    ("fudge", {PEANUTS, TREE_NUTS}, "fudge often contains nuts"),
+    ("brittle", {PEANUTS, TREE_NUTS}, "brittle is usually nut-based"),
+    ("toffee", {TREE_NUTS}, "toffee often contains nuts"),
+    ("energy bar", {PEANUTS, TREE_NUTS}, "energy/protein bars often contain nuts"),
+    ("protein bar", {PEANUTS, TREE_NUTS}, "protein bars often contain nuts"),
+    ("trail mix", {PEANUTS, TREE_NUTS}, "trail mix usually contains nuts"),
+    # nut-prone savory preparations
+    ("curry", {PEANUTS, TREE_NUTS}, "curries often use nut-thickened sauces"),
+    ("stir fry", {PEANUTS}, "stir-fries often use peanuts/peanut oil"),
+    ("stir-fry", {PEANUTS}, "stir-fries often use peanuts/peanut oil"),
+    ("crusted", {TREE_NUTS}, "'crusted' dishes are sometimes nut-crusted"),
+    ("encrusted", {TREE_NUTS}, "'encrusted' dishes are sometimes nut-crusted"),
+]
+# At plant-based kitchens, dairy analogues are typically CASHEW-based -- a common
+# hidden-nut trap. Only applied when the cuisine is vegan/vegetarian.
+_VEGAN_SUSPECTED_PATTERNS = ("cheese", "cream", "parmesan", "ricotta",
+                             "mozzarella", "queso", "alfredo", "milk", "butter")
+
 # Explicit nut-free claims lower the prior. Conservative: this only sets a prior,
 # the downstream scorer must still treat allergy decisions cautiously.
 NUT_FREE_PATTERNS = [
@@ -273,6 +322,11 @@ CUISINE_NUT_BASELINE: dict[str, float] = {
     "ice_cream": 0.35,
     # Beverage-forward spots are low base risk.
     "cafe": 0.18,
+    # Plant-based kitchens lean HEAVILY on nuts (cashew cheese, nut milks, nut-based
+    # sauces/'parmesan', almond bases) -- "vegan = healthy = safe" is a dangerous
+    # misread, so these carry an elevated baseline, not a low one.
+    "vegan": 0.45,
+    "vegetarian": 0.40,
 }
 DEFAULT_CUISINE_BASELINE = 0.30
 
@@ -471,6 +525,14 @@ CUISINE_ALIASES: dict[str, str] = {
     "bistro": "french",
     "gastropub": "british",
     "pub": "british",
+    # Plant-based dietary styles -> kept as cuisine cues (nuts common in vegan cooking).
+    "vegan": "vegan",
+    "vegan_restaurant": "vegan",
+    "plant_based": "vegan",
+    "plant-based": "vegan",
+    "vegetarian": "vegetarian",
+    "vegetarian_restaurant": "vegetarian",
+    "veggie": "vegetarian",
 }
 
 COUNTRY_ALIASES: dict[str, str] = {
@@ -571,6 +633,31 @@ def labeling_trust_for_region(region: str) -> float:
     return HIGH_LABELING_TRUST if region in HIGH_LABELING_COUNTRIES else LOW_LABELING_TRUST
 
 
+# Regions that legally REQUIRE restaurants to disclose allergen info, so a menu
+# that does NOT name an allergen is meaningfully more likely to be free of it.
+# This is distinct from labeling_trust (how much an EXPLICIT chart can be trusted):
+# an allergen chart is real data regardless of region, but ABSENCE only implies
+# absence where disclosure is mandated. The US mandates packaged-food labeling
+# (FALCPA) but NOT restaurant per-dish disclosure -- so "the menu didn't mention
+# nuts" is weak evidence there, and weaker still where nothing is mandated.
+MANDATE_LABELING_REGIONS = {
+    "GB", "IE", "AU", "NZ",
+    "FR", "DE", "IT", "ES", "NL", "BE", "SE", "DK", "FI", "NO",
+    "PT", "AT", "PL", "CZ", "GR", "CH",
+}
+
+
+def absence_inference_factor(region: str) -> float:
+    """How much a clean (allergen-not-mentioned) menu may lower risk, by region.
+    1.0 where restaurant allergen disclosure is mandated; partial in the US/CA
+    (packaged-food labeling only); low elsewhere."""
+    if region in MANDATE_LABELING_REGIONS:
+        return 1.0
+    if region in {"US", "CA"}:
+        return 0.55
+    return 0.4
+
+
 # --------------------------------------------------------------------------- #
 # Scoring
 # --------------------------------------------------------------------------- #
@@ -626,6 +713,20 @@ def score_menu_item_prior(
             labeling_trust=trust,
         )
 
+    # RECALL: the name/description didn't NAME a nut, but the dish TYPE often hides
+    # one. Make the assumption, at moderate risk + LOW confidence (never below the
+    # cuisine floor). Lets the scorer treat it as "uncertain", not "clearly safe".
+    suspected = _suspected_match(text, wanted, cuisines)
+    if suspected is not None:
+        return AllergenPrior(
+            allergen=allergen,
+            risk=_clamp(max(baseline.risk, _SUSPECTED_RISK)),
+            confidence=_SUSPECTED_CONF,
+            basis="suspected_nuts",
+            rationale=[f"possible nuts: {suspected} (low confidence -- an assumption, not stated)"],
+            labeling_trust=trust,
+        )
+
     return baseline
 
 
@@ -674,6 +775,9 @@ class RestaurantNutRisk:
     rationale: list[str]
     labeling_trust: float
     riskiest_items: list[tuple[str, float]]  # (item_name, risk), high to low
+    # Per-dish detail (name, risk, confidence, basis) so the scorer can tell a NAMED
+    # nut dish from a low-confidence SUSPECTED one. Defaulted for back-compat.
+    item_details: list[dict[str, Any]] = field(default_factory=list)
 
 
 def restaurant_nut_risk(
@@ -692,6 +796,7 @@ def restaurant_nut_risk(
     """
     base = score_restaurant_prior(cuisines=cuisines, region=region, allergen=allergen)
     item_scores: list[tuple[str, float]] = []
+    item_details: list[dict[str, Any]] = []
     for item in menu_items or []:
         prior = score_menu_item_prior(
             item_name=item.get("item_name") or item.get("name"),
@@ -704,8 +809,13 @@ def restaurant_nut_risk(
         name = (item.get("item_name") or item.get("name") or "").strip()
         if name:
             item_scores.append((name, prior.risk))
+            item_details.append({
+                "name": name, "risk": prior.risk,
+                "confidence": prior.confidence, "basis": prior.basis,
+            })
 
     item_scores.sort(key=lambda pair: pair[1], reverse=True)
+    item_details.sort(key=lambda d: d["risk"], reverse=True)
     risky = [pair for pair in item_scores if pair[1] >= risky_threshold]
 
     if item_scores:
@@ -730,6 +840,7 @@ def restaurant_nut_risk(
         rationale=rationale,
         labeling_trust=base.labeling_trust,
         riskiest_items=item_scores[:5],
+        item_details=item_details,
     )
 
 
@@ -755,6 +866,22 @@ def _best_dish_match(text: str, wanted: set[str]) -> tuple[float, str] | None:
             if best is None or risk > best[0]:
                 best = (risk, note)
     return best
+
+
+def _suspected_match(text: str, wanted: set[str], cuisines: list[str] | None) -> str | None:
+    """A low-confidence assumption that a dish HIDES nuts based on its type, even
+    though no nut is named. Returns a human note, or None. Plant-based kitchens get
+    an extra check (dairy analogues are usually cashew-based)."""
+    for pattern, allergens, note in SUSPECTED_NUT_PATTERNS:
+        if (allergens & wanted) and _pattern_present(pattern, text):
+            return note
+    if cuisines and (wanted & {TREE_NUTS}) and any(
+        c in ("vegan", "vegetarian") for c in cuisines
+    ):
+        for pattern in _VEGAN_SUSPECTED_PATTERNS:
+            if pattern in text:
+                return f"plant-based '{pattern}' is usually cashew-based"
+    return None
 
 
 def _pattern_present(pattern: str, text: str) -> bool:

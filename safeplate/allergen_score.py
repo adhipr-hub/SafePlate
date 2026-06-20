@@ -20,11 +20,10 @@ Design contract (inherited from the prior layer, non-negotiable):
 
 Tier C (community / anecdotal review signals -- "a diner reported a reaction") is
 a PARALLEL, provenance-tagged MODIFIER, not a precedence rung. The pure,
-asymmetric, bounded delta math lives here (``_apply_community``) and is
-unit-tested with synthetic signals -- but NOTHING populates ``community`` yet.
-The Places-reviews fetch + LLM classification (``community_signals.py``) is
-deferred until the Gemini path is back; callers pass ``community=None`` today and
-the seam is a clean drop-in. Per the locked design, community is SAFETY-
+asymmetric, bounded delta math lives here (``_apply_community``). Community is
+populated LIVE in the drawer flow via ``community_signals.py`` (Places-reviews
+fetch + LLM classification); other callers may still pass ``community=None`` and
+the seam degrades cleanly. Per the locked design, community is SAFETY-
 ASYMMETRIC: adverse reports raise risk, positive reports only improve the
 handling signal and never lower dish risk.
 """
@@ -42,10 +41,12 @@ from safeplate.allergen_prior import (
     NUTS,
     PEANUTS,
     TREE_NUTS,
+    absence_inference_factor,
     labeling_trust_for_region,
     normalize_cuisine,
     region_from_address,
     restaurant_nut_risk,
+    score_restaurant_prior,
 )
 
 DISCLAIMER = (
@@ -153,6 +154,8 @@ class RestaurantSignals:
                 out.allergen_menu_available = True
             if getattr(sig, "allergy_friendly_claim", False):
                 out.allergy_disclaimer = True
+            if getattr(sig, "nut_free_claim", False):
+                out.nut_free_claim = True
         return out
 
 
@@ -194,6 +197,7 @@ class Handling:
     cross_contact_warning: bool = False
     ask_staff: bool = False
     allergen_menu: bool = False
+    nut_free_claim: bool = False
     community_praise: int = 0
     community_concern: int = 0
 
@@ -209,6 +213,13 @@ class AllergenAssessment:
     rationale: list[str] = field(default_factory=list)
     riskiest_items: list[dict[str, Any]] = field(default_factory=list)
     community_reported: bool = False
+    # Menu shape (for the whole-picture view the LLM judge needs, cheaply): how many
+    # dishes we parsed, how many NAME the allergen, how many are SUSPECTED (type often
+    # hides nuts -- low confidence), and whether it's navigable.
+    menu_total: int = 0
+    menu_flagged: int = 0
+    menu_suspected: int = 0
+    navigable: bool = False
 
 
 @dataclass
@@ -335,6 +346,35 @@ _CC_DEFAULT_BY_SEVERITY: dict[Severity, CrossContactSensitivity] = {
     Severity.AVOID_PREFERENCE: CrossContactSensitivity.NOT_CONCERNED,
 }
 
+# De-quantization: a place where we PARSED a real menu and found no nut-named
+# dishes is weakly safer than one we know nothing about -- but only weakly (a menu
+# rarely names the peanut oil in the kitchen). This lets two same-cuisine places
+# diverge by how much menu we actually saw, instead of both snapping to the flat
+# cuisine constant. Effect is mild, scaled by coverage x regional labeling trust,
+# and always floored -- it never reaches "safe". _COVERAGE_FULL = item count at
+# which coverage saturates; _COVERAGE_DISCOUNT = max fraction it can shave off.
+_COVERAGE_FULL = 20
+_COVERAGE_DISCOUNT = 0.22
+
+# Navigability / dineability: when nuts are confined to a clearly-avoidable MINORITY
+# of dishes and the user tolerates traces, the restaurant score should reflect EASE
+# OF AVOIDANCE -- not the single worst dish. A labeled chain with a few nut desserts
+# (88 of 93 safe) is a fine choice; pinning it at the riskiest dish (0.97) punishes
+# transparency and makes the tool say "never eat out". These tune that model.
+_PERVASIVE_FRACTION = 0.6      # at/above this risky share, nuts are unavoidable -> high
+_NAV_BASE = 0.22              # floor of the navigable band
+_NAV_SLOPE = 0.55            # how fast risk climbs with the risky-dish fraction
+_NAV_MATRIX_FACTOR = 0.7     # a CONFIRMED chart lets you trust the safe dishes -> lowest
+_NAV_INFERRED_RETAIN = 0.7   # dish-NAME nav can't vouch for unnamed dishes: a high-nut
+                             #   cuisine stays anchored near its baseline (hidden nuts)
+_NAV_HANDLING_FACTOR = 0.85  # allergy-handling signals (disclaimer/ask-staff) -> accommodation
+# SUSPECTED dishes (a low-confidence assumption that the dish type hides nuts) are
+# UNCERTAIN, not safe: they nudge the score up modestly (less than a NAMED nut dish)
+# and never let the place read as "clearly safe".
+_NAV_SUSPECTED_SLOPE = 0.25   # per suspected-dish fraction (vs _NAV_SLOPE for named)
+_NAV_BASE_SUSPECTED = 0.18    # floor of the "only suspected dishes" band
+_SUSPECTED_CONF_DISPLAY = 0.4  # shown confidence when the verdict rests on assumptions
+
 # Floor a 'may contain' / cross-contact warning imposes, keyed on the user's
 # cross-contact sensitivity (NOT their ingestion severity). A NOT_CONCERNED user is
 # unaffected by such a warning; a trace-sensitive user is pushed to caution.
@@ -363,10 +403,10 @@ def score_restaurant_for_user(
     community: Sequence[CommunitySignal] | None = None,
     official_domain: str | None = None,
 ) -> UserAllergenAssessment:
-    """Fuse prior + grounded evidence + signals (+ community seam) into one
-    per-user assessment. ``community`` is accepted but unpopulated today.
-    ``official_domain`` (the restaurant's own domain) lets provenance weighting
-    distrust off-site / stale allergen sources' clean signals."""
+    """Fuse prior + grounded evidence + signals + community into one per-user
+    assessment. ``community`` is populated live in the drawer flow (and may be
+    empty elsewhere). ``official_domain`` (the restaurant's own domain) lets
+    provenance weighting distrust off-site / stale allergen sources' clean signals."""
     signals = signals or RestaurantSignals()
     community = list(community or [])
 
@@ -445,6 +485,14 @@ def _score_one_allergen(
         ],
         allergen=pref.allergen,
     )
+    # Cuisine-only baseline (no dish priors): used to tell a dish that is nut-risky
+    # by NAME (e.g. "Satay") apart from one merely inheriting a high-nut cuisine's
+    # floor (e.g. "Rice" at a Thai place). Without this every dish at a high-nut
+    # cuisine looks risky and nothing is ever navigable.
+    cuisine_floor = score_restaurant_prior(
+        cuisines=cuisines, region=region, allergen=pref.allergen
+    ).risk
+
     risk = base.risk
     confidence = base.confidence
     rationale = list(base.rationale)
@@ -482,69 +530,131 @@ def _score_one_allergen(
         (_source_trust(url, official_domain) for url in matrix_source_urls), default=1.0
     )
 
-    # Per-dish navigability: a complete chart that marks the allergen in only a few
-    # of many dishes is NAVIGABLE (avoid those, eat the rest) -> CAUTION + per-dish
-    # guidance, not a blanket AVOID. Stays AVOID when nuts are pervasive or the user
-    # is trace-sensitive (a kitchen using nuts is then a cross-contact risk on every
-    # dish). Note this is gated on CROSS-CONTACT concern, not ingestion severity: an
-    # anaphylactic user who isn't worried about traces can still navigate the menu.
-    safe_dish_count = max(0, matrix_dish_total - len(matrix_hit_items))
-    pervasive = matrix_dish_total > 0 and len(matrix_hit_items) / matrix_dish_total >= 0.6
+    # How much menu we parsed, and which dishes are nut-RISKY by ANY evidence:
+    # grounded chart/text hits OR dish-name inference. Navigability + the coverage
+    # discount both read these.
+    parsed_count = sum(
+        1
+        for item in menu_items
+        if (_field(item, "item_name") or _field(item, "name") or "").strip()
+    )
+    coverage_fraction = min(1.0, parsed_count / _COVERAGE_FULL) if parsed_count else 0.0
+
+    # A dish is nut-risky by NAME only if its prior is ELEVATED above the cuisine
+    # floor -- otherwise a high-nut cuisine marks every dish risky and nothing is
+    # ever navigable (the bug that pinned a labeled chain at its worst dish).
+    name_risk_threshold = max(0.5, cuisine_floor + 0.1)
+    inferred_risky = {n for n, r in base.riskiest_items if r >= name_risk_threshold}
+    risky_names = set(matrix_hit_items) | set(text_hit_items) | inferred_risky
+    # SUSPECTED: dish types that often HIDE nuts (low-confidence assumption). Treated
+    # as UNCERTAIN -- they don't count as confirmed nut dishes, but they aren't
+    # "clearly safe" either, so they modestly raise risk + lower confidence.
+    suspected_names = {
+        d["name"] for d in base.item_details if d.get("basis") == "suspected_nuts"
+    } - risky_names
+    risky_count = len(risky_names)
+    suspected_count = len(suspected_names)
+    safe_count = max(0, parsed_count - risky_count)
+    risky_fraction = (risky_count / parsed_count) if parsed_count else 0.0
+    suspected_fraction = (suspected_count / parsed_count) if parsed_count else 0.0
+    trace_sensitive = cross_contact.rank >= CrossContactSensitivity.STRICT.rank
+    pervasive = parsed_count > 0 and risky_fraction >= _PERVASIVE_FRACTION
+
+    # DINEABILITY: nuts confined to a clearly-avoidable MINORITY, safe options remain,
+    # and the user tolerates traces. True regardless of evidence type (chart, menu
+    # text, or dish-name) -- so a labeled chain with a few nut desserts is navigable,
+    # not pinned at its worst dish. Gated on CROSS-CONTACT concern, not ingestion
+    # severity: an anaphylactic user who isn't worried about traces can still navigate.
     navigable = (
-        bool(matrix_hit_items)
-        and safe_dish_count >= 3
-        and not pervasive
-        and cross_contact.rank < CrossContactSensitivity.STRICT.rank
+        risky_count > 0 and safe_count >= 3 and not pervasive and not trace_sensitive
     )
 
-    presence = False
-    if matrix_hit_items:
-        # T1: a dish x allergen chart marks the user's allergen present. Confirmed.
-        presence = True
-        basis = "allergen_matrix"
-        more = len(matrix_hit_items) - 4
-        rationale.append(
-            f"Allergen chart marks {pref.allergen} present in: "
-            + ", ".join(matrix_hit_items[:4])
-            + (f" (+{more} more)" if more > 0 else "")
-        )
-        if navigable:
-            # Some dishes contain it, but there are clearly safe options to order.
-            risk = max(risk, 0.55)
-            confidence = max(confidence, 0.85)
-            note = (
-                f"{safe_dish_count} other listed dishes are not marked {pref.allergen} -- "
-                "you can likely order safely by avoiding those above"
-            )
-            note += (
-                " (you've set trace cross-contact as not a concern)."
-                if cross_contact == CrossContactSensitivity.NOT_CONCERNED
-                else ", and confirm cross-contact handling with staff."
-            )
-            rationale.append(note)
+    grounded_matrix = bool(matrix_hit_items)
+    grounded_text = bool(text_hit_items) and not grounded_matrix
+    presence = grounded_matrix or grounded_text
+    handling_aware = bool(
+        signals.allergy_disclaimer or signals.ask_staff or signals.allergen_menu_available
+    )
+
+    if risky_count and navigable:
+        # Score = EASE OF AVOIDANCE, not the single worst dish. A CONFIRMED chart is
+        # trustworthy (you can rely on the unmarked dishes) -> lowest. Dish-NAME
+        # inference can't vouch for the unnamed dishes, so for a high-nut cuisine it
+        # stays anchored near the baseline (hidden nuts are likely). Allergy-handling
+        # signals (accommodation) pull it down further. Never below the caution band:
+        # a nut-using kitchen always warrants "confirm with staff".
+        nav = _NAV_BASE + _NAV_SLOPE * risky_fraction + _NAV_SUSPECTED_SLOPE * suspected_fraction
+        if grounded_matrix:
+            nav *= _NAV_MATRIX_FACTOR
+            basis = "allergen_matrix"
+        elif grounded_text:
+            basis = "menu_evidence"
         else:
+            nav = max(nav, cuisine_floor * _NAV_INFERRED_RETAIN)
+            basis = "dish_prior"
+        if handling_aware:
+            nav *= _NAV_HANDLING_FACTOR
+        risk = max(caution_threshold, min(risk, nav))
+        confidence = max(confidence, 0.8 if grounded_matrix else 0.6)
+        shown = sorted(risky_names)[:4]
+        more = risky_count - len(shown)
+        rationale.append(
+            f"{risky_count} of {parsed_count} dishes involve {pref.allergen} "
+            f"({', '.join(shown)}{f' +{more} more' if more > 0 else ''}); the other "
+            f"{safe_count} don't -- avoid the flagged dishes and you can likely eat safely."
+        )
+        if suspected_count:
+            rationale.append(
+                f"(Plus {suspected_count} dish(es) whose type often hides nuts -- "
+                "possible, not confirmed.)"
+            )
+        if handling_aware:
+            rationale.append(
+                "Restaurant shows allergy-handling awareness -- still confirm with staff."
+            )
+    elif risky_count == 0 and suspected_count:
+        # No dish NAMES a nut, but some dish TYPES commonly hide them -- a low-confidence
+        # assumption. Moderate-low risk, kept in the caution band (never "likely OK"),
+        # with LOW displayed confidence so the user knows it's a guess. Trace-sensitive
+        # users get a firmer floor (a hidden nut would matter more to them).
+        if trace_sensitive:
+            risk = max(risk, 0.5)
+        else:
+            nav = _NAV_BASE_SUSPECTED + _NAV_SUSPECTED_SLOPE * suspected_fraction
+            risk = max(caution_threshold, min(risk, nav))
+        confidence = min(confidence, _SUSPECTED_CONF_DISPLAY)
+        basis = "suspected_nuts"
+        shown = sorted(suspected_names)[:4]
+        rationale.append(
+            f"No dish names {pref.allergen}, but {suspected_count} of {parsed_count} dishes "
+            f"are types that often hide nuts ({', '.join(shown)}) -- possible, not confirmed "
+            "(low confidence; ask staff)."
+        )
+    elif risky_count:
+        # NOT navigable: nuts are pervasive, the user is trace-sensitive, or too few
+        # safe options remain. Confirmed presence dominates; inference caps at caution.
+        if grounded_matrix:
             risk = max(risk, 0.9)
             confidence = max(confidence, 0.9)
-            # Safe dishes exist and nuts aren't pervasive, yet we still say AVOID:
-            # make the reason explicit so the verdict isn't a black box.
-            if (
-                safe_dish_count >= 3
-                and not pervasive
-                and cross_contact.rank >= CrossContactSensitivity.STRICT.rank
-            ):
-                rationale.append(
-                    f"{safe_dish_count} dishes are nut-free, but you've flagged cross-contact "
-                    "as a serious risk and this kitchen handles nuts -- treated as avoid."
-                )
-    elif text_hit_items:
-        # T2: an explicit allergen mention in item/description text.
-        presence = True
-        risk = max(risk, 0.8)
-        confidence = max(confidence, 0.7)
-        basis = "menu_evidence"
-        rationale.append(
-            f"Menu text names {pref.allergen} in: " + ", ".join(text_hit_items[:4])
-        )
+            basis = "allergen_matrix"
+        elif grounded_text:
+            risk = max(risk, 0.8)
+            confidence = max(confidence, 0.7)
+            basis = "menu_evidence"
+        else:
+            risk = max(risk, base.risk)
+            basis = "dish_prior"
+        if trace_sensitive and safe_count >= 3 and not pervasive:
+            rationale.append(
+                f"{safe_count} dishes look nut-free, but you've flagged cross-contact as "
+                "a serious risk and this kitchen handles nuts -- treated as high risk."
+            )
+        else:
+            shown = sorted(risky_names)[:4]
+            rationale.append(
+                f"{pref.allergen.capitalize()} runs across the menu ({', '.join(shown)}) "
+                "-- hard to avoid here."
+            )
 
     # T3: restaurant-level signals. Presence DOMINATES -- a clean signal cannot
     # erase a confirmed hit; it only applies when nothing was found present.
@@ -570,6 +680,22 @@ def _score_one_allergen(
             if basis == "cuisine_prior":
                 basis = "restaurant_signal"
             rationale.append("Menu states a nut-free claim (still verify directly).")
+        elif basis == "cuisine_prior" and parsed_count:
+            # No chart, no claim, no nut-named dishes -- but we DID read a menu.
+            # Mild, coverage-scaled reassurance so this ranks below an identical
+            # cuisine with no menu at all, without ever implying it's safe. Scaled
+            # by REGION MANDATE (not chart trust): a clean US menu reassures less
+            # than a clean UK/EU one, since the US mandates no per-dish disclosure.
+            discount = _COVERAGE_DISCOUNT * coverage_fraction * absence_inference_factor(region)
+            lowered = max(severity_floor, risk * (1.0 - discount))
+            if lowered < risk:
+                risk = lowered
+                confidence = max(confidence, 0.5 + 0.2 * coverage_fraction)
+                basis = "menu_coverage"
+                rationale.append(
+                    f"Reviewed {parsed_count} menu items; none name {pref.allergen} "
+                    "-- mild reassurance only (no allergen chart; ask staff)."
+                )
 
     if matrix_present and matrix_trust < 0.85:
         rationale.append(
@@ -609,11 +735,21 @@ def _score_one_allergen(
     )
 
     # Per-dish guidance: when a chart confirms specific dishes, surface THOSE (the
-    # real "avoid these" list) instead of the prior's name-based guesses.
+    # real "avoid these" list) instead of the prior's name-based guesses. Otherwise
+    # surface named + suspected dishes, tagging suspected ones (low-confidence guess).
     if matrix_hit_items:
-        riskiest = [{"itemName": n, "risk": 0.95} for n in matrix_hit_items[:8]]
+        riskiest = [{"itemName": n, "risk": 0.95, "confidence": 0.9, "suspected": False}
+                    for n in matrix_hit_items[:8]]
     else:
-        riskiest = [{"itemName": n, "risk": round(r, 3)} for n, r in base.riskiest_items]
+        riskiest = []
+        for d in base.item_details[:8]:
+            is_suspected = d.get("basis") == "suspected_nuts"
+            if d["risk"] >= 0.35 or d["name"] in risky_names:
+                riskiest.append({
+                    "itemName": d["name"], "risk": round(d["risk"], 3),
+                    "confidence": round(d.get("confidence", 0.5), 2),
+                    "suspected": is_suspected,
+                })
 
     return AllergenAssessment(
         allergen=pref.allergen,
@@ -625,6 +761,10 @@ def _score_one_allergen(
         rationale=rationale,
         riskiest_items=riskiest,
         community_reported=community_reported,
+        menu_total=parsed_count,
+        menu_flagged=risky_count,
+        menu_suspected=suspected_count,
+        navigable=navigable,
     )
 
 
@@ -710,6 +850,7 @@ def _restaurant_handling(
         cross_contact_warning=signals.cross_contact_warning,
         ask_staff=signals.ask_staff,
         allergen_menu=signals.allergen_menu_available,
+        nut_free_claim=signals.nut_free_claim,
     )
     handling.allergy_aware = (
         signals.allergen_menu_available or signals.ask_staff or signals.allergy_disclaimer

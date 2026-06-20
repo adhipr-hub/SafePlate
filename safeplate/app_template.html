@@ -240,6 +240,21 @@
     .cbadge.nomenu { color: var(--md); border-color: rgba(146,64,14,0.22); background: rgba(146,64,14,0.07); }
     .cbadge.live   { color: #2563EB;   border-color: rgba(37,99,235,0.22);  background: rgba(37,99,235,0.06); }
 
+    /* provenance / "how we know" chips */
+    .pvchip { font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: var(--pill);
+              border: 1.5px solid var(--border); letter-spacing: .02em; }
+    .pv-confirmed { color: var(--g0); border-color: rgba(22,101,52,.32); background: rgba(22,101,52,.08); }
+    .pv-signal    { color: #2563EB; border-color: rgba(37,99,235,.26); background: rgba(37,99,235,.06); }
+    .pv-inferred  { color: var(--md); border-color: rgba(146,64,14,.26); background: rgba(146,64,14,.06); }
+    .pv-estimate  { color: var(--tx3); border-color: var(--border); }
+    .pv-callahead { color: #7c3aed; border-color: rgba(124,58,237,.26); background: rgba(124,58,237,.06); }
+    .verdict-prov { font-size: 12px; font-weight: 600; margin-top: 7px; display: flex; gap: 7px; align-items: baseline; flex-wrap: wrap; }
+    .verdict-prov .pv-blurb { font-weight: 400; color: var(--tx3); }
+    .risky-row.clickable { cursor: pointer; }
+    .risky-row.clickable:hover .risky-name { text-decoration: underline; }
+    .mitem.flash { animation: flashbg 1.6s ease; border-radius: 6px; }
+    @keyframes flashbg { 0%,100% { background: transparent; } 15% { background: rgba(146,64,14,.16); } }
+
     .card-risk {
       display: flex; flex-direction: column; align-items: center; flex: none; padding-top: 1px;
     }
@@ -308,6 +323,32 @@
     .verdict-label { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
     .verdict-rationale { font-size: 13px; color: var(--tx2); line-height: 1.5; }
     .verdict-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+
+    /* "Why this score" explanation (the scorer's rationale; ai_assisted = the LLM's reasoning) */
+    .score-why { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+    .why-head {
+      font-size: 11px; font-weight: 700; color: var(--tx3); letter-spacing: .04em;
+      text-transform: uppercase; margin-bottom: 7px; display: flex; align-items: center; gap: 7px;
+    }
+    .ai-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: none;
+      color: #6D28D9; background: #EDE9FE; padding: 1px 7px; border-radius: var(--pill);
+    }
+    .why-list { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+    .why-list li {
+      font-size: 13px; color: var(--tx2); line-height: 1.45;
+      padding-left: 15px; position: relative;
+    }
+    .why-list li::before { content: "•"; position: absolute; left: 3px; color: var(--border2); }
+    .why-list li.tappable { cursor: pointer; }
+    .why-list li.tappable:hover { color: var(--tx); }
+    .why-list li.tappable:hover .why-text { text-decoration: underline; }
+    .cite {
+      font-size: 10.5px; font-weight: 700; color: #6D28D9; background: #EDE9FE;
+      padding: 0 5px; border-radius: 4px; margin-left: 4px; white-space: nowrap;
+      vertical-align: 1px;
+    }
+    .why-trust { font-size: 12px; color: var(--tx3); margin-top: 9px; }
 
     /* Awareness chips */
     .sig-row { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -481,6 +522,13 @@
         <span class="allergen-chip cc" data-cc="moderate" style="cursor:pointer">Somewhat careful</span>
         <span class="allergen-chip cc" data-cc="strict" style="cursor:pointer">Very careful</span>
       </div>
+      <div class="allergen-row">
+        <span class="allergen-label">Scoring
+          <span class="cc-hint" title="Rules = transparent rule-based scoring. AI = LLM judgment that trusts a published allergen chart when one exists, else reads the raw menu (or cuisine/signals if no menu). Both share the same deterministic safety floor + guardrails.">ⓘ</span>
+        </span>
+        <span class="allergen-chip se" data-se="rules" style="cursor:pointer">Rules</span>
+        <span class="allergen-chip se on" data-se="ai" style="cursor:pointer">AI</span>
+      </div>
     </div>
   </section>
 
@@ -518,7 +566,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const cap = s => { s = String(s||"").replace(/_/g," "); return s.charAt(0).toUpperCase()+s.slice(1); };
 const asList = v => Array.isArray(v) ? v : v ? String(v).split(";").map(x=>x.trim()).filter(Boolean) : [];
 const isNut  = t => /nut|peanut|almond|cashew|walnut|pecan|pistachio|hazelnut|pine|macadamia|praline|nutella|gianduja/i.test(t);
-const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", demoMode:false, defaultDemoLocation:"" };
+const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"" };
 
 /* Cross-contact defaults to a severity-derived level until the user overrides it
    (mirrors _CC_DEFAULT_BY_SEVERITY server-side). state.crossContact "" == auto. */
@@ -554,6 +602,23 @@ function ring(risk, px) {
 function covLabel(s) { return s==="menu_backed"?"Menu-backed":s==="no_menu_found"?"No online menu":"Cuisine estimate"; }
 function covClass(s) { return s==="menu_backed"?"menu":s==="no_menu_found"?"nomenu":""; }
 function cbadge(label,cls) { return `<span class="cbadge ${cls||""}">${esc(label)}</span>`; }
+
+/* "How we know" — map evidence basis + coverage to a user-facing trust tier. */
+function provenanceTier(basis, coverage) {
+  if (coverage !== "menu_backed" && (basis === "cuisine_prior" || basis === "dish_prior" || !basis))
+    return { label: "Call ahead", cls: "pv-callahead",
+             blurb: "No online menu found — confirm directly with the restaurant." };
+  switch (basis) {
+    case "allergen_matrix":   return { label: "Confirmed", cls: "pv-confirmed", blurb: "From the restaurant's published allergen chart." };
+    case "menu_evidence":     return { label: "Confirmed", cls: "pv-confirmed", blurb: "From the menu's own text." };
+    case "restaurant_signal": return { label: "Restaurant info", cls: "pv-signal", blurb: "Based on the restaurant's allergy statements." };
+    case "dish_prior":        return { label: "Inferred", cls: "pv-inferred", blurb: "Inferred from dish names — not a confirmed allergen list." };
+    case "menu_coverage":     return { label: "Menu reviewed", cls: "pv-inferred", blurb: "We read the menu and found no nut dishes — informal, not an allergen chart." };
+    case "cuisine_prior":     return { label: "Estimate", cls: "pv-estimate", blurb: "Estimated from cuisine & area — no menu data." };
+    default:                  return { label: "Estimate", cls: "pv-estimate", blurb: "Estimated — limited data." };
+  }
+}
+function pvchip(t) { return `<span class="pvchip ${t.cls}">${esc(t.label)}</span>`; }
 
 /* ── config ── */
 async function loadConfig() {
@@ -594,7 +659,7 @@ async function search(opts={}) {
       </div>
     </div>`).join("");
   try {
-    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact };
+    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine };
     if (hasCoords) { req.location = opts.location||"Current location"; req.latitude=opts.latitude; req.longitude=opts.longitude; }
     else { req.location = loc; }
     const data = await (await fetch("/api/search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(req)})).json();
@@ -669,7 +734,7 @@ function renderResults() {
           <div class="card-tags">${cz.map(c=>`<span class="ctag">${esc(cap(c))}</span>`).join("")}</div>
           <div class="card-badges">
             ${p.tier?`<span class="cbadge" style="border-color:${textClr(risk)};color:${textClr(risk)}">${({likely_ok:"Likely OK",caution:"Caution",avoid:"Avoid"}[p.tier])||""}</span>`:""}
-            ${cbadge(covLabel(coverage),covClass(coverage))}
+            ${pvchip(provenanceTier(p.basis, coverage))}
             ${state.demoMode?cbadge("Demo","live"):""}
           </div>
         </div>
@@ -689,22 +754,45 @@ function riskForRow(r) {
   return r.menuBackedRisk||r.allergenPrior||{risk:0.3,confidence:0.25,rationale:["Estimated from cuisine and location."]};
 }
 
-function verdictHtml(risk, coverage) {
+// Render one rationale claim: escape the text, turn its [E1, E2] citations into chips.
+function renderClaim(line) {
+  return esc(String(line)).replace(/\[(E\d+(?:,\s*E\d+)*)\]/g,
+    (_m, ids) => `<span class="cite">${esc(ids.replace(/\s+/g, " "))}</span>`);
+}
+
+// "Why this score" -- the scorer's full rationale, as a list. For ai_assisted it IS the LLM's
+// reasoning (with the evidence it cited); each line is tappable to find the dish it
+// names in the menu below.
+function explanationHtml(risk) {
+  const lines = asList(risk?.rationale).filter(Boolean);
+  if (!lines.length) return "";
+  const isAI = (risk?.scoringEngine || "").startsWith("ai");
+  const trust = (risk?.labelingTrust ?? 0) >= 0.6 ? "Strong allergen labeling" : "Limited allergen labeling";
+  const items = lines.map(line =>
+    `<li class="tappable" data-claim="${esc(String(line).toLowerCase())}"><span class="why-text">${renderClaim(line)}</span></li>`
+  ).join("");
+  return `<div class="score-why">
+    <div class="why-head">Why this score${isAI ? `<span class="ai-badge">✦ AI reasoning</span>` : ""}</div>
+    <ul class="why-list">${items}</ul>
+    <div class="why-trust">${esc(trust)} in this area.</div>
+  </div>`;
+}
+
+function verdictHtml(risk, coverage, basis) {
   const v = risk?.risk??0.3;
-  const rationale = asList(risk?.rationale).join(" ")||"Estimated from cuisine and location.";
   const conf = risk?.confidence!=null?Math.round(risk.confidence*100)+"% confidence":"";
-  const trust = (risk?.labelingTrust??0)>=0.6?"Strong allergen labeling":"Limited allergen labeling";
   const tierLbl = {avoid:"Avoid",caution:"Caution",likely_ok:"Likely OK"}[risk?.tier]||"";
+  const prov = provenanceTier(basis ?? risk?.basis, coverage);
   return `<div class="verdict" id="riskVerdict">
     ${ring(v,68)}
     <div class="verdict-body">
       <div class="verdict-label" style="color:${textClr(v)}">${riskWord(v)} for nuts</div>
-      <div class="verdict-rationale">${esc(rationale)} ${esc(trust)} in this area.</div>
+      <div class="verdict-prov">${pvchip(prov)}<span class="pv-blurb">${esc(prov.blurb)}</span></div>
       <div class="verdict-badges">
         ${tierLbl?`<span class="cbadge" style="border-color:${textClr(v)};color:${textClr(v)}">${esc(tierLbl)}</span>`:""}
-        ${cbadge(covLabel(coverage),covClass(coverage))}
         ${conf?cbadge(conf,""):""}
       </div>
+      ${explanationHtml(risk)}
     </div>
   </div>`;
 }
@@ -722,7 +810,7 @@ async function openDetail(r) {
   const riskData = riskForRow(r);
   const coverage = r.coverageStatus||"cuisine_estimate";
   $("#dBody").innerHTML = `
-    <div class="ds">${verdictHtml(riskData,coverage)}</div>
+    <div class="ds">${verdictHtml(riskData,coverage,riskData.basis ?? r.allergenPrior?.basis)}</div>
     <div class="ds" id="menuZone">
       <div class="spinner-wrap"><div class="spinner"></div><div class="spinner-label">Reading the menu…</div></div>
     </div>`;
@@ -732,13 +820,13 @@ async function openDetail(r) {
   // Instant path: the search already extracted this restaurant and embedded the full
   // menu in the card -> render with NO /api/menu round-trip (no spinner, no re-read).
   if (r.menuDetail) { renderMenu(r.menuDetail, r); return; }
-  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact].join("|");
+  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine].join("|");
   try {
     let m = _menuCache.get(key);
     if (!m) {
       m = await (await fetch("/api/menu",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact})
+        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine})
       })).json();
       if (!m.error) _menuCache.set(key, m);  // don't memoize errors -> allow retry
     }
@@ -759,7 +847,7 @@ function renderMenu(m,r) {
     r.menuBackedRisk = menuRisk;
     r.coverageStatus = summary.coverageStatus||(menuRisk.isMenuBacked?"menu_backed":"cuisine_estimate");
     const v = $("#riskVerdict");
-    if (v) v.outerHTML = verdictHtml(menuRisk,r.coverageStatus);
+    if (v) v.outerHTML = verdictHtml(menuRisk,r.coverageStatus,summary.evidenceBasis);
   }
 
   const sig = summary.restaurantSignals||{};
@@ -787,7 +875,7 @@ function renderMenu(m,r) {
     </div>`;
   }
 
-  /* allergy notes — grounded quotes from the restaurant's allergy pages (v2) */
+  /* allergy notes — grounded quotes from the restaurant's allergy pages */
   const allergyQuotes = [...new Set((m.allergySignals||[]).flatMap(s=>asList(s.statements)))].slice(0,4);
   if (allergyQuotes.length) {
     html += `<div class="ds">
@@ -815,9 +903,9 @@ function renderMenu(m,r) {
             <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          ${riskiestItems.length} item${riskiestItems.length>1?"s":""} likely contain nuts
+          ${riskiestItems.length} item${riskiestItems.length>1?"s":""} likely contain${riskiestItems.length>1?"":"s"} nuts <span style="font-weight:400;opacity:.7">· tap to find on menu</span>
         </div>
-        ${riskiestItems.map(it=>`<div class="risky-row">
+        ${riskiestItems.map(it=>`<div class="risky-row clickable" data-dish="${esc(it.itemName)}">
           <span class="risky-name">${esc(it.itemName)}</span>
           <span class="risky-pct" style="color:${textClr(it.risk)}">${Math.round(it.risk*100)}%</span>
         </div>`).join("")}
@@ -883,13 +971,43 @@ function renderMenu(m,r) {
   /* extra coverage badges */
   const extras=[];
   const ebMap={allergen_matrix:"Based on allergen chart",menu_evidence:"Based on menu text",
-               restaurant_signal:"Based on allergy page",dish_prior:"Cuisine estimate",cuisine_prior:"Cuisine estimate"};
+               restaurant_signal:"Based on allergy page",dish_prior:"Cuisine estimate",
+               menu_coverage:"Menu reviewed",cuisine_prior:"Cuisine estimate"};
   if (summary.evidenceBasis && ebMap[summary.evidenceBasis]) extras.push(cbadge(ebMap[summary.evidenceBasis],""));
   if (summary.braveFallbackUsed) extras.push(cbadge("Brave search used","live"));
   if (summary.geminiValidationEnabled) extras.push(cbadge("Gemini validation","live"));
   if (extras.length) html += `<div class="ds"><div class="card-badges">${extras.join("")}</div></div>`;
 
   $("#menuZone").outerHTML = html;
+
+  // Clickable evidence: tap a flagged dish -> jump to + flash that item in the menu.
+  const flashItem = hit => {
+    hit.scrollIntoView({ behavior: "smooth", block: "center" });
+    hit.classList.remove("flash"); void hit.offsetWidth; hit.classList.add("flash");
+  };
+  const menuItemEls = () => [...document.querySelectorAll("#dBody .mitem")];
+  document.querySelectorAll("#dBody .risky-row.clickable").forEach(el => el.onclick = () => {
+    const want = (el.dataset.dish || "").toLowerCase();
+    if (!want) return;
+    const hit = menuItemEls().find(m => {
+      const nm = (m.querySelector(".mi-name")?.textContent || "").toLowerCase();
+      return nm && (nm.includes(want) || want.includes(nm));
+    });
+    if (hit) flashItem(hit);
+  });
+
+  // Tap a "Why this score" claim -> flash the first menu dish it names (the evidence
+  // the LLM/rule cited), so the explanation links straight to what it's about. Claims
+  // that name no listed dish lose the tappable affordance (honest: nothing to jump to).
+  document.querySelectorAll("#dBody .why-list li.tappable").forEach(el => {
+    const claim = el.dataset.claim || "";
+    const hit = menuItemEls().find(m => {
+      const nm = (m.querySelector(".mi-name")?.textContent || "").trim().toLowerCase();
+      return nm.length > 2 && claim.includes(nm);
+    });
+    if (hit) el.onclick = () => flashItem(hit);
+    else el.classList.remove("tappable");
+  });
 }
 
 /* ── drawer close ── */
@@ -914,6 +1032,13 @@ document.querySelectorAll(".allergen-chip.sev").forEach(el => el.onclick = () =>
 document.querySelectorAll(".allergen-chip.cc").forEach(el => el.onclick = () => {
   state.crossContact = el.dataset.cc;  // explicit override, decoupled from severity
   paintCC();
+  if (state.rows.length) search();
+});
+document.querySelectorAll(".allergen-chip.se").forEach(el => el.onclick = () => {
+  document.querySelectorAll(".allergen-chip.se").forEach(x => x.classList.remove("on"));
+  el.classList.add("on");
+  state.scoringEngine = el.dataset.se;   // rules <-> ai_assisted scorer
+  _menuCache.clear();                     // scores differ by engine -> drop memoized drawers
   if (state.rows.length) search();
 });
 paintCC();  // highlight the severity-derived default on load

@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "purpose": "Curated, human-VERIFIED dedicated allergy-safe / nut-free kitchens. A match sets a trusted nut_free / allergy-aware signal that feeds the scorer's down-pull. Dedicated nut-free kitchens are rare and barely discoverable online, so a curated data file (data, not scraping) is the only reliable way to credit them.",
+    "safety": "A wrong 'nut_free' entry UNDER-reports risk for an allergic user. Every entry MUST be human-verified and carry a real `source`. Do NOT add a restaurant unless you have confirmed its current nut-free / dedicated-allergy status.",
+    "fields": "name (str), city (str, optional, lowercased), domain (str, optional, registrable e.g. 'acme.com'), nut_free (bool), allergy_dedicated (bool), source (url), verified (YYYY-MM-DD)",
+    "matching": "An entry matches a restaurant by registrable DOMAIN, or by (compact name match AND city present in the address). Domain match is the most reliable -- prefer it."
+  },
+  "entries": [
+    {
+      "name": "Example Nut-Free Bakery",
+      "city": "exampleton",
+      "domain": "example-nutfree.test",
+      "nut_free": true,
+      "allergy_dedicated": true,
+      "source": "https://example.org/verified-allergy-list",
+      "verified": "2026-06-17",
+      "note": "FICTIONAL example demonstrating the schema -- NOT a real establishment. Replace with verified entries."
+    }
+  ]
+}

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from typing import Any
 
@@ -25,14 +26,20 @@ _CACHE_TTL = 14 * 24 * 60 * 60
 
 SYSTEM = (
     "You are reading ONE restaurant web page. Determine how the restaurant handles "
-    "food ALLERGIES (not nutrition). Return four booleans, true only if the page "
-    "actually says so: allergy_friendly_claim (claims to accommodate/handle "
-    "allergies, e.g. 'allergy-friendly', 'we can adapt dishes'), cross_contact_warning "
-    "(warns about cross-contamination / shared equipment / 'may contain'), ask_staff "
-    "(tells guests to inform/ask staff about allergies), allergen_menu_available "
-    "(mentions an allergen menu/guide/chart/matrix). Also return up to 5 VERBATIM "
-    "statements (exact quotes from the page) about allergy handling. If the page is "
-    "not about allergies, set all booleans false and statements empty."
+    "food ALLERGIES (not nutrition). Return booleans, true only if the page actually "
+    "says so: allergy_friendly_claim (claims to accommodate/handle allergies, e.g. "
+    "'allergy-friendly', 'we can adapt dishes'), cross_contact_warning (warns about "
+    "cross-contamination / shared equipment / 'may contain'), ask_staff (tells guests "
+    "to inform/ask staff about allergies), allergen_menu_available (mentions an "
+    "allergen menu/guide/chart/matrix), and nut_free_claim. Set nut_free_claim TRUE "
+    "ONLY when the restaurant states its KITCHEN or FACILITY is nut-free / that it "
+    "does NOT use nuts at all (e.g. '100% nut-free facility', 'no nuts in our "
+    "kitchen', 'we are a peanut- and tree-nut-free bakery'). Set it FALSE for merely "
+    "offering 'nut-free options/items', being 'allergy-friendly', or having some "
+    "nut-free products -- those do NOT make the kitchen nut-free. Also return up to 5 "
+    "VERBATIM statements (exact quotes) about allergy handling; for nut_free_claim, "
+    "INCLUDE the exact quote that supports it. If the page is not about allergies, set "
+    "all booleans false and statements empty."
 )
 
 SCHEMA: dict[str, Any] = {
@@ -42,13 +49,23 @@ SCHEMA: dict[str, Any] = {
         "cross_contact_warning": {"type": "boolean"},
         "ask_staff": {"type": "boolean"},
         "allergen_menu_available": {"type": "boolean"},
+        "nut_free_claim": {"type": "boolean"},
         "statements": {"type": "array", "items": {"type": "string"}},
     },
     "required": [
         "allergy_friendly_claim", "cross_contact_warning", "ask_staff",
-        "allergen_menu_available", "statements",
+        "allergen_menu_available", "nut_free_claim", "statements",
     ],
 }
+
+# Despaced nut-free phrases used to GROUND a nut_free_claim: the LLM's boolean is only
+# honoured if a source-grounded statement actually contains nut-free wording (and not
+# the weaker "nut-free option" phrasing). Belt-and-suspenders against over-crediting a
+# powerful down-signal.
+_NUT_FREE_PHRASES = (
+    "nutfree", "nutsfree", "nonuts", "withoutnuts", "freeofnuts", "freefromnuts",
+    "donotusenuts", "peanutfree", "treenutfree",
+)
 
 
 def extract_allergy_signals(
@@ -77,18 +94,30 @@ def extract_allergy_signals(
     ][:5]
     flags = {k: bool(parsed.get(k)) for k in
              ("allergy_friendly_claim", "cross_contact_warning", "ask_staff", "allergen_menu_available")}
-    if not any(flags.values()) and not statements:
+    # Honor nut_free_claim only when a source-grounded statement carries real nut-free
+    # wording (and not the weaker "...option") -- a strong down-signal must be earned.
+    nut_free = bool(parsed.get("nut_free_claim")) and any(
+        any(p in _alnum(s) for p in _NUT_FREE_PHRASES) and "option" not in s.lower()
+        for s in statements
+    )
+    if not any(flags.values()) and not nut_free and not statements:
         return None
     return AllergySignal(
         url=payload.url,
         statements=statements,
         confidence=0.5,
+        nut_free_claim=nut_free,
         **flags,
     )
 
 
 def _normalize(text: str) -> str:
     return "".join(ch for ch in text.lower() if not ch.isspace())
+
+
+def _alnum(text: str) -> str:
+    """Lowercase, keep only a-z0-9 -- so 'nut-free' / 'nut free' both match 'nutfree'."""
+    return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
 def _cached_or_call(text: str, *, api_key: str, model: str) -> dict[str, Any] | None:

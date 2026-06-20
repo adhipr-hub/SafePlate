@@ -73,6 +73,9 @@ class AllergySignal:
     allergen_menu_available: bool
     statements: list[str]                 # verbatim, source-grounded quotes
     confidence: float
+    # The kitchen/facility claims to be NUT-FREE (not merely "nut-free options"). A
+    # strong DOWN-signal -- see allergy_signals for the strict, grounded detection.
+    nut_free_claim: bool = False
 
 
 @dataclass

@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 from collections import deque
 from dataclasses import asdict
-from datetime import datetime, timezone
 import hmac
 import json
 import os
@@ -15,9 +14,7 @@ from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
-from safeplate.coerce import chunks as _chunks
 from safeplate.coerce import optional_float as _optional_float
-from safeplate.coerce import optional_int as _optional_int
 from safeplate.config import (
     get_brave_search_api_key,
     get_engine,
@@ -27,46 +24,21 @@ from safeplate.config import (
     get_gemini_model,
     get_google_places_api_key,
     get_user_agent,
+    normalize_extraction_engine,
+    normalize_scoring_engine,
 )
 from safeplate.demo_fixtures import DEFAULT_DEMO_LOCATION
 from safeplate.demo_fixtures import DemoFixtureError
 from safeplate.demo_fixtures import load_demo_menu
 from safeplate.demo_fixtures import load_demo_search
-from safeplate.brave_search import (
-    BraveSearchError,
-    discover_menu_sources_with_brave,
-    recover_restaurant_website_with_brave,
-)
 from safeplate.export import build_output_paths, write_csv, write_json
-from safeplate.gemini_menu import (
-    GeminiMenuError,
-    validate_menu_candidates_with_gemini,
-)
 from safeplate.geo import Coordinates, geocode_location
-from safeplate.menu_sources import (
-    MenuSourceError,
-    build_menu_output_paths,
-    discover_menu_sources_for_url,
-    write_menu_sources_csv,
-    write_menu_sources_json,
-)
-from safeplate.menu_text import (
-    build_menu_item_output_paths,
-    build_menu_text_output_paths,
-    extract_menu_items_from_sources,
-    extract_menu_text_from_sources,
-    write_menu_items_csv,
-    write_menu_items_json,
-    write_menu_text_csv,
-    write_menu_text_json,
-)
 from safeplate.providers.geoapify import GEOAPIFY_CATEGORIES
 from safeplate.providers.geoapify import fetch_nearby_restaurants as fetch_geoapify
 from safeplate.providers.google_places import GOOGLE_INCLUDED_TYPES
 from safeplate.providers.google_places import fetch_nearby_restaurants as fetch_google
 from safeplate.providers.osm import fetch_nearby_restaurants as fetch_osm
 from safeplate.quality import build_quality_summary, write_quality_summary
-from safeplate.schemas import RestaurantRecord
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -280,7 +252,7 @@ def run_restaurant_search(payload: dict[str, Any], *, demo_mode: bool = False) -
         provider = _default_provider()
     if provider not in ["google", "osm", "geoapify"]:
         raise ValueError("Provider must be google, osm, geoapify, or auto")
-    engine = str(payload.get("engine") or get_engine()).strip().lower()
+    engine = normalize_extraction_engine(payload.get("engine") or get_engine())
     severity = str(payload.get("severity") or "allergy")
 
     radius = _bounded_int(payload.get("radius"), default=1500, minimum=100, maximum=50000)
@@ -326,7 +298,7 @@ def run_restaurant_search(payload: dict[str, Any], *, demo_mode: bool = False) -
 
 def _run_demo_restaurant_search(payload: dict[str, Any]) -> dict[str, Any]:
     fixture = load_demo_search()
-    engine = str(payload.get("engine") or get_engine()).strip().lower()
+    engine = normalize_extraction_engine(payload.get("engine") or get_engine())
     severity = str(payload.get("severity") or "allergy")
     radius = _bounded_int(
         payload.get("radius"),
@@ -369,198 +341,29 @@ def run_menu_extraction(payload: dict[str, Any], *, demo_mode: bool = False) -> 
     if demo_mode:
         return _run_demo_menu_extraction(payload)
 
-    engine = str(payload.get("engine") or get_engine()).strip().lower()
-    if engine == "v2":
-        return _run_v2_menu_extraction(payload)
+    engine = normalize_extraction_engine(payload.get("engine") or get_engine())
+    if engine == "structured":
+        return _run_structured_menu_extraction(payload)
 
-    restaurant_name = str(payload.get("name") or "").strip()
-    restaurant_source_id = str(payload.get("sourceId") or "").strip()
-    website_url = str(payload.get("websiteUrl") or "").strip()
-    address = str(payload.get("address") or "").strip()
-    phone_number = str(payload.get("phoneNumber") or "").strip()
-    categories = _string_list(payload.get("categories"))
-    if not restaurant_name:
-        raise ValueError("Restaurant name is required.")
-
-    user_agent = get_user_agent()
-    menu_source_errors = []
-    website_recovery: dict[str, Any] | None = None
-    brave_fallback_used = False
-    menu_sources = []
-    if website_url:
-        menu_sources = _discover_menu_sources_for_website(
-            website_url=website_url,
-            restaurant_name=restaurant_name,
-            restaurant_source_id=restaurant_source_id,
-            user_agent=user_agent,
-            address=address,
-            errors=menu_source_errors,
-        )
-
-    brave_api_key = get_brave_search_api_key()
-    if not menu_sources and brave_api_key:
-        brave_fallback_used = True
-        try:
-            if not website_url:
-                website_recovery = recover_restaurant_website_with_brave(
-                    _restaurant_record_from_menu_payload(
-                        restaurant_name=restaurant_name,
-                        restaurant_source_id=restaurant_source_id,
-                        website_url=website_url,
-                        address=address,
-                        phone_number=phone_number,
-                        categories=categories,
-                        payload=payload,
-                    ),
-                    api_key=brave_api_key,
-                    user_agent=user_agent,
-                    results_per_query=5,
-                )
-                if website_recovery.get("website_url"):
-                    website_url = str(website_recovery["website_url"])
-                    menu_sources = _discover_menu_sources_for_website(
-                        website_url=website_url,
-                        restaurant_name=restaurant_name,
-                        restaurant_source_id=restaurant_source_id,
-                        user_agent=user_agent,
-                        address=address,
-                        errors=menu_source_errors,
-                    )
-
-            if not menu_sources and website_url:
-                brave_sources = discover_menu_sources_with_brave(
-                    restaurant_name=restaurant_name,
-                    restaurant_source_id=restaurant_source_id,
-                    website_url=website_url,
-                    address=address,
-                    api_key=brave_api_key,
-                    user_agent=user_agent,
-                    limit=8,
-                    fetch_mode="static",
-                )
-                menu_sources = _dedupe_menu_sources(brave_sources)[:16]
-        except BraveSearchError as exc:
-            menu_source_errors.append({"source": "brave_search", "error": str(exc)})
-    elif not menu_sources and not brave_api_key and not website_url:
-        menu_source_errors.append(
-            {
-                "source": "website_lookup",
-                "error": "No website URL from the provider and Brave Search is not configured.",
-            }
-        )
-
-    if not menu_sources and website_recovery and not website_recovery.get("website_url"):
-        menu_source_errors.append(
-            {
-                "source": "brave_website_recovery",
-                "error": website_recovery.get("reason", "No verified website recovered."),
-            }
-        )
-
-    if not menu_sources:
-        return {
-            "restaurantName": restaurant_name,
-            "websiteUrl": website_url,
-            "websiteRecovery": website_recovery,
-            "menuSources": [],
-            "menuText": [],
-            "menuItems": [],
-            "rejectedMenuItems": [],
-            "summary": _menu_summary(
-                [],
-                [],
-                [],
-                parsed_item_count=0,
-                rejected_items=[],
-                validation_summary=_empty_validation_summary(),
-                menu_source_errors=menu_source_errors,
-                website_url=website_url,
-                website_recovery=website_recovery,
-                brave_fallback_used=brave_fallback_used,
-                restaurant_payload=payload,
-            ),
-            "files": {},
-        }
-
-    menu_source_rows = [asdict(row) for row in menu_sources]
-    menu_text = extract_menu_text_from_sources(
-        menu_source_rows=menu_source_rows,
-        user_agent=user_agent,
-        include_unvalidated=False,
-        max_chars=12000,
-        fetch_mode="static",
-    )
-    menu_items = extract_menu_items_from_sources(
-        menu_source_rows=menu_source_rows,
-        user_agent=user_agent,
-        include_unvalidated=False,
-        max_items_per_source=300,
-        fetch_mode="static",
-    )
-    (
-        displayed_menu_items,
-        rejected_menu_items,
-        all_menu_item_payloads,
-        validation_summary,
-    ) = _validate_menu_item_payloads(
-        restaurant_name=restaurant_name,
-        restaurant_source_id=restaurant_source_id,
-        menu_items=menu_items,
-    )
-
-    label = f"local_app_{restaurant_name}"
-    menu_sources_json, menu_sources_csv = build_menu_output_paths(label, DATA_DIR)
-    menu_text_json, menu_text_csv = build_menu_text_output_paths(label, DATA_DIR)
-    menu_items_json, menu_items_csv = build_menu_item_output_paths(label, DATA_DIR)
-    menu_validation_json = _build_local_validation_output_path(label)
-    write_menu_sources_json(menu_sources_json, menu_sources)
-    write_menu_sources_csv(menu_sources_csv, menu_sources)
-    write_menu_text_json(menu_text_json, menu_text)
-    write_menu_text_csv(menu_text_csv, menu_text)
-    write_menu_items_json(menu_items_json, menu_items)
-    write_menu_items_csv(menu_items_csv, menu_items)
-    _write_menu_validation_json(
-        path=menu_validation_json,
-        restaurant_name=restaurant_name,
-        validation_summary=validation_summary,
-        menu_items=all_menu_item_payloads,
-        rejected_menu_items=rejected_menu_items,
-    )
-
-    return {
-        "restaurantName": restaurant_name,
-        "websiteUrl": website_url,
-        "websiteRecovery": website_recovery,
-        "menuSources": [_safe_payload(row) for row in menu_sources],
-        "menuText": [_safe_payload(row) for row in menu_text],
-        "menuItems": displayed_menu_items,
-        "rejectedMenuItems": rejected_menu_items,
-        "summary": _menu_summary(
-            menu_sources,
-            menu_text,
-            displayed_menu_items,
-            parsed_item_count=len(menu_items),
-            rejected_items=rejected_menu_items,
-            validation_summary=validation_summary,
-            menu_source_errors=menu_source_errors,
-            website_url=website_url,
-            website_recovery=website_recovery,
-            brave_fallback_used=brave_fallback_used,
-            restaurant_payload=payload,
-        ),
-        "files": {
-            "menuSourcesJson": str(menu_sources_json),
-            "menuSourcesCsv": str(menu_sources_csv),
-            "menuTextJson": str(menu_text_json),
-            "menuTextCsv": str(menu_text_csv),
-            "menuItemsJson": str(menu_items_json),
-            "menuItemsCsv": str(menu_items_csv),
-            "menuValidationJson": str(menu_validation_json),
-        },
-    }
+    from safeplate.legacy_extraction import run_legacy_menu_extraction
+    return run_legacy_menu_extraction(payload)
 
 
-def _extract_and_assess_v2(
+def _build_restaurant_signals(allergy_signals, *, name, address, website_url):
+    """Build the Layer-#5 RestaurantSignals from extracted allergy signals + the
+    curated registry. Shared so the deterministic score and the batched-LLM bundle
+    speak from the IDENTICAL signals (no drift between list extraction and re-score)."""
+    from safeplate.allergen_score import RestaurantSignals
+    from safeplate.allergy_registry import apply_registry
+
+    signals = RestaurantSignals.from_allergy_signals(allergy_signals)
+    # A verified dedicated nut-free / allergy kitchen gets a trusted nut-free /
+    # allergy-aware signal even when its own site yields nothing extractable.
+    apply_registry(signals, name, address, website_url)
+    return signals
+
+
+def _extract_and_assess_structured(
     *,
     name: str,
     website_url: str,
@@ -573,18 +376,16 @@ def _extract_and_assess_v2(
     api_key: str | None,
     cuisines: list[str] | None = None,
     region: str | None = None,
+    scoring_engine: str = "rules",
 ):
-    """Run the v2 extraction (result-cached) + Layer #5 assessment for one
+    """Run the structured extraction (result-cached) + Layer #5 assessment for one
     restaurant. Shared by the menu drawer and the menu-backed search list so both
     speak from the SAME extraction + scorer; the result cache means the second
     caller (whichever fires later) pays nothing. ``cuisines`` / ``region`` are
     derived by the scorer when not supplied; callers that already have them (the
     search card renders the prior first) pass them in to skip the re-derivation.
     Returns (assessment, menu_items, allergy_signals, coverage, errors)."""
-    from safeplate.allergen_score import (
-        RestaurantSignals,
-        assess_restaurant_record,
-    )
+    from safeplate.allergen_score import assess_restaurant_record
     from safeplate.extraction2.discover import discover_and_extract
 
     errors: list[dict[str, str]] = []
@@ -612,7 +413,9 @@ def _extract_and_assess_v2(
     else:
         errors.append({"source": "website_lookup", "error": "No website URL provided."})
 
-    signals = RestaurantSignals.from_allergy_signals(allergy_signals)
+    signals = _build_restaurant_signals(
+        allergy_signals, name=name, address=address, website_url=website_url
+    )
     record = SimpleNamespace(
         categories=categories,
         address=address,
@@ -620,14 +423,24 @@ def _extract_and_assess_v2(
         longitude=longitude,
         website_url=website_url,  # lets the scorer judge source provenance
     )
-    assessment = assess_restaurant_record(
-        record, profile, menu_items=menu_items, signals=signals,
-        cuisines=cuisines, region=region,
-    )
+    if _is_ai_engine(scoring_engine):
+        # AI scorer: label-routes (trust a chart / judge the raw menu / context only),
+        # with the deterministic floor + guardrails. Falls back to the deterministic
+        # assessment if no key / the LLM call fails.
+        from safeplate.allergen_score_llm import assess_restaurant_record_with_llm
+        assessment = assess_restaurant_record_with_llm(
+            record, profile, menu_items=menu_items, signals=signals,
+            api_key=api_key, model=get_gemini_model(),
+        )
+    else:
+        assessment = assess_restaurant_record(
+            record, profile, menu_items=menu_items, signals=signals,
+            cuisines=cuisines, region=region,
+        )
     return assessment, menu_items, allergy_signals, coverage, errors
 
 
-def _v2_menu_response(
+def _structured_menu_response(
     *,
     restaurant_name: str,
     website_url: str,
@@ -636,9 +449,10 @@ def _v2_menu_response(
     allergy_signals: list[Any],
     coverage: list[Any],
     errors: list[dict[str, str]],
+    scoring_engine: str = "rules",
 ) -> dict[str, Any]:
-    """Build the v2 drawer payload (menuItems + allergySignals + assessment + the
-    v1-shaped summary the UI drawer reads). Shared so the SEARCH can embed this exact
+    """Build the structured drawer payload (menuItems + allergySignals + assessment + the
+    legacy-shaped summary the UI drawer reads). Shared so the SEARCH can embed this exact
     payload per menu-backed card -- letting the drawer open instantly with no
     /api/menu round-trip -- and so /api/menu can return it on demand for cards that
     weren't pre-extracted."""
@@ -648,7 +462,7 @@ def _v2_menu_response(
         riskiest_items.extend(per_allergen.riskiest_items)
     coverage_status = "menu_backed" if menu_items else "cuisine_estimate"
     return {
-        "engine": "v2",
+        "engine": "structured",
         "restaurantName": restaurant_name,
         "websiteUrl": website_url,
         "menuItems": item_payloads,
@@ -657,7 +471,8 @@ def _v2_menu_response(
         "coverage": [asdict(report) for report in coverage],
         "coverageStatus": coverage_status,
         "summary": {
-            "engine": "v2",
+            "engine": "structured",
+            "scoringEngine": scoring_engine,
             "itemCount": len(item_payloads),
             "allergenItemCount": sum(
                 1 for item in menu_items if getattr(item, "allergen_terms", None)
@@ -669,7 +484,7 @@ def _v2_menu_response(
             "evidenceBasis": assessment.evidence_basis,
             "menuSourceErrors": errors,
             "coverageStatus": coverage_status,
-            # v1-compatible shapes the UI drawer reads:
+            # legacy-compatible shapes the UI drawer reads:
             "menuBackedRisk": {
                 "risk": round(assessment.overall_risk, 3),
                 "confidence": round(assessment.overall_confidence, 2),
@@ -677,21 +492,22 @@ def _v2_menu_response(
                 "isMenuBacked": bool(menu_items),
                 "tier": assessment.tier,
                 "riskiestItems": riskiest_items,
+                "scoringEngine": scoring_engine,
             },
             "restaurantSignals": {
                 "has_allergy_disclaimer": assessment.handling.allergy_aware,
                 "has_cross_contact_warning": assessment.handling.cross_contact_warning,
                 "mentions_staff_allergy_instruction": assessment.handling.ask_staff,
-                "has_nut_free_claim": False,
+                "has_nut_free_claim": assessment.handling.nut_free_claim,
             },
         },
         "files": {},
     }
 
 
-def _run_v2_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
-    """Engine 'v2': clean-architecture extraction (extraction2) fused with the
-    Layer #5 per-user scorer. Returns the same menuItems shape as v1 (same
+def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
+    """Engine 'structured': clean-architecture extraction (extraction2) fused with the
+    Layer #5 per-user scorer. Returns the same menuItems shape as legacy (same
     MenuItemRecord), plus an `assessment` (tiered per-user risk) and
     `allergySignals` (restaurant-level allergy-handling evidence)."""
     restaurant_name = str(payload.get("name") or "").strip()
@@ -702,6 +518,7 @@ def _run_v2_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Restaurant name is required.")
 
     profile = _user_profile_from_payload(payload)
+    scoring_engine = _scoring_engine_from_payload(payload)
     latitude = _optional_float(payload.get("latitude"))
     longitude = _optional_float(payload.get("longitude"))
     # Derive cuisines/region once and reuse for both the extraction-stage score and
@@ -710,7 +527,7 @@ def _run_v2_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
 
     cuisines = normalize_cuisine(categories)
     region = region_from_address(address, latitude=latitude, longitude=longitude)
-    assessment, menu_items, allergy_signals, coverage, errors = _extract_and_assess_v2(
+    assessment, menu_items, allergy_signals, coverage, errors = _extract_and_assess_structured(
         name=restaurant_name,
         website_url=website_url,
         address=address,
@@ -722,6 +539,7 @@ def _run_v2_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         api_key=get_gemini_api_key(),
         cuisines=cuisines,
         region=region,
+        scoring_engine=scoring_engine,
     )
 
     # Community layer (DRAWER ONLY -- one restaurant, cacheable; the list stays cheap):
@@ -748,16 +566,25 @@ def _run_v2_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
                 latitude=latitude, longitude=longitude,
                 website_url=website_url,
             )
-            assessment = assess_restaurant_record(
-                record, profile, menu_items=menu_items,
-                signals=RestaurantSignals.from_allergy_signals(allergy_signals),
-                community=cres.signals or None,
-                cuisines=cuisines, region=region,
-            )
+            from safeplate.allergy_registry import apply_registry
+            sig = RestaurantSignals.from_allergy_signals(allergy_signals)
+            apply_registry(sig, restaurant_name, address, website_url)
+            if _is_ai_engine(scoring_engine):
+                from safeplate.allergen_score_llm import assess_restaurant_record_with_llm
+                assessment = assess_restaurant_record_with_llm(
+                    record, profile, menu_items=menu_items, signals=sig,
+                    community=cres.signals or None,
+                    api_key=get_gemini_api_key(), model=get_gemini_model(),
+                )
+            else:
+                assessment = assess_restaurant_record(
+                    record, profile, menu_items=menu_items, signals=sig,
+                    community=cres.signals or None, cuisines=cuisines, region=region,
+                )
     except Exception as exc:  # community is best-effort; never break the drawer
         errors.append({"source": "community_signals", "error": str(exc)})
 
-    response = _v2_menu_response(
+    response = _structured_menu_response(
         restaurant_name=restaurant_name,
         website_url=website_url,
         assessment=assessment,
@@ -765,6 +592,7 @@ def _run_v2_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         allergy_signals=allergy_signals,
         coverage=coverage,
         errors=errors,
+        scoring_engine=scoring_engine,
     )
     response["communityQuotes"] = community_quotes
     return response
@@ -779,6 +607,21 @@ def _severity_from_str(value: Any):
         "allergy": Severity.ALLERGY,
         "anaphylaxis": Severity.ANAPHYLAXIS,
     }.get(str(value or "").lower(), Severity.ALLERGY)
+
+
+def _scoring_engine_from_payload(payload: dict[str, Any]) -> str:
+    """Which SCORING engine to use: 'ai' = label-routing LLM scorer (DEFAULT), 'rules'
+    = deterministic. Per-request `scoringEngine`, else env SAFEPLATE_SCORING_ENGINE.
+    Legacy 'v2'/'v3'/'ai_assisted'/'ai_full_menu' values are still accepted."""
+    return normalize_scoring_engine(
+        payload.get("scoringEngine") or os.environ.get("SAFEPLATE_SCORING_ENGINE", "")
+    )
+
+
+def _is_ai_engine(scoring_engine: str) -> bool:
+    """True for the LLM scoring engine ('ai'); False for the deterministic 'rules'.
+    The AI engine label-routes per restaurant (labeled / raw_menu / no_menu)."""
+    return scoring_engine == "ai"
 
 
 def _cross_contact_from_str(value: Any):
@@ -883,250 +726,6 @@ def _demo_source_id_for_name(name: str) -> str:
     return ""
 
 
-def _discover_menu_sources_for_website(
-    *,
-    website_url: str,
-    restaurant_name: str,
-    restaurant_source_id: str,
-    user_agent: str,
-    address: str,
-    errors: list[dict[str, str]],
-):
-    try:
-        return discover_menu_sources_for_url(
-            website_url=website_url,
-            restaurant_name=restaurant_name,
-            restaurant_source_id=restaurant_source_id,
-            user_agent=user_agent,
-            limit=12,
-            validate=True,
-            include_ordering_pages=True,
-            include_images=True,
-            crawl_depth=2,
-            use_sitemap=True,
-            location_hint=address or restaurant_name,
-            fetch_mode="static",
-            # If the site has no allergen page, let the seeker search the web for
-            # an allergen PDF (Brave). No-op when no Brave key is configured.
-            brave_api_key=get_brave_search_api_key(),
-        )
-    except MenuSourceError as exc:
-        errors.append({"source": "website_crawl", "error": str(exc)})
-        return []
-
-
-def _restaurant_record_from_menu_payload(
-    *,
-    restaurant_name: str,
-    restaurant_source_id: str,
-    website_url: str,
-    address: str,
-    phone_number: str,
-    categories: list[str],
-    payload: dict[str, Any],
-) -> RestaurantRecord:
-    return RestaurantRecord(
-        name=restaurant_name,
-        address=address or None,
-        latitude=_optional_float(payload.get("latitude")) or 0.0,
-        longitude=_optional_float(payload.get("longitude")) or 0.0,
-        distance_meters=_optional_float(payload.get("distanceMeters")) or 0.0,
-        rating=_optional_float(payload.get("rating")),
-        review_count=_optional_int(payload.get("reviewCount")),
-        price_level=str(payload.get("priceLevel") or "").strip() or None,
-        categories=categories,
-        website_url=website_url or None,
-        phone_number=phone_number or None,
-        opening_hours=None,
-        business_status=str(payload.get("businessStatus") or "").strip() or None,
-        is_open_now=None,
-        service_options={},
-        source_last_updated=None,
-        data_quality_score=0.0,
-        source_name=str(payload.get("sourceName") or "").strip() or "local_app",
-        source_id=restaurant_source_id,
-        fetched_at=datetime.now(timezone.utc).isoformat(),
-        raw_payload={},
-    )
-
-
-def _validate_menu_item_payloads(
-    *,
-    restaurant_name: str,
-    restaurant_source_id: str,
-    menu_items: list[Any],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
-    payloads = _menu_item_payloads(menu_items)
-    validation_summary = _empty_validation_summary()
-    validation_summary["candidateRows"] = len(payloads)
-
-    api_key = get_gemini_api_key()
-    if not api_key or not payloads:
-        for payload in payloads:
-            payload.update(
-                {
-                    "llm_validation_status": "not_configured"
-                    if not api_key
-                    else "no_candidates",
-                    "llm_validated": False,
-                    "llm_is_menu_item": None,
-                    "llm_confidence": None,
-                    "llm_rejection_reason": "",
-                    "llm_evidence_quote": "",
-                }
-            )
-        return payloads, [], payloads, validation_summary
-
-    validation_summary["enabled"] = True
-    validation_summary["model"] = get_gemini_model()
-    validation_models = _gemini_validation_models()
-    validation_summary["fallbackModels"] = validation_models[1:]
-    validations_by_id: dict[str, dict[str, Any]] = {}
-    validation_warnings: list[str] = []
-    attempt_errors: list[dict[str, str]] = []
-    try:
-        for chunk in _chunks(
-            _menu_validation_candidates(payloads),
-            GEMINI_MENU_VALIDATION_CHUNK_SIZE,
-        ):
-            result, model_used, chunk_errors = _validate_gemini_chunk_with_fallback(
-                restaurant_name=restaurant_name,
-                restaurant_source_id=restaurant_source_id,
-                candidates=chunk,
-                api_key=api_key,
-                models=validation_models,
-            )
-            validation_summary["modelUsed"] = model_used
-            attempt_errors.extend(chunk_errors)
-            validation = result.validation
-            validation_warnings.extend(
-                str(warning)
-                for warning in validation.get("validation_warnings", [])
-                if str(warning).strip()
-            )
-            for row in validation.get("validations", []):
-                if not isinstance(row, dict):
-                    continue
-                candidate_id = str(row.get("candidate_id") or "").strip()
-                if candidate_id:
-                    validations_by_id[candidate_id] = row
-    except GeminiMenuError as exc:
-        validation_summary["error"] = str(exc)
-        for payload in payloads:
-            payload.update(
-                {
-                    "llm_validation_status": "error",
-                    "llm_validated": False,
-                    "llm_is_menu_item": None,
-                    "llm_confidence": None,
-                    "llm_rejection_reason": "",
-                    "llm_evidence_quote": "",
-                }
-            )
-        return payloads, [], payloads, validation_summary
-
-    for payload in payloads:
-        validation = validations_by_id.get(payload["candidate_id"])
-        if not validation:
-            payload.update(
-                {
-                    "llm_validation_status": "missing",
-                    "llm_validated": False,
-                    "llm_is_menu_item": None,
-                    "llm_confidence": None,
-                    "llm_rejection_reason": "",
-                    "llm_evidence_quote": "",
-                }
-            )
-            continue
-
-        is_menu_item = validation.get("is_menu_item")
-        if not isinstance(is_menu_item, bool):
-            is_menu_item = None
-        payload.update(
-            {
-                "llm_validation_status": "accepted"
-                if is_menu_item is True
-                else "rejected"
-                if is_menu_item is False
-                else "uncertain",
-                "llm_validated": True,
-                "llm_is_menu_item": is_menu_item,
-                "llm_confidence": validation.get("confidence"),
-                "llm_rejection_reason": str(
-                    validation.get("rejection_reason") or ""
-                ).strip(),
-                "llm_evidence_quote": str(
-                    validation.get("evidence_quote") or ""
-                ).strip(),
-            }
-        )
-
-    displayed = [
-        payload
-        for payload in payloads
-        if payload.get("llm_is_menu_item") is not False
-    ]
-    rejected = [
-        payload
-        for payload in payloads
-        if payload.get("llm_is_menu_item") is False
-    ]
-    validation_summary.update(
-        {
-            "validatedRows": sum(
-                1 for payload in payloads if payload.get("llm_validated")
-            ),
-            "acceptedRows": sum(
-                1 for payload in payloads if payload.get("llm_is_menu_item") is True
-            ),
-            "rejectedRows": len(rejected),
-            "missingRows": sum(
-                1
-                for payload in payloads
-                if payload.get("llm_validation_status") == "missing"
-            ),
-            "warnings": validation_warnings,
-            "attemptErrors": attempt_errors,
-        }
-    )
-    return displayed, rejected, payloads, validation_summary
-
-
-def _validate_gemini_chunk_with_fallback(
-    *,
-    restaurant_name: str,
-    restaurant_source_id: str,
-    candidates: list[dict[str, Any]],
-    api_key: str,
-    models: list[str],
-) -> tuple[Any, str, list[dict[str, str]]]:
-    if not models:
-        raise GeminiMenuError("No Gemini validation models are configured.")
-
-    attempt_errors: list[dict[str, str]] = []
-    last_error: GeminiMenuError | None = None
-    for model in models:
-        try:
-            result = validate_menu_candidates_with_gemini(
-                restaurant_name=restaurant_name,
-                restaurant_source_id=restaurant_source_id,
-                candidates=candidates,
-                api_key=api_key,
-                model=model,
-            )
-            return result, model, attempt_errors
-        except GeminiMenuError as exc:
-            last_error = exc
-            message = str(exc)
-            attempt_errors.append({"model": model, "error": message})
-            if not _is_gemini_model_fallback_error(message):
-                raise
-
-    assert last_error is not None
-    raise last_error
-
-
 def _is_gemini_model_fallback_error(message: str) -> bool:
     lower_message = message.lower()
     return any(
@@ -1152,24 +751,6 @@ def _menu_item_payloads(menu_items: list[Any]) -> list[dict[str, Any]]:
     return payloads
 
 
-def _menu_validation_candidates(payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        {
-            "candidate_id": payload["candidate_id"],
-            "source_url": payload.get("menu_source_url", ""),
-            "source_type": payload.get("source_type", ""),
-            "extraction_method": payload.get("extraction_method", ""),
-            "rule_parser_confidence": payload.get("confidence", 0),
-            "category": payload.get("category", ""),
-            "item_name": payload.get("item_name", ""),
-            "description": payload.get("description", ""),
-            "price": payload.get("price", ""),
-            "raw_text": payload.get("raw_text", ""),
-        }
-        for payload in payloads
-    ]
-
-
 def _empty_validation_summary() -> dict[str, Any]:
     return {
         "enabled": False,
@@ -1185,43 +766,6 @@ def _empty_validation_summary() -> dict[str, Any]:
         "attemptErrors": [],
         "error": "",
     }
-
-
-def _gemini_validation_models() -> list[str]:
-    models: list[str] = []
-    for model in [get_gemini_model(), *get_gemini_fallback_models()]:
-        cleaned = model.strip()
-        if cleaned and cleaned not in models:
-            models.append(cleaned)
-    return models
-
-
-def _build_local_validation_output_path(label: str) -> Path:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y_%m_%d_%H%M%S")
-    return DATA_DIR / f"menu_validation_{_slugify(label)}_{stamp}.json"
-
-
-def _write_menu_validation_json(
-    *,
-    path: Path,
-    restaurant_name: str,
-    validation_summary: dict[str, Any],
-    menu_items: list[dict[str, Any]],
-    rejected_menu_items: list[dict[str, Any]],
-) -> None:
-    path.write_text(
-        json.dumps(
-            {
-                "restaurantName": restaurant_name,
-                "validationSummary": validation_summary,
-                "menuItems": menu_items,
-                "rejectedMenuItems": rejected_menu_items,
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
 
 
 def _coordinates_from_payload(
@@ -1291,7 +835,7 @@ def _fetch_rows_for_provider(
     )
 
 
-def _restaurant_payload(row: Any, *, engine: str = "v1", severity: str = "allergy") -> dict[str, Any]:
+def _restaurant_payload(row: Any, *, engine: str = "legacy", severity: str = "allergy") -> dict[str, Any]:
     from safeplate.allergen_prior import (
         normalize_cuisine,
         region_from_address,
@@ -1307,7 +851,7 @@ def _restaurant_payload(row: Any, *, engine: str = "v1", severity: str = "allerg
     # labeling_trust is exposed by the prior (not the assessment), so compute it
     # either way to keep the UI's "allergen labeling" badge working.
     prior = score_restaurant_prior(cuisines=cuisines, region=region, allergen="nuts")
-    if engine == "v2":
+    if engine == "structured":
         # Same Layer #5 scorer as the drawer, prior-only (no menu fetch at list
         # time), so the list and the drawer speak the same tier language.
         from safeplate.allergen_score import UserProfile, score_restaurant_for_user
@@ -1368,17 +912,65 @@ def _row_distance(row: Any) -> float:
         return float("inf")
 
 
-def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str | None) -> dict[str, Any]:
+def _write_assessment_into_card(
+    payload: dict[str, Any], assessment: Any, *,
+    prior: Any, cuisines: list[str], region: str, name: str, website_url: str,
+    menu_items: list[Any], allergy_signals: list[Any], coverage: list[Any],
+    errors: list[dict[str, str]], scoring_engine: str = "rules",
+) -> None:
+    """Write an assessment (and its menu-backed detail) into a result card. Used for
+    both the deterministic build and the ai_assisted batched re-score, so the two stay in
+    lockstep -- the only thing that changes between them is ``assessment`` (and which
+    scoring engine produced it, surfaced so the drawer can label the explanation)."""
+    payload["allergenPrior"] = {
+        "allergen": "nuts",
+        "risk": round(assessment.overall_risk, 3),
+        "confidence": round(assessment.overall_confidence, 2),
+        "basis": assessment.evidence_basis,
+        "rationale": assessment.rationale,
+        "tier": assessment.tier,
+        "labelingTrust": round(prior.labeling_trust, 2),
+        "cuisines": cuisines,
+        "region": region,
+        "scoringEngine": scoring_engine,
+    }
+    payload["coverageStatus"] = "menu_backed" if menu_items else "cuisine_estimate"
+    # We just extracted the full menu to score the card -- carry it along so opening
+    # the drawer is INSTANT (no /api/menu round-trip). Only for menu-backed cards;
+    # cuisine-estimate ones have nothing to embed and fetch fresh on open.
+    if menu_items:
+        payload["menuDetail"] = _structured_menu_response(
+            restaurant_name=name,
+            website_url=website_url,
+            assessment=assessment,
+            menu_items=menu_items,
+            allergy_signals=allergy_signals,
+            coverage=coverage,
+            errors=errors,
+            scoring_engine=scoring_engine,
+        )
+    else:
+        payload.pop("menuDetail", None)
+
+
+def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str | None,
+                      scoring_engine: str = "rules") -> tuple[dict[str, Any], dict[str, Any] | None]:
     """Build a result-card payload whose ``allergenPrior`` IS the menu-backed Layer
     #5 assessment (same extraction + scorer + result cache as the drawer), so the
     list card and the drawer show the IDENTICAL score -- the drawer just adds the
     item-level detail. Falls back to the cuisine prior only if extraction yields
-    nothing (no website / nothing found)."""
+    nothing (no website / nothing found).
+
+    Scoring is always DETERMINISTIC here. For ``scoring_engine == "ai_assisted"`` the card is
+    re-scored by ONE batched LLM call over the whole list (see ``_build_search_cards``),
+    not per restaurant -- so this also returns a re-scoring context (inputs + the bits
+    needed to rewrite the card with the batched assessment), or ``None`` for rules."""
     from safeplate.allergen_prior import (
         normalize_cuisine,
         region_from_address,
         score_restaurant_prior,
     )
+    from safeplate.allergen_score import _domain_of
 
     payload = asdict(row)
     payload["categories"] = row.categories
@@ -1390,10 +982,11 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
 
     name = str(row.name or "").strip()
     website_url = str(row.website_url or "").strip()
-    assessment, menu_items, allergy_signals, coverage, errors = _extract_and_assess_v2(
+    address = str(row.address or "")
+    assessment, menu_items, allergy_signals, coverage, errors = _extract_and_assess_structured(
         name=name,
         website_url=website_url,
-        address=str(row.address or ""),
+        address=address,
         categories=row.categories,
         latitude=row.latitude,
         longitude=row.longitude,
@@ -1402,41 +995,37 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
         api_key=api_key,
         cuisines=cuisines,  # already derived above for the prior; don't recompute
         region=region,
+        scoring_engine="rules",  # ai_assisted re-scores the whole list in ONE batched call
     )
-    payload["allergenPrior"] = {
-        "allergen": "nuts",
-        "risk": round(assessment.overall_risk, 3),
-        "confidence": round(assessment.overall_confidence, 2),
-        "basis": assessment.evidence_basis,
-        "rationale": assessment.rationale,
-        "tier": assessment.tier,
-        "labelingTrust": round(prior.labeling_trust, 2),
-        "cuisines": cuisines,
-        "region": region,
-    }
-    payload["coverageStatus"] = "menu_backed" if menu_items else "cuisine_estimate"
-    # We just extracted the full menu to score the card -- carry it along so opening
-    # the drawer is INSTANT (no /api/menu round-trip). Only for menu-backed cards;
-    # cuisine-estimate ones have nothing to embed and fetch fresh on open.
-    if menu_items:
-        payload["menuDetail"] = _v2_menu_response(
-            restaurant_name=name,
-            website_url=website_url,
-            assessment=assessment,
-            menu_items=menu_items,
-            allergy_signals=allergy_signals,
-            coverage=coverage,
-            errors=errors,
-        )
+    rebuild = dict(
+        prior=prior, cuisines=cuisines, region=region, name=name,
+        website_url=website_url, menu_items=menu_items,
+        allergy_signals=allergy_signals, coverage=coverage, errors=errors,
+    )
+    _write_assessment_into_card(payload, assessment, scoring_engine="rules", **rebuild)
     if isinstance(row.raw_payload, dict) and row.raw_payload.get("demo_scenario"):
         payload["demoScenario"] = row.raw_payload["demo_scenario"]
-    return payload
+
+    ctx: dict[str, Any] | None = None
+    if _is_ai_engine(scoring_engine):
+        ctx = {
+            "profile": profile,
+            "cuisines": cuisines,
+            "region": region,
+            "menu_items": menu_items,
+            "signals": _build_restaurant_signals(
+                allergy_signals, name=name, address=address, website_url=website_url
+            ),
+            "official_domain": _domain_of(website_url),
+            "rebuild": rebuild,
+        }
+    return payload, ctx
 
 
 def _build_search_cards(
     rows: list[Any], payload: dict[str, Any], *, engine: str, severity: str
 ) -> list[dict[str, Any]]:
-    """Engine v2 -> every card is menu-backed (same extraction + scorer + result
+    """Structured extraction -> every card is menu-backed (same extraction + scorer + result
     cache as the drawer), computed concurrently so the list and the drawer agree.
     Other engines -> the fast cuisine prior.
 
@@ -1447,7 +1036,7 @@ def _build_search_cards(
     the full extraction, so opening a 'cuisine estimate' card still gives the real
     menu-backed verdict and warms the cache for the next search."""
     rows = list(rows)
-    if engine != "v2":
+    if engine != "structured":
         return [_restaurant_payload(row, engine=engine, severity=severity) for row in rows]
 
     from concurrent.futures import (
@@ -1457,6 +1046,7 @@ def _build_search_cards(
     )
 
     profile = _user_profile_from_payload(payload)
+    scoring_engine = _scoring_engine_from_payload(payload)
     user_agent = get_user_agent()
     api_key = get_gemini_api_key()
 
@@ -1469,12 +1059,13 @@ def _build_search_cards(
     deep = set(sorted(range(len(rows)), key=lambda i: _row_distance(rows[i]))[:_LIST_MENU_BACKED_TOP_N])
 
     results: list[dict[str, Any] | None] = [None] * len(rows)
+    contexts: dict[int, dict[str, Any]] = {}  # i -> ai_assisted re-scoring context (deep cards only)
     executor = ThreadPoolExecutor(max_workers=_LIST_ASSESS_WORKERS)
     try:
         futures = {
             executor.submit(
                 _menu_backed_card, rows[i], profile=profile,
-                user_agent=user_agent, api_key=api_key,
+                user_agent=user_agent, api_key=api_key, scoring_engine=scoring_engine,
             ): i
             for i in deep
         }
@@ -1486,7 +1077,9 @@ def _build_search_cards(
             for fut in as_completed(futures, timeout=_LIST_ASSESS_BUDGET_S):
                 i = futures[fut]
                 try:
-                    results[i] = fut.result()
+                    results[i], ctx = fut.result()
+                    if ctx is not None:
+                        contexts[i] = ctx
                 except Exception:
                     results[i] = _prior(rows[i])
         except FuturesTimeout:
@@ -1494,6 +1087,32 @@ def _build_search_cards(
     finally:
         # Don't wait on stragglers -- they keep running and warm the cache for next time.
         executor.shutdown(wait=False, cancel_futures=True)
+
+    # AI engine: re-score every extracted card in ONE batched LLM call (N calls -> 1).
+    # Each restaurant label-routes (chart / raw menu / context) + keeps its deterministic
+    # floor + guardrails; the whole batch fails closed to the deterministic cards.
+    if _is_ai_engine(scoring_engine) and api_key and contexts:
+        from safeplate.allergen_score_llm import score_restaurants_with_llm_batch
+
+        reqs = [
+            {"id": str(i), "profile": ctx["profile"], "cuisines": ctx["cuisines"],
+             "region": ctx["region"], "menu_items": ctx["menu_items"],
+             "signals": ctx["signals"], "community": None,
+             "official_domain": ctx["official_domain"]}
+            for i, ctx in contexts.items()
+        ]
+        try:
+            scored = score_restaurants_with_llm_batch(
+                reqs, api_key=api_key, model=get_gemini_model()
+            )
+            for i, ctx in contexts.items():
+                assessment = scored.get(str(i))
+                if assessment is not None and results[i] is not None:
+                    _write_assessment_into_card(
+                        results[i], assessment, scoring_engine=scoring_engine, **ctx["rebuild"]
+                    )
+        except Exception:
+            pass  # keep the deterministic cards already built
 
     return [results[i] if results[i] is not None else _prior(rows[i]) for i in range(len(rows))]
 
@@ -1737,27 +1356,6 @@ def _item_terms(item: Any, name: str) -> list[str]:
     return []
 
 
-def _dedupe_menu_sources(rows: list[Any]) -> list[Any]:
-    best_by_url: dict[str, Any] = {}
-    for row in rows:
-        candidate_url = str(getattr(row, "candidate_url", "") or "").strip()
-        if not candidate_url:
-            continue
-        existing = best_by_url.get(candidate_url)
-        if existing is None or getattr(row, "confidence", 0) > getattr(
-            existing, "confidence", 0
-        ):
-            best_by_url[candidate_url] = row
-
-    return sorted(
-        best_by_url.values(),
-        key=lambda row: (
-            str(getattr(row, "evidence_grade", "Z") or "Z"),
-            -float(getattr(row, "confidence", 0) or 0),
-        ),
-    )
-
-
 def _string_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
@@ -1784,9 +1382,6 @@ def _default_provider() -> str:
     if get_google_places_api_key():
         return "google"
     return "osm"
-
-
-from safeplate.textutil import slugify as _slugify
 
 
 def run_server(

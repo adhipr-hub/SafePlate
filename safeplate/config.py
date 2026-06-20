@@ -136,12 +136,41 @@ def get_gemini_api_key() -> str | None:
     return None
 
 
+# Canonical engine names (the product language). The old numeric "v1/v2/v3" values
+# are still accepted on input and mapped here, so existing clients/tests keep working
+# -- but "v2" no longer means TWO different things (structured extraction vs rules
+# scoring). Extraction: legacy | structured. Scoring: rules | ai_assisted.
+_EXTRACTION_ALIASES = {
+    "v1": "legacy", "legacy": "legacy",
+    "v2": "structured", "structured": "structured",
+}
+_SCORING_ALIASES = {
+    "v2": "rules", "rules": "rules",
+    # One label-routing LLM engine (folds the old distilled + full-menu variants).
+    "v3": "ai", "ai": "ai", "ai_assisted": "ai", "ai_full_menu": "ai",
+    "ai_fullmenu": "ai", "full_menu": "ai",
+}
+
+
+def normalize_extraction_engine(value: str | None) -> str:
+    """Map any extraction-engine value (incl. legacy 'v1'/'v2') to the canonical
+    'legacy' | 'structured'. Unknown -> 'structured' (the product default)."""
+    return _EXTRACTION_ALIASES.get(str(value or "").strip().lower(), "structured")
+
+
+def normalize_scoring_engine(value: str | None) -> str:
+    """Map any scoring value (incl. legacy 'v2'/'v3' and the old 'ai_assisted'/
+    'ai_full_menu') to the canonical 'rules' | 'ai'. Unset/unknown -> 'ai' (the
+    product default; it falls back to the deterministic scorer when there's no
+    Gemini key/quota, so defaulting to it is always safe)."""
+    return _SCORING_ALIASES.get(str(value or "").strip().lower(), "ai")
+
+
 def get_engine() -> str:
-    """Menu-extraction engine for the app: 'v1' (legacy default) or 'v2'
-    (clean-architecture extraction2 + Layer #5 scoring). Override per-request with
-    an 'engine' field or globally with SAFEPLATE_ENGINE."""
-    value = os.environ.get("SAFEPLATE_ENGINE", "v2").strip().lower()
-    return value if value in ("v1", "v2") else "v2"
+    """Menu-extraction engine: 'structured' (default) or 'legacy'. Override per-
+    request with an 'engine' field or globally with SAFEPLATE_ENGINE (the old
+    'v1'/'v2' values are still accepted)."""
+    return normalize_extraction_engine(os.environ.get("SAFEPLATE_ENGINE", "structured"))
 
 
 def get_gemini_model() -> str:
