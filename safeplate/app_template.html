@@ -65,6 +65,13 @@
     }
     .topbar-inner { display: flex; align-items: center; height: 60px; gap: 12px; }
 
+    .nav-links { display: flex; align-items: center; gap: 2px; margin-left: 14px; }
+    .nav-link {
+      font-size: 13.5px; font-weight: 600; color: var(--tx2); text-decoration: none;
+      padding: 7px 12px; border-radius: 10px; transition: all .15s;
+    }
+    .nav-link:hover { color: var(--tx); background: rgba(0,0,0,0.04); }
+
     .brand { display: flex; align-items: center; gap: 9px; text-decoration: none; }
     .brand-mark {
       width: 30px; height: 30px; border-radius: 9px; flex: none;
@@ -466,6 +473,80 @@
       margin: 30px auto 0; max-width: 480px; padding: 0 8px;
     }
 
+    /* ─── Trust strip (under hero) ─── */
+    .trust-strip {
+      display: flex; align-items: center; justify-content: center; gap: 22px; flex-wrap: wrap;
+      margin: 26px auto 0; position: relative; z-index: 1;
+    }
+    .trust-item {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 12.5px; font-weight: 600; color: var(--tx2);
+    }
+    .trust-item svg { width: 15px; height: 15px; color: var(--g1); flex: none; }
+    .trust-sep { width: 1px; height: 13px; background: var(--border2); }
+
+    /* ─── Landing marketing sections ─── */
+    .landing-extra.hidden { display: none; }
+    .section { padding: 54px 0; }
+    .section.tint { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .section-head { text-align: center; max-width: 620px; margin: 0 auto 36px; }
+    .section-kicker {
+      font-size: 11.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+      color: var(--g1); margin-bottom: 10px;
+    }
+    .section-title {
+      font-family: "Fraunces", Georgia, serif; font-weight: 700;
+      font-size: clamp(25px, 3.2vw, 34px); letter-spacing: -.02em; line-height: 1.1;
+    }
+    .section-lede { font-size: 16px; color: var(--tx2); margin-top: 12px; line-height: 1.6; }
+
+    .feat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+    .feat {
+      background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--rL);
+      padding: 24px; box-shadow: var(--e1); transition: transform .2s, box-shadow .2s, border-color .2s;
+    }
+    .section.tint .feat { background: var(--page); }
+    .feat:hover { transform: translateY(-2px); box-shadow: var(--e3); border-color: var(--border2); }
+    .feat-ico {
+      width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
+      background: var(--gt); color: var(--g0); margin-bottom: 15px;
+    }
+    .feat-ico svg { width: 22px; height: 22px; }
+    .feat h3 { font-size: 17px; font-weight: 700; letter-spacing: -.015em; margin-bottom: 7px; }
+    .feat p { font-size: 14px; color: var(--tx2); line-height: 1.55; }
+    .feat .step-num {
+      font-family: "Fraunces", Georgia, serif; font-weight: 700; font-size: 18px; color: #fff;
+      width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+      background: linear-gradient(145deg, #16A34A, #15803D); margin-bottom: 15px;
+      box-shadow: 0 3px 10px -2px rgba(21,128,61,.45);
+    }
+
+    /* ─── Footer ─── */
+    .footer { border-top: 1px solid var(--border); background: var(--surface); }
+    .footer-inner { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 30px; padding: 48px 0 36px; }
+    .footer-brand .brand { margin-bottom: 13px; }
+    .footer-blurb { font-size: 13.5px; color: var(--tx2); line-height: 1.6; max-width: 280px; }
+    .footer-col h4 {
+      font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+      color: var(--tx3); margin-bottom: 14px;
+    }
+    .footer-col a {
+      display: block; font-size: 13.5px; color: var(--tx2); text-decoration: none;
+      margin-bottom: 10px; transition: color .15s; width: fit-content;
+    }
+    .footer-col a:hover { color: var(--g0); }
+    .footer-bottom {
+      border-top: 1px solid var(--border); padding: 20px 0; display: flex;
+      align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+    }
+    .footer-copy { font-size: 12.5px; color: var(--tx3); }
+    .footer-note { font-size: 12px; color: var(--tx3); max-width: 560px; line-height: 1.55; }
+
+    @media (max-width: 860px) { .footer-inner { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 680px) {
+      .nav-links { display: none; }
+      .footer-inner { grid-template-columns: 1fr 1fr; gap: 24px; }
+    }
     @media (max-width: 540px) {
       .search-row { flex-direction: column; }
       .go-btn { height: 48px; }
@@ -478,7 +559,7 @@
 
 <header class="topbar">
   <div class="wrap topbar-inner">
-    <a class="brand" href="#">
+    <a class="brand" href="/">
       <span class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none">
           <path d="M12 21s-7-4.5-7-10a7 7 0 0 1 14 0c0 5.5-7 10-7 10Z" fill="rgba(255,255,255,0.18)"/>
@@ -487,7 +568,13 @@
       </span>
       <span class="brand-name">Safe<em>Plate</em></span>
     </a>
-    <div class="topbar-pill">
+    <nav class="nav-links">
+      <a class="nav-link" href="/how-it-works">How it works</a>
+      <a class="nav-link" href="/about">About</a>
+      <a class="nav-link" href="/faq">FAQ</a>
+      <a class="nav-link" href="/contact">Contact</a>
+    </nav>
+    <div class="topbar-pill" title="Data source">
       <span class="s-dot" id="cfgDot"></span>
       <span id="cfgText">Connecting…</span>
     </div>
@@ -495,7 +582,7 @@
 </header>
 
 <main class="wrap">
-  <section class="hero">
+  <section class="hero" id="search">
     <div class="eyebrow"><span class="eyebrow-pip"></span>Allergy-aware dining</div>
     <h1>Eat out without<br/><span class="grad">the guesswork</span>.</h1>
     <p class="hero-sub">Find restaurants near you ranked by how likely their menu involves nuts — built from real menu evidence, cuisine, and location.</p>
@@ -541,6 +628,23 @@
         <span class="allergen-chip cc" data-cc="strict" style="cursor:pointer">Very careful</span>
       </div>
     </div>
+
+    <div class="trust-strip">
+      <span class="trust-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h6M8 16h4"/></svg>
+        Reads real menus
+      </span>
+      <span class="trust-sep"></span>
+      <span class="trust-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        Shows its evidence
+      </span>
+      <span class="trust-sep"></span>
+      <span class="trust-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg>
+        Built to fail safe
+      </span>
+    </div>
   </section>
 
   <section class="results hidden" id="results">
@@ -562,6 +666,104 @@
     <p class="disclaimer">SafePlate estimates risk from menu evidence, cuisine, and location — not a medical guarantee. Always confirm with the restaurant before ordering with a serious allergy.</p>
   </section>
 </main>
+
+<!-- Landing marketing (hidden after a search) -->
+<div class="landing-extra" id="landingExtra">
+  <section class="section tint">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-kicker">How it works</div>
+        <h2 class="section-title">Search, read, decide — in seconds</h2>
+        <p class="section-lede">We don’t just guess from the cuisine. We find each restaurant’s real menu, weigh the evidence, and explain every score.</p>
+      </div>
+      <div class="feat-grid">
+        <div class="feat">
+          <div class="step-num">1</div>
+          <h3>Tell us where &amp; what</h3>
+          <p>Search a city or use your location, set your allergy, and tell us how serious your reaction is and how careful you need to be about cross-contact.</p>
+        </div>
+        <div class="feat">
+          <div class="step-num">2</div>
+          <h3>We read the real menu</h3>
+          <p>For each nearby place we find and read its actual menu, allergen charts, and allergy statements — dish by dish, not just the cuisine label.</p>
+        </div>
+        <div class="feat">
+          <div class="step-num">3</div>
+          <h3>You get a ranked, explained score</h3>
+          <p>Every restaurant gets a nut-risk score and a plain-English reason. Tap any card to see the riskiest dishes and exactly where the score came from.</p>
+        </div>
+      </div>
+      <div style="text-align:center; margin-top:28px;">
+        <a class="nav-link" href="/how-it-works" style="color:var(--g0); background:var(--gt);">See the full breakdown →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-kicker">Why SafePlate</div>
+        <h2 class="section-title">Trust you can see</h2>
+        <p class="section-lede">Most apps reduce allergies to a single badge. We show the evidence behind every number, so you decide with the full picture.</p>
+      </div>
+      <div class="feat-grid">
+        <div class="feat">
+          <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h6M8 16h4"/></svg></div>
+          <h3>Real menu evidence</h3>
+          <p>Scores come from actual menus and published allergen charts where they exist — not cuisine stereotypes alone.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <h3>Every score, explained</h3>
+          <p>Each restaurant is tagged with how we know — from “confirmed” allergen charts down to a cuisine estimate.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg></div>
+          <h3>Built to fail safe</h3>
+          <p>When evidence is thin, we say “call ahead” rather than guess low. A missing menu is never shown as safe.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <a class="brand" href="/">
+        <span class="brand-mark">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 21s-7-4.5-7-10a7 7 0 0 1 14 0c0 5.5-7 10-7 10Z" fill="rgba(255,255,255,0.18)"/>
+            <path d="M9.5 11.5l1.8 1.8 3.4-3.6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="brand-name">Safe<em>Plate</em></span>
+      </a>
+      <p class="footer-blurb">Allergy-aware dining. We read real menus, cuisine patterns, and location to rank restaurants by how likely a dish involves nuts — with the evidence shown for every score.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Product</h4>
+      <a href="/#search">Find places</a>
+      <a href="/how-it-works">How it works</a>
+      <a href="/faq">FAQ</a>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+    </div>
+    <div class="footer-col">
+      <h4>Legal</h4>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <span class="footer-copy">© 2026 SafePlate</span>
+    <span class="footer-note">SafePlate estimates allergen risk from public information and is not a medical service. Always confirm directly with the restaurant before ordering with a serious allergy.</span>
+  </div>
+</footer>
 
 <!-- Drawer -->
 <div class="scrim" id="scrim"></div>
@@ -667,6 +869,7 @@ async function search(opts={}) {
   const seq = ++_searchSeq;   // any in-flight progressive upgrades from a prior search are now stale
   const btn = $("#goBtn"); btn.disabled=true;
   btn.textContent = state.progressive ? "Finding places…" : "Reading menus…";
+  $("#landingExtra").classList.add("hidden");   // hide marketing once searching
   $("#results").classList.remove("hidden");
   $("#grid").innerHTML = Array.from({length:6}).map(()=>`
     <div class="skel">

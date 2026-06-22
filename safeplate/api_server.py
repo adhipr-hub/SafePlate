@@ -25,6 +25,7 @@ from safeplate.common import _default_provider, _int_env
 from safeplate.menu_service import run_menu_extraction
 from safeplate.search_service import run_restaurant_search
 from safeplate.demo_fixtures import DEFAULT_DEMO_LOCATION
+from safeplate.pages import get_page
 
 
 def _basic_auth_credentials() -> tuple[str, str] | None:
@@ -85,6 +86,10 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
                 return
             if path == "/":
                 self._send_html(app_html())
+                return
+            static_page = get_page(path)
+            if static_page is not None:
+                self._send_html(static_page)
                 return
             if path == "/api/config":
                 self._send_json(
