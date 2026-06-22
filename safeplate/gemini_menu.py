@@ -8,9 +8,8 @@ from pathlib import Path
 import re
 import threading
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
+from safeplate.http_client import HttpConnectionError, http_post
 from safeplate.coerce import float_value as _float_value
 from safeplate.coerce import int_value as _int_value
 from safeplate.coerce import split_semicolon_terms as _split_terms
@@ -858,26 +857,31 @@ def _post_gemini_generate_content(
     api_key: str,
     model: str,
 ) -> dict[str, Any]:
-    request = Request(
-        GEMINI_GENERATE_URL.format(model=model),
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-        },
-        method="POST",
-    )
+    # Routed through the pooled keep-alive Session in http_client: this chokepoint
+    # is hit many times concurrently against one host per run, so reusing the
+    # connection (and negotiating gzip on the large JSON responses) avoids a fresh
+    # TLS handshake every call. The global semaphore still caps in-flight calls.
+    body = json.dumps(payload).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key,
+    }
+    url = GEMINI_GENERATE_URL.format(model=model)
     try:
         with _gemini_semaphore():
-            with urlopen(request, timeout=90) as response:
-                return json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        details = exc.read().decode("utf-8", errors="replace")
-        raise GeminiMenuError(
-            f"Gemini request failed with HTTP {exc.code}: {details}"
-        ) from exc
-    except (URLError, TimeoutError) as exc:
+            response = http_post(url, data=body, headers=headers, timeout=90)
+    except HttpConnectionError as exc:
         raise GeminiMenuError(f"Gemini request failed: {exc}") from exc
+
+    if response.status >= 400:
+        details = response.content.decode("utf-8", errors="replace")
+        raise GeminiMenuError(
+            f"Gemini request failed with HTTP {response.status}: {details}"
+        )
+    try:
+        return json.loads(response.content.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise GeminiMenuError("Gemini returned non-JSON data") from exc
 
 
 def _parse_gemini_json_response(payload: dict[str, Any]) -> dict[str, Any]:

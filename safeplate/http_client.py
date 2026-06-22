@@ -205,6 +205,76 @@ def _http_get_requests(
     )
 
 
+def http_post(
+    url: str,
+    *,
+    data: bytes,
+    headers: dict[str, str],
+    timeout: float = 90,
+) -> HttpResponse:
+    """POST bytes over a pooled keep-alive connection (gzip-negotiated).
+
+    JSON APIs like Gemini and Brave are called many times against a single host
+    in one run, so reusing the thread-local ``requests`` Session avoids a fresh
+    TLS handshake per call. Unlike :func:`http_get`, this does NOT raise on HTTP
+    >= 400 — those APIs return useful error bodies that callers surface in their
+    own exceptions, so status + body are handed back as-is. Only transport
+    failures raise (:class:`HttpConnectionError`).
+    """
+    if _HAS_REQUESTS:
+        return _http_post_requests(url, data=data, headers=headers, timeout=timeout)
+    return _http_post_urllib(url, data=data, headers=headers, timeout=timeout)
+
+
+def _http_post_requests(
+    url: str, *, data: bytes, headers: dict[str, str], timeout: float
+) -> HttpResponse:
+    merged = {"Accept-Encoding": "gzip, deflate", **headers}
+    try:
+        response = _session().post(url, data=data, headers=merged, timeout=timeout)
+    except requests.exceptions.RequestException as exc:  # type: ignore[union-attr]
+        raise HttpConnectionError(f"Could not POST {url}: {exc}") from exc
+    return HttpResponse(
+        status=response.status_code,
+        final_url=response.url,
+        content=response.content,
+        content_type=response.headers.get("Content-Type", ""),
+    )
+
+
+def _http_post_urllib(
+    url: str, *, data: bytes, headers: dict[str, str], timeout: float
+) -> HttpResponse:
+    merged = {"Accept-Encoding": "gzip, deflate", **headers}
+    request = Request(url, data=data, headers=merged, method="POST")
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            raw = response.read()
+            content_type = response.headers.get("Content-Type", "")
+            content_encoding = (response.headers.get("Content-Encoding") or "").lower()
+            status = getattr(response, "status", 200) or 200
+            final_url = response.url
+    except HTTPError as exc:
+        # 4xx/5xx still carry a useful JSON body; hand it back instead of raising
+        # so callers can build their own error message (matches the requests path).
+        encoding = (exc.headers.get("Content-Encoding") or "").lower() if exc.headers else ""
+        return HttpResponse(
+            status=exc.code,
+            final_url=url,
+            content=_decompress(exc.read(), encoding),
+            content_type=exc.headers.get("Content-Type", "") if exc.headers else "",
+        )
+    except (URLError, TimeoutError) as exc:
+        raise HttpConnectionError(f"Could not POST {url}: {exc}") from exc
+
+    return HttpResponse(
+        status=status,
+        final_url=final_url,
+        content=_decompress(raw, content_encoding),
+        content_type=content_type,
+    )
+
+
 def _http_get_urllib(url: str, *, user_agent: str, timeout: float) -> HttpResponse:
     headers = {
         "User-Agent": user_agent,
