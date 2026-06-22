@@ -6,7 +6,7 @@
   <title>SafePlate — Allergy-aware dining</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,600;6..72,700&display=swap" rel="stylesheet" />
   <style>
     /* ─── Design tokens ─── */
     :root {
@@ -17,7 +17,7 @@
 
       --tx:  #1A1714;
       --tx2: #6A5F57;
-      --tx3: #A09088;
+      --tx3: #766A60;   /* readable on cream (~4.7:1) — was #A09088 which failed AA for text */
 
       /* Brand */
       --g0: #166534;   /* deep green */
@@ -45,11 +45,12 @@
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :focus-visible { outline: 2px solid var(--g1); outline-offset: 2px; }
     html, body { height: 100%; }
     body {
       background: var(--page);
       color: var(--tx);
-      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
       -webkit-font-smoothing: antialiased;
       font-size: 15px;
       letter-spacing: -0.011em;
@@ -72,6 +73,13 @@
     }
     .nav-link:hover { color: var(--tx); background: rgba(0,0,0,0.04); }
 
+    .nav-toggle {
+      display: none; width: 40px; height: 40px; flex: none; place-items: center;
+      background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px;
+      color: var(--tx2); cursor: pointer;
+    }
+    .nav-toggle svg { width: 18px; height: 18px; }
+
     .brand { display: flex; align-items: center; gap: 9px; text-decoration: none; }
     .brand-mark {
       width: 30px; height: 30px; border-radius: 9px; flex: none;
@@ -80,7 +88,7 @@
       box-shadow: 0 3px 10px -2px rgba(21,128,61,0.5);
     }
     .brand-mark svg { width: 16px; height: 16px; }
-    .brand-name { font-weight: 800; font-size: 16.5px; letter-spacing: -0.035em; color: var(--tx); }
+    .brand-name { font-weight: 700; font-size: 16.5px; letter-spacing: -0.035em; color: var(--tx); }
     .brand-name em { font-style: normal; color: var(--g1); }
 
     .topbar-pill {
@@ -115,14 +123,11 @@
     .eyebrow-pip { width: 5px; height: 5px; border-radius: 50%; background: var(--g1); flex: none; }
 
     h1 {
-      font-family: "Fraunces", Georgia, serif; font-weight: 700; position: relative; z-index: 1;
-      font-size: clamp(36px, 5.2vw, 62px); line-height: 1.01; letter-spacing: -0.027em;
+      font-family: "Newsreader", Georgia, serif; font-weight: 700; position: relative; z-index: 1;
+      font-size: clamp(36px, 5.2vw, 62px); line-height: 1.02; letter-spacing: -0.018em;
       margin-bottom: 16px;
     }
-    h1 .grad {
-      background: linear-gradient(125deg, #15803D 5%, #0284C7 92%);
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
+    h1 .grad { color: var(--g0); }
     .hero-sub {
       font-size: 17px; color: var(--tx2); line-height: 1.6;
       max-width: 470px; margin: 0 auto 28px; position: relative; z-index: 1;
@@ -178,7 +183,8 @@
     }
     .allergen-label { font-size: 12px; font-weight: 600; color: var(--tx3); }
     .allergen-chip {
-      font-size: 12.5px; font-weight: 500; padding: 5px 12px; border-radius: var(--pill);
+      font-family: inherit; font-size: 12.5px; font-weight: 500; line-height: 1.2;
+      padding: 5px 12px; border-radius: var(--pill);
       border: 1.5px solid var(--border); background: var(--surface); color: var(--tx2);
       cursor: pointer; user-select: none; transition: all .15s;
     }
@@ -186,7 +192,8 @@
       border-color: var(--g1); background: var(--gt); color: var(--g0); font-weight: 600;
     }
     .allergen-chip.locked { opacity: .32; cursor: not-allowed; }
-    .cc-hint { font-size: 11px; color: var(--tx3); cursor: help; opacity: .7; }
+    .cc-hint { font-size: 11px; color: var(--tx3); cursor: help; opacity: .7;
+      background: none; border: none; padding: 0; line-height: 1; font-family: inherit; }
 
     /* ─── Results bar ─── */
     .results { padding: 0 0 80px; }
@@ -225,7 +232,7 @@
     @keyframes upgpulse { 0%,100%{opacity:.3} 50%{opacity:1} }
 
     /* ─── Card grid ─── */
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(334px, 1fr)); gap: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; }
 
     .rcard {
       display: flex; background: var(--surface); border-radius: var(--rL);
@@ -236,6 +243,7 @@
     }
     @keyframes riseIn { to { opacity: 1; transform: none; } }
     .rcard:hover { transform: translateY(-2px); box-shadow: var(--e3); border-color: var(--border2); }
+    .rcard:focus-visible { outline: 2px solid var(--g1); outline-offset: 2px; box-shadow: var(--e3); }
 
     .card-stripe { width: 5px; flex: none; }
     .card-body   { flex: 1; padding: 17px 17px 15px; display: flex; gap: 13px; min-width: 0; }
@@ -294,7 +302,7 @@
     .ring svg { transform: rotate(-90deg); display: block; }
     .ring-mid { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
     .ring-num {
-      font-size: 17px; font-weight: 800; letter-spacing: -0.04em;
+      font-size: 17px; font-weight: 700; letter-spacing: -0.04em;
       font-variant-numeric: tabular-nums; line-height: 1;
     }
 
@@ -495,7 +503,7 @@
       color: var(--g1); margin-bottom: 10px;
     }
     .section-title {
-      font-family: "Fraunces", Georgia, serif; font-weight: 700;
+      font-family: "Newsreader", Georgia, serif; font-weight: 700;
       font-size: clamp(25px, 3.2vw, 34px); letter-spacing: -.02em; line-height: 1.1;
     }
     .section-lede { font-size: 16px; color: var(--tx2); margin-top: 12px; line-height: 1.6; }
@@ -514,8 +522,19 @@
     .feat-ico svg { width: 22px; height: 22px; }
     .feat h3 { font-size: 17px; font-weight: 700; letter-spacing: -.015em; margin-bottom: 7px; }
     .feat p { font-size: 14px; color: var(--tx2); line-height: 1.55; }
+    /* "Why SafePlate" — icon-left feature rows (distinct from the numbered step cards) */
+    .why-feats { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }
+    .wfeat {
+      display: flex; gap: 14px; align-items: flex-start; padding: 20px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--rL); box-shadow: var(--e1);
+    }
+    .wfeat .feat-ico { margin-bottom: 0; flex: none; }
+    .wfeat h3 { font-size: 16px; font-weight: 700; letter-spacing: -.015em; margin-bottom: 5px; }
+    .wfeat p { font-size: 13.5px; color: var(--tx2); line-height: 1.5; }
+
     .feat .step-num {
-      font-family: "Fraunces", Georgia, serif; font-weight: 700; font-size: 18px; color: #fff;
+      font-family: "Newsreader", Georgia, serif; font-weight: 700; font-size: 18px; color: #fff;
       width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
       background: linear-gradient(145deg, #16A34A, #15803D); margin-bottom: 15px;
       box-shadow: 0 3px 10px -2px rgba(21,128,61,.45);
@@ -544,7 +563,16 @@
 
     @media (max-width: 860px) { .footer-inner { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 680px) {
-      .nav-links { display: none; }
+      .nav-toggle { display: grid; margin-left: auto; }
+      .topbar-pill { margin-left: 0; }
+      .nav-links {
+        position: absolute; top: 58px; right: 12px; min-width: 188px; display: none;
+        flex-direction: column; align-items: stretch; gap: 2px; margin-left: 0;
+        background: var(--surface); border: 1.5px solid var(--border);
+        border-radius: var(--rM); padding: 8px; box-shadow: var(--e3);
+      }
+      .nav-links.open { display: flex; }
+      .nav-link { padding: 11px 12px; }
       .footer-inner { grid-template-columns: 1fr 1fr; gap: 24px; }
     }
     @media (max-width: 540px) {
@@ -553,6 +581,12 @@
       .geo-btn { width: 100%; height: 44px; }
       h1 { font-size: 34px; }
     }
+    /* Comfortable touch targets on touch devices */
+    @media (pointer: coarse) {
+      .allergen-chip, .sort-btn, .modebtn, .nav-link { min-height: 44px; }
+      .allergen-chip, .sort-btn, .modebtn { display: inline-flex; align-items: center; }
+      .d-close { width: 40px; height: 40px; }
+    }
   </style>
 </head>
 <body>
@@ -560,7 +594,7 @@
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a class="brand" href="/">
-      <span class="brand-mark">
+      <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none">
           <path d="M12 21s-7-4.5-7-10a7 7 0 0 1 14 0c0 5.5-7 10-7 10Z" fill="rgba(255,255,255,0.18)"/>
           <path d="M9.5 11.5l1.8 1.8 3.4-3.6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -568,7 +602,7 @@
       </span>
       <span class="brand-name">Safe<em>Plate</em></span>
     </a>
-    <nav class="nav-links">
+    <nav class="nav-links" id="navLinks">
       <a class="nav-link" href="/how-it-works">How it works</a>
       <a class="nav-link" href="/about">About</a>
       <a class="nav-link" href="/faq">FAQ</a>
@@ -578,26 +612,29 @@
       <span class="s-dot" id="cfgDot"></span>
       <span id="cfgText">Connecting…</span>
     </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
   </div>
 </header>
 
 <main class="wrap">
   <section class="hero" id="search">
-    <div class="eyebrow"><span class="eyebrow-pip"></span>Allergy-aware dining</div>
+    <div class="eyebrow"><span class="eyebrow-pip" aria-hidden="true"></span>Allergy-aware dining</div>
     <h1>Eat out without<br/><span class="grad">the guesswork</span>.</h1>
-    <p class="hero-sub">Find restaurants near you ranked by how likely their menu involves nuts — built from real menu evidence, cuisine, and location.</p>
+    <p class="hero-sub">Find restaurants near you, ranked by how likely their menu involves nuts. Built from real menu evidence, cuisine, and location.</p>
 
     <div class="search-card">
       <div class="search-row">
         <label class="search-field">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11Z" stroke="currentColor" stroke-width="1.7"/>
             <circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.7"/>
           </svg>
-          <input id="loc" class="search-input" placeholder="City, neighbourhood, or address" autocomplete="off" />
+          <input id="loc" class="search-input" placeholder="City, neighbourhood, or address" autocomplete="off" aria-label="Location" />
         </label>
         <button class="geo-btn" id="geoBtn" aria-label="Use my location">
-          <svg viewBox="0 0 24 24" fill="none">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
             <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.7"/>
             <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
@@ -612,36 +649,36 @@
         <span class="allergen-chip locked" title="Coming soon">Dairy</span>
         <span class="allergen-chip locked" title="Coming soon">Gluten</span>
       </div>
-      <div class="allergen-row">
-        <span class="allergen-label">How serious</span>
-        <span class="allergen-chip sev" data-sev="avoid_preference" style="cursor:pointer">Preference</span>
-        <span class="allergen-chip sev" data-sev="intolerance" style="cursor:pointer">Intolerance</span>
-        <span class="allergen-chip sev on" data-sev="allergy" style="cursor:pointer">Allergy</span>
-        <span class="allergen-chip sev" data-sev="anaphylaxis" style="cursor:pointer">Anaphylaxis</span>
+      <div class="allergen-row" role="group" aria-labelledby="sevLabel">
+        <span class="allergen-label" id="sevLabel">How serious</span>
+        <button type="button" class="allergen-chip sev" data-sev="avoid_preference" aria-pressed="false">Preference</button>
+        <button type="button" class="allergen-chip sev" data-sev="intolerance" aria-pressed="false">Intolerance</button>
+        <button type="button" class="allergen-chip sev on" data-sev="allergy" aria-pressed="true">Allergy</button>
+        <button type="button" class="allergen-chip sev" data-sev="anaphylaxis" aria-pressed="false">Anaphylaxis</button>
       </div>
-      <div class="allergen-row">
-        <span class="allergen-label">Cross-contact
-          <span class="cc-hint" title="How much trace / shared-kitchen exposure matters to you — separate from how serious a reaction is. Defaults to your severity; tap to override.">ⓘ</span>
+      <div class="allergen-row" role="group" aria-labelledby="ccLabel">
+        <span class="allergen-label" id="ccLabel">Cross-contact
+          <button type="button" class="cc-hint" aria-label="What is cross-contact?" title="How much trace / shared-kitchen exposure matters to you — separate from how serious a reaction is. Defaults to your severity; tap to override.">ⓘ</button>
         </span>
-        <span class="allergen-chip cc" data-cc="not_concerned" style="cursor:pointer">Not a concern</span>
-        <span class="allergen-chip cc" data-cc="moderate" style="cursor:pointer">Somewhat careful</span>
-        <span class="allergen-chip cc" data-cc="strict" style="cursor:pointer">Very careful</span>
+        <button type="button" class="allergen-chip cc" data-cc="not_concerned" aria-pressed="false">Not a concern</button>
+        <button type="button" class="allergen-chip cc" data-cc="moderate" aria-pressed="false">Somewhat careful</button>
+        <button type="button" class="allergen-chip cc" data-cc="strict" aria-pressed="false">Very careful</button>
       </div>
     </div>
 
     <div class="trust-strip">
       <span class="trust-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h6M8 16h4"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h6M8 16h4"/></svg>
         Reads real menus
       </span>
-      <span class="trust-sep"></span>
+      <span class="trust-sep" aria-hidden="true"></span>
       <span class="trust-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
         Shows its evidence
       </span>
-      <span class="trust-sep"></span>
+      <span class="trust-sep" aria-hidden="true"></span>
       <span class="trust-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg>
         Built to fail safe
       </span>
     </div>
@@ -649,7 +686,7 @@
 
   <section class="results hidden" id="results">
     <div class="results-bar">
-      <span class="results-title" id="resCount"></span>
+      <span class="results-title" id="resCount" role="status" aria-live="polite"></span>
       <span class="results-where" id="resWhere"></span>
       <div class="sort-row">
         <button class="sort-btn on" data-sort="risk">Safest first</button>
@@ -663,7 +700,7 @@
       </div>
     </div>
     <div class="grid" id="grid"></div>
-    <p class="disclaimer">SafePlate estimates risk from menu evidence, cuisine, and location — not a medical guarantee. Always confirm with the restaurant before ordering with a serious allergy.</p>
+    <p class="disclaimer">SafePlate estimates risk from menu evidence, cuisine, and location. It is not a medical guarantee. Always confirm with the restaurant before ordering with a serious allergy.</p>
   </section>
 </main>
 
@@ -672,8 +709,7 @@
   <section class="section tint">
     <div class="wrap">
       <div class="section-head">
-        <div class="section-kicker">How it works</div>
-        <h2 class="section-title">Search, read, decide — in seconds</h2>
+        <h2 class="section-title">Search, read, decide in seconds</h2>
         <p class="section-lede">We don’t just guess from the cuisine. We find each restaurant’s real menu, weigh the evidence, and explain every score.</p>
       </div>
       <div class="feat-grid">
@@ -685,7 +721,7 @@
         <div class="feat">
           <div class="step-num">2</div>
           <h3>We read the real menu</h3>
-          <p>For each nearby place we find and read its actual menu, allergen charts, and allergy statements — dish by dish, not just the cuisine label.</p>
+          <p>For each nearby place we find and read its actual menu, allergen charts, and allergy statements: dish by dish, not just the cuisine label.</p>
         </div>
         <div class="feat">
           <div class="step-num">3</div>
@@ -702,25 +738,30 @@
   <section class="section">
     <div class="wrap">
       <div class="section-head">
-        <div class="section-kicker">Why SafePlate</div>
         <h2 class="section-title">Trust you can see</h2>
         <p class="section-lede">Most apps reduce allergies to a single badge. We show the evidence behind every number, so you decide with the full picture.</p>
       </div>
-      <div class="feat-grid">
-        <div class="feat">
-          <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h6M8 16h4"/></svg></div>
-          <h3>Real menu evidence</h3>
-          <p>Scores come from actual menus and published allergen charts where they exist — not cuisine stereotypes alone.</p>
+      <div class="why-feats">
+        <div class="wfeat">
+          <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h6M8 16h4"/></svg></div>
+          <div>
+            <h3>Real menu evidence</h3>
+            <p>Scores come from actual menus and published allergen charts where they exist, not cuisine stereotypes alone.</p>
+          </div>
         </div>
-        <div class="feat">
-          <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></div>
-          <h3>Every score, explained</h3>
-          <p>Each restaurant is tagged with how we know — from “confirmed” allergen charts down to a cuisine estimate.</p>
+        <div class="wfeat">
+          <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <div>
+            <h3>Every score, explained</h3>
+            <p>Each restaurant is tagged with how we know, from “confirmed” allergen charts down to a cuisine estimate.</p>
+          </div>
         </div>
-        <div class="feat">
-          <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg></div>
-          <h3>Built to fail safe</h3>
-          <p>When evidence is thin, we say “call ahead” rather than guess low. A missing menu is never shown as safe.</p>
+        <div class="wfeat">
+          <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg></div>
+          <div>
+            <h3>Built to fail safe</h3>
+            <p>When evidence is thin, we say “call ahead” rather than guess low. A missing menu is never shown as safe.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -732,7 +773,7 @@
   <div class="wrap footer-inner">
     <div class="footer-brand">
       <a class="brand" href="/">
-        <span class="brand-mark">
+        <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none">
             <path d="M12 21s-7-4.5-7-10a7 7 0 0 1 14 0c0 5.5-7 10-7 10Z" fill="rgba(255,255,255,0.18)"/>
             <path d="M9.5 11.5l1.8 1.8 3.4-3.6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -740,7 +781,7 @@
         </span>
         <span class="brand-name">Safe<em>Plate</em></span>
       </a>
-      <p class="footer-blurb">Allergy-aware dining. We read real menus, cuisine patterns, and location to rank restaurants by how likely a dish involves nuts — with the evidence shown for every score.</p>
+      <p class="footer-blurb">Allergy-aware dining. We read real menus, cuisine patterns, and location to rank restaurants by how likely a dish involves nuts, with the evidence shown for every score.</p>
     </div>
     <div class="footer-col">
       <h4>Product</h4>
@@ -767,10 +808,10 @@
 
 <!-- Drawer -->
 <div class="scrim" id="scrim"></div>
-<aside class="drawer" id="drawer" aria-hidden="true">
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dName" tabindex="-1" aria-hidden="true">
   <div class="d-head">
     <button class="d-close" id="dclose" aria-label="Close">✕</button>
-    <div class="d-name" id="dName"></div>
+    <h2 class="d-name" id="dName"></h2>
     <div class="d-addr" id="dAddr"></div>
   </div>
   <div class="d-body" id="dBody"></div>
@@ -793,7 +834,11 @@ const CC_DEFAULT_BY_SEV = { avoid_preference:"not_concerned", intolerance:"moder
 function effectiveCC() { return state.crossContact || CC_DEFAULT_BY_SEV[state.severity] || "moderate"; }
 function paintCC() {
   const eff = effectiveCC();
-  document.querySelectorAll(".allergen-chip.cc").forEach(x => x.classList.toggle("on", x.dataset.cc === eff));
+  document.querySelectorAll(".allergen-chip.cc").forEach(x => {
+    const on = x.dataset.cc === eff;
+    x.classList.toggle("on", on);
+    x.setAttribute("aria-pressed", on ? "true" : "false");
+  });
 }
 
 /* ── risk helpers ── */
@@ -808,7 +853,7 @@ function ring(risk, px) {
   const R = px * 0.395, C = 2*Math.PI*R, off = C*(1-risk);
   return `<div class="ring" style="width:${px}px;height:${px}px">
     <svg width="${px}" height="${px}">
-      <circle cx="${px/2}" cy="${px/2}" r="${R}" stroke="#EAE5DF" stroke-width="5.5" fill="none"/>
+      <circle cx="${px/2}" cy="${px/2}" r="${R}" stroke="var(--border)" stroke-width="5.5" fill="none"/>
       <circle cx="${px/2}" cy="${px/2}" r="${R}" stroke="${ringClr(risk)}" stroke-width="5.5" fill="none"
         stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
         style="transition:stroke-dashoffset .65s ease"/>
@@ -1001,9 +1046,9 @@ function renderResults() {
       : "";
     const conf = p.confidence!=null?Math.round(p.confidence*100)+"%":"";
     const metaParts=[];
-    if (r.rating) metaParts.push(`<span class="star">★</span> ${r.rating}${r.review_count?` (${r.review_count})`:""}`);
+    if (r.rating) metaParts.push(`<span class="rating" aria-label="Rated ${r.rating} out of 5${r.review_count?`, ${r.review_count} reviews`:""}"><span class="star" aria-hidden="true">★</span> ${r.rating}${r.review_count?` (${r.review_count})`:""}</span>`);
     if (dist) metaParts.push(dist);
-    return `<article class="rcard" style="animation-delay:${i*32}ms" data-i="${state.rows.indexOf(r)}">
+    return `<article class="rcard" tabindex="0" role="button" aria-label="${esc(r.name)} — ${riskWord(risk)} for nuts. View details." style="animation-delay:${i*32}ms" data-i="${state.rows.indexOf(r)}">
       <div class="card-stripe" style="background:${stripeClr(risk)}"></div>
       <div class="card-body">
         <div class="card-info">
@@ -1025,7 +1070,11 @@ function renderResults() {
       </div>
     </article>`;
   }).join("");
-  document.querySelectorAll(".rcard").forEach(el=>el.onclick=()=>openDetail(state.rows[+el.dataset.i]));
+  document.querySelectorAll(".rcard").forEach(el=>{
+    const open = () => openDetail(state.rows[+el.dataset.i]);
+    el.onclick = open;
+    el.onkeydown = e => { if (e.key==="Enter"||e.key===" ") { e.preventDefault(); open(); } };
+  });
 }
 
 /* ── drawer ── */
@@ -1077,15 +1126,19 @@ function verdictHtml(risk, coverage, basis) {
 }
 
 let _menuSeq = 0;             // monotonic id of the latest drawer open
+let _lastFocused = null;      // element to restore focus to when the drawer closes
 const _menuCache = new Map(); // memoize /api/menu by restaurant + preferences
 
 async function openDetail(r) {
+  _lastFocused = document.activeElement;
   $("#dName").textContent = r.name;
   $("#dAddr").textContent = r.address||"";
   const drawer = $("#drawer");
   drawer.setAttribute("aria-hidden","false");
   $("#scrim").classList.add("open");
   drawer.classList.add("open");
+  document.body.style.overflow = "hidden";
+  requestAnimationFrame(()=>$("#dclose").focus());
   const riskData = riskForRow(r);
   const coverage = r.coverageStatus||"cuisine_estimate";
   $("#dBody").innerHTML = `
@@ -1145,7 +1198,7 @@ function renderMenu(m,r) {
   ].filter(([,v])=>v!==undefined);
   if (sigDefs.length) {
     html += `<div class="ds">
-      <div class="sec-head">Allergy awareness</div>
+      <h3 class="sec-head">Allergy awareness</h3>
       <div class="sig-row">
         ${sigDefs.map(([lbl,val])=>`<span class="sig-chip${val?" yes":""}">
           <span class="sig-pip"></span>${esc(lbl)}
@@ -1158,7 +1211,7 @@ function renderMenu(m,r) {
   const allergyQuotes = [...new Set((m.allergySignals||[]).flatMap(s=>asList(s.statements)))].slice(0,4);
   if (allergyQuotes.length) {
     html += `<div class="ds">
-      <div class="sec-head">What they say about allergies</div>
+      <h3 class="sec-head">What they say about allergies</h3>
       ${allergyQuotes.map(q=>`<div class="mi-desc" style="margin:6px 0 0">“${esc(q)}”</div>`).join("")}
     </div>`;
   }
@@ -1167,7 +1220,7 @@ function renderMenu(m,r) {
   const communityQuotes = [...new Set(m.communityQuotes||[])].slice(0,3);
   if (communityQuotes.length) {
     html += `<div class="ds">
-      <div class="sec-head">What diners report</div>
+      <h3 class="sec-head">What diners report</h3>
       ${communityQuotes.map(q=>`<div class="mi-desc" style="margin:6px 0 0">“${esc(q)}” <span style="opacity:.55">— from reviews</span></div>`).join("")}
     </div>`;
   }
@@ -1207,7 +1260,7 @@ function renderMenu(m,r) {
 
   /* menu items */
   html += `<div class="ds">
-    <div class="sec-head">Menu${items.length?` · ${items.length} items`:""}</div>`;
+    <h3 class="sec-head">Menu${items.length?` · ${items.length} items`:""}</h3>`;
 
   if (!items.length) {
     html += `<div class="empty-msg" style="padding:24px 0">
@@ -1228,7 +1281,7 @@ function renderMenu(m,r) {
     const showCatHeaders = cats.length > 1;
     html += cats.map(cat => {
       const catItems = byCategory[cat];
-      return (showCatHeaders?`<div class="menu-cat">${esc(cat)}</div>`:"") +
+      return (showCatHeaders?`<h4 class="menu-cat">${esc(cat)}</h4>`:"") +
         catItems.map(it => {
           const al = asList(it.allergen_terms), di = asList(it.dietary_terms);
           const hasNut = al.some(isNut);
@@ -1294,6 +1347,18 @@ function closeDrawer() {
   const d = $("#drawer");
   d.classList.remove("open"); d.setAttribute("aria-hidden","true");
   $("#scrim").classList.remove("open");
+  document.body.style.overflow = "";
+  if (_lastFocused && _lastFocused.focus) _lastFocused.focus();
+}
+
+/* Keep keyboard focus inside the drawer while it's open. */
+function trapDrawerTab(e) {
+  if (e.key !== "Tab" || !$("#drawer").classList.contains("open")) return;
+  const f = $("#drawer").querySelectorAll('a[href],button:not([disabled]),input,[tabindex]:not([tabindex="-1"])');
+  if (!f.length) return;
+  const first = f[0], last = f[f.length-1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
 
 /* ── events ── */
@@ -1302,8 +1367,8 @@ $("#geoBtn").onclick = useBrowserLocation;
 $("#loc").addEventListener("keydown", e => { if (e.key==="Enter") search(); });
 $("#dclose").onclick = closeDrawer;
 document.querySelectorAll(".allergen-chip.sev").forEach(el => el.onclick = () => {
-  document.querySelectorAll(".allergen-chip.sev").forEach(x => x.classList.remove("on"));
-  el.classList.add("on");
+  document.querySelectorAll(".allergen-chip.sev").forEach(x => { x.classList.remove("on"); x.setAttribute("aria-pressed","false"); });
+  el.classList.add("on"); el.setAttribute("aria-pressed","true");
   state.severity = el.dataset.sev;
   paintCC();                         // auto cross-contact follows severity
   if (state.rows.length) search();   // re-rank the list for the new severity
@@ -1316,6 +1381,20 @@ document.querySelectorAll(".allergen-chip.cc").forEach(el => el.onclick = () => 
 paintCC();  // highlight the severity-derived default on load
 $("#scrim").onclick  = closeDrawer;
 document.addEventListener("keydown", e => { if (e.key==="Escape") closeDrawer(); });
+$("#drawer").addEventListener("keydown", trapDrawerTab);
+
+/* Mobile nav disclosure */
+$("#navToggle").onclick = () => {
+  const nav = $("#navLinks"), btn = $("#navToggle");
+  const open = nav.classList.toggle("open");
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+  btn.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+};
+document.querySelectorAll("#navLinks .nav-link").forEach(a => a.addEventListener("click", () => {
+  $("#navLinks").classList.remove("open");
+  $("#navToggle").setAttribute("aria-expanded","false");
+  $("#navToggle").setAttribute("aria-label","Open menu");
+}));
 document.querySelectorAll(".sort-btn").forEach(b => b.onclick=()=>{
   document.querySelectorAll(".sort-btn").forEach(x=>x.classList.remove("on"));
   b.classList.add("on"); state.sort=b.dataset.sort; renderResults();

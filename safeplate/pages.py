@@ -47,7 +47,7 @@ _BASE_CSS = """
 html{scroll-behavior:smooth;}
 body{
   background:var(--page); color:var(--tx);
-  font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
   -webkit-font-smoothing:antialiased; font-size:15px; letter-spacing:-.011em; line-height:1.5;
 }
 a{color:inherit;}
@@ -63,7 +63,7 @@ a{color:inherit;}
   background:linear-gradient(145deg,#15803D,#16A34A); display:grid; place-items:center;
   box-shadow:0 3px 10px -2px rgba(21,128,61,.5);}
 .brand-mark svg{width:16px; height:16px;}
-.brand-name{font-weight:800; font-size:16.5px; letter-spacing:-.035em; color:var(--tx);}
+.brand-name{font-weight:700; font-size:16.5px; letter-spacing:-.035em; color:var(--tx);}
 .brand-name em{font-style:normal; color:var(--g1);}
 .nav-links{display:flex; align-items:center; gap:4px; margin-left:18px;}
 .nav-link{font-size:13.5px; font-weight:600; color:var(--tx2); text-decoration:none;
@@ -92,7 +92,7 @@ a{color:inherit;}
   color:var(--g0); padding:5px 13px; border-radius:var(--pill);
   border:1.5px solid rgba(22,101,52,.2); background:rgba(22,101,52,.07); margin-bottom:20px;}
 .eyebrow-pip{width:5px; height:5px; border-radius:50%; background:var(--g1); flex:none;}
-.phero h1{font-family:"Fraunces",Georgia,serif; font-weight:700; position:relative; z-index:1;
+.phero h1{font-family:"Newsreader",Georgia,serif; font-weight:700; position:relative; z-index:1;
   font-size:clamp(34px,4.6vw,52px); line-height:1.04; letter-spacing:-.025em; margin-bottom:16px;}
 .phero h1 .grad{background:linear-gradient(125deg,#15803D 5%,#0284C7 92%);
   -webkit-background-clip:text; background-clip:text; color:transparent;}
@@ -104,7 +104,7 @@ a{color:inherit;}
 .section-head{text-align:center; max-width:640px; margin:0 auto 34px;}
 .section-kicker{font-size:11.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase;
   color:var(--g1); margin-bottom:10px;}
-.section-title{font-family:"Fraunces",Georgia,serif; font-weight:700; font-size:clamp(26px,3.4vw,36px);
+.section-title{font-family:"Newsreader",Georgia,serif; font-weight:700; font-size:clamp(26px,3.4vw,36px);
   letter-spacing:-.02em; line-height:1.1;}
 .section-lede{font-size:16px; color:var(--tx2); margin-top:12px; line-height:1.6;}
 
@@ -119,7 +119,7 @@ a{color:inherit;}
 .card-ico svg{width:22px; height:22px;}
 .card h3{font-size:17px; font-weight:700; letter-spacing:-.015em; margin-bottom:7px;}
 .card p{font-size:14px; color:var(--tx2); line-height:1.55;}
-.step-num{font-family:"Fraunces",Georgia,serif; font-weight:700; font-size:18px; color:#fff;
+.step-num{font-family:"Newsreader",Georgia,serif; font-weight:700; font-size:18px; color:#fff;
   width:36px; height:36px; border-radius:50%; display:grid; place-items:center;
   background:linear-gradient(145deg,#16A34A,#15803D); margin-bottom:15px;
   box-shadow:0 3px 10px -2px rgba(21,128,61,.45);}
@@ -142,12 +142,12 @@ a{color:inherit;}
 .statband{background:linear-gradient(135deg,#103D26,#15803D); border-radius:var(--rXL);
   padding:34px 28px; color:#fff; box-shadow:var(--e3);}
 .statgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:24px; text-align:center;}
-.stat-num{font-family:"Fraunces",Georgia,serif; font-weight:700; font-size:38px; letter-spacing:-.02em; line-height:1;}
+.stat-num{font-family:"Newsreader",Georgia,serif; font-weight:700; font-size:38px; letter-spacing:-.02em; line-height:1;}
 .stat-lbl{font-size:13px; margin-top:8px; color:rgba(255,255,255,.82);}
 
 /* ── Prose (legal pages) ── */
 .prose{font-size:15px; color:var(--tx2); line-height:1.72;}
-.prose h2{font-family:"Fraunces",Georgia,serif; font-size:23px; font-weight:700; color:var(--tx);
+.prose h2{font-family:"Newsreader",Georgia,serif; font-size:23px; font-weight:700; color:var(--tx);
   letter-spacing:-.015em; margin:34px 0 12px;}
 .prose h3{font-size:16px; font-weight:700; color:var(--tx); margin:22px 0 8px;}
 .prose p{margin:0 0 14px;}
@@ -187,7 +187,7 @@ a{color:inherit;}
 .cta::before{content:""; position:absolute; pointer-events:none; width:480px; height:380px;
   border-radius:50%; top:-200px; left:50%; transform:translateX(-50%);
   background:radial-gradient(circle,rgba(22,163,74,.12) 0%,transparent 68%);}
-.cta h2{font-family:"Fraunces",Georgia,serif; font-weight:700; font-size:clamp(24px,3vw,32px);
+.cta h2{font-family:"Newsreader",Georgia,serif; font-weight:700; font-size:clamp(24px,3vw,32px);
   letter-spacing:-.02em; margin-bottom:12px; position:relative; z-index:1;}
 .cta p{font-size:16px; color:var(--tx2); max-width:480px; margin:0 auto 22px; position:relative; z-index:1;}
 .btn-primary{display:inline-flex; align-items:center; gap:8px; padding:13px 24px; border-radius:var(--pill);
@@ -289,7 +289,7 @@ def _render_page(*, title: str, description: str, active: str, body: str) -> str
   <meta name="description" content="{description}" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,600;6..72,700&display=swap" rel="stylesheet" />
   <style>{_BASE_CSS}</style>
 </head>
 <body>

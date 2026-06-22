@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-22T00:00:00Z",
+  "title": "Design System: SafePlate",
+  "extensions": {
+    "colorMeta": {
+      "page": { "role": "neutral", "displayName": "Warm Paper", "canonical": "oklch(96% 0.006 70)", "tonalRamp": ["#1A1714", "#3A352F", "#5C544B", "#827969", "#A89E8E", "#C9C2B8", "#E3DDD5", "#F5F3EF"] },
+      "surface": { "role": "neutral", "displayName": "Clean White", "canonical": "oklch(100% 0 0)", "tonalRamp": ["#1A1714", "#3A352F", "#5C544B", "#827969", "#A89E8E", "#C9C2B8", "#EFEAE3", "#FFFFFF"] },
+      "ink": { "role": "neutral", "displayName": "Near-Black Ink", "canonical": "oklch(22% 0.01 60)", "tonalRamp": ["#1A1714", "#332E29", "#4D453D", "#6A5F57", "#897D72", "#A09088", "#C9C2B8", "#E3DDD5"] },
+      "green-mid": { "role": "primary", "displayName": "Trust Green", "canonical": "oklch(62% 0.17 150)", "tonalRamp": ["#052E16", "#14532D", "#166534", "#15803D", "#16A34A", "#22C55E", "#86EFAC", "#DCFCE7"] },
+      "signal-blue": { "role": "secondary", "displayName": "Signal Blue", "canonical": "oklch(55% 0.2 260)", "tonalRamp": ["#172554", "#1E3A8A", "#1D4ED8", "#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#DBEAFE"] },
+      "ai-violet": { "role": "secondary", "displayName": "Machine Violet", "canonical": "oklch(48% 0.22 300)", "tonalRamp": ["#2E1065", "#4C1D95", "#5B21B6", "#6D28D9", "#7C3AED", "#A78BFA", "#C4B5FD", "#EDE9FE"] },
+      "risk-high-ring": { "role": "tertiary", "displayName": "Danger Red", "canonical": "oklch(70% 0.18 25)", "tonalRamp": ["#450A0A", "#7F1D1D", "#991B1B", "#DC2626", "#F87171", "#FCA5A5", "#FECACA", "#FEF2F2"] },
+      "risk-med-ring": { "role": "tertiary", "displayName": "Caution Amber", "canonical": "oklch(82% 0.15 80)", "tonalRamp": ["#451A03", "#78350F", "#92400E", "#B45309", "#FBBF24", "#FCD34D", "#FDE68A", "#FFFBEB"] },
+      "risk-low-ring": { "role": "tertiary", "displayName": "Safe Green", "canonical": "oklch(75% 0.18 150)", "tonalRamp": ["#052E16", "#166534", "#15803D", "#16A34A", "#22C55E", "#4ADE80", "#BBF7D0", "#F0FDF4"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display (Newsreader)", "purpose": "Hero h1 only — one per page. Editorial serif warmth." },
+      "headline": { "displayName": "Headline (Newsreader)", "purpose": "Marketing/landing section titles." },
+      "title": { "displayName": "Title (IBM Plex Sans)", "purpose": "Results bar, drawer name, in-app section headings." },
+      "body": { "displayName": "Body (IBM Plex Sans)", "purpose": "Default UI text and prose; cap measure 65–75ch." },
+      "label": { "displayName": "Label (IBM Plex Sans)", "purpose": "UPPERCASE eyebrows, section heads, menu categories. Faint ink only." }
+    },
+    "shadows": [
+      { "name": "e1", "value": "0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04)", "purpose": "Resting cards and feature tiles." },
+      { "name": "e2", "value": "0 4px 16px -2px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.05)", "purpose": "Mild lift." },
+      { "name": "e3", "value": "0 12px 36px -6px rgba(0,0,0,0.14), 0 3px 10px rgba(0,0,0,0.06)", "purpose": "Card/feature hover and toast." },
+      { "name": "e4", "value": "0 24px 64px -10px rgba(0,0,0,0.18), 0 6px 20px rgba(0,0,0,0.07)", "purpose": "The hero search card — the page focal object." },
+      { "name": "ed", "value": "-10px 0 44px -4px rgba(0,0,0,0.13)", "purpose": "Right-edge detail drawer." },
+      { "name": "cta-glow", "value": "0 4px 16px -4px rgba(21,128,61,0.52)", "purpose": "Primary CTA brand glow; deepens on hover." }
+    ],
+    "motion": [
+      { "name": "ease-state", "value": "0.15s ease", "purpose": "Default micro-transitions: chips, links, buttons, borders." },
+      { "name": "ease-lift", "value": "0.2s ease", "purpose": "Card hover lift (transform + shadow + border)." },
+      { "name": "ease-drawer", "value": "0.3s cubic-bezier(0.22, 0.9, 0.22, 1)", "purpose": "Detail drawer slide-in." },
+      { "name": "rise-in", "value": "0.36s forwards", "purpose": "Staggered card entrance (riseIn keyframe)." }
+    ],
+    "breakpoints": [
+      { "name": "wrap-max", "value": "1160px" },
+      { "name": "drawer-max", "value": "560px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button (Go)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main search/confirm action. Green gradient with a brand glow that lifts on hover.",
+      "html": "<button class=\"ds-btn-primary\">Find safe places</button>",
+      "css": ".ds-btn-primary { font-family: IBM Plex Sans, system-ui, sans-serif; font-size: 14.5px; font-weight: 700; color: #fff; height: 50px; padding: 0 20px; border: none; border-radius: 16px; cursor: pointer; background: linear-gradient(145deg, #16A34A, #15803D); box-shadow: 0 4px 16px -4px rgba(21,128,61,0.52); transition: transform .15s, box-shadow .15s; } .ds-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px -4px rgba(21,128,61,0.52); } .ds-btn-primary:active { transform: none; } .ds-btn-primary:disabled { opacity: .42; cursor: default; box-shadow: none; transform: none; }"
+    },
+    {
+      "name": "Ghost Icon Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary/icon action (use-my-location, close). Calm at rest, firms up on hover.",
+      "html": "<button class=\"ds-btn-ghost\" aria-label=\"Use my location\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 2v3M12 19v3M2 12h3M19 12h3\"/></svg></button>",
+      "css": ".ds-btn-ghost { width: 50px; height: 50px; display: grid; place-items: center; background: #F5F3EF; color: #6A5F57; border: 1.5px solid #E3DDD5; border-radius: 16px; cursor: pointer; transition: background .15s, border-color .15s, color .15s; } .ds-btn-ghost svg { width: 17px; height: 17px; } .ds-btn-ghost:hover { background: #fff; border-color: #C9C2B8; color: #1A1714; } .ds-btn-ghost:disabled { opacity: .38; cursor: default; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "Location field with a leading icon. Page-toned fill, soft green focus glow.",
+      "html": "<label class=\"ds-search-field\"><svg class=\"ds-search-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-search-input\" type=\"text\" placeholder=\"City, address, or place\" /></label>",
+      "css": ".ds-search-field { display: flex; align-items: center; gap: 9px; padding: 0 14px; background: #F5F3EF; border: 1.5px solid #E3DDD5; border-radius: 16px; transition: border-color .15s, box-shadow .15s; } .ds-search-field:focus-within { border-color: #16A34A; box-shadow: 0 0 0 3px rgba(22,163,74,0.12); } .ds-search-icon { width: 17px; height: 17px; color: #A09088; flex: none; } .ds-search-input { flex: 1; background: none; border: none; outline: none; font-family: IBM Plex Sans, system-ui, sans-serif; font-size: 15px; color: #1A1714; padding: 14px 0; } .ds-search-input::placeholder { color: #A09088; }"
+    },
+    {
+      "name": "Allergen Chip",
+      "kind": "chip",
+      "refersTo": "chip-allergen",
+      "description": "Pill toggle for an allergen filter. Selected flips to green tint with deep-green text.",
+      "html": "<div style=\"display:flex;gap:7px\"><button class=\"ds-chip\">Tree nuts</button><button class=\"ds-chip ds-chip-on\">Peanuts</button></div>",
+      "css": ".ds-chip { font-family: IBM Plex Sans, system-ui, sans-serif; font-size: 12.5px; font-weight: 500; padding: 5px 12px; border-radius: 999px; border: 1.5px solid #E3DDD5; background: #fff; color: #6A5F57; cursor: pointer; user-select: none; transition: border-color .15s, background .15s, color .15s; } .ds-chip:hover { border-color: #C9C2B8; color: #1A1714; } .ds-chip-on { border-color: #16A34A; background: #DCFCE7; color: #166534; font-weight: 600; }"
+    },
+    {
+      "name": "Restaurant Card",
+      "kind": "card",
+      "refersTo": "card-restaurant",
+      "description": "The core result. Risk stripe + score ring + risk word; lifts on hover. Risk is never color-only.",
+      "html": "<article class=\"ds-rcard\"><span class=\"ds-stripe\"></span><div class=\"ds-cardbody\"><div class=\"ds-cardinfo\"><div class=\"ds-cardname\">Olive &amp; Thyme</div><div class=\"ds-cardmeta\">Mediterranean · 0.4 mi · <span class=\"ds-star\">★</span> 4.6</div><div class=\"ds-badges\"><span class=\"ds-badge ds-badge-menu\">Menu evidence</span></div></div><div class=\"ds-risk\"><div class=\"ds-ring\"><svg width=\"44\" height=\"44\" viewBox=\"0 0 44 44\"><circle cx=\"22\" cy=\"22\" r=\"19\" fill=\"none\" stroke=\"#E3DDD5\" stroke-width=\"4\"/><circle cx=\"22\" cy=\"22\" r=\"19\" fill=\"none\" stroke=\"#22C55E\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-dasharray=\"119\" stroke-dashoffset=\"24\" transform=\"rotate(-90 22 22)\"/></svg><span class=\"ds-ringnum\">82</span></div><span class=\"ds-riskword\" style=\"color:#15803D\">Low</span></div></div></article>",
+      "css": ".ds-rcard { display: flex; background: #fff; border: 1.5px solid #E3DDD5; border-radius: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04); overflow: hidden; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease, border-color .2s; } .ds-rcard:hover { transform: translateY(-2px); box-shadow: 0 12px 36px -6px rgba(0,0,0,0.14), 0 3px 10px rgba(0,0,0,0.06); border-color: #C9C2B8; } .ds-stripe { width: 5px; flex: none; background: #22C55E; } .ds-cardbody { flex: 1; padding: 17px; display: flex; gap: 13px; font-family: IBM Plex Sans, system-ui, sans-serif; } .ds-cardinfo { flex: 1; min-width: 0; } .ds-cardname { font-size: 15.5px; font-weight: 700; letter-spacing: -0.015em; color: #1A1714; } .ds-cardmeta { font-size: 12.5px; color: #6A5F57; margin-top: 3px; } .ds-star { color: #FBBF24; } .ds-badges { margin-top: 9px; } .ds-badge { font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 999px; } .ds-badge-menu { color: #166534; border: 1.5px solid rgba(22,101,52,0.28); background: rgba(22,101,52,0.07); } .ds-risk { display: flex; flex-direction: column; align-items: center; flex: none; } .ds-ring { position: relative; } .ds-ringnum { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; color: #1A1714; } .ds-riskword { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }"
+    },
+    {
+      "name": "Provenance Chips",
+      "kind": "chip",
+      "refersTo": "chip-allergen",
+      "description": "The trust vocabulary: how SafePlate knows each claim. Confirmed / Signal / Inferred / Estimate / Call-ahead.",
+      "html": "<div style=\"display:flex;flex-wrap:wrap;gap:6px;font-family:IBM Plex Sans,system-ui,sans-serif\"><span class=\"ds-pv ds-pv-confirmed\">Confirmed</span><span class=\"ds-pv ds-pv-signal\">Signal</span><span class=\"ds-pv ds-pv-inferred\">Inferred</span><span class=\"ds-pv ds-pv-estimate\">Estimate</span><span class=\"ds-pv ds-pv-callahead\">Call ahead</span></div>",
+      "css": ".ds-pv { font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; border: 1.5px solid #E3DDD5; letter-spacing: .02em; } .ds-pv-confirmed { color: #166534; border-color: rgba(22,101,52,.32); background: rgba(22,101,52,.08); } .ds-pv-signal { color: #2563EB; border-color: rgba(37,99,235,.26); background: rgba(37,99,235,.06); } .ds-pv-inferred { color: #92400E; border-color: rgba(146,64,14,.26); background: rgba(146,64,14,.06); } .ds-pv-estimate { color: #A09088; } .ds-pv-callahead { color: #7C3AED; border-color: rgba(124,58,237,.26); background: rgba(124,58,237,.06); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Evidence Desk",
+    "overview": "SafePlate is the workspace of a careful analyst who happens to be on your side. Every screen lays its findings out on a warm, paper-toned surface — restaurants ranked, risk graded, and the evidence behind each call within reach. The mood is unhurried and legible: a calm verdict you can act on, plus the reasoning you can inspect if you want to. This is a safety-critical tool, so the design earns trust by being transparent, never by being loud. The system is built from a warm off-white field carrying clean white surfaces, a disciplined green brand ramp, and a small, semantically strict risk palette. Type pairs a Fraunces serif for display warmth against Inter for dense, neutral body and UI text. Color is rationed; the interface rests near-flat and lifts softly on interaction.",
+    "keyCharacteristics": [
+      "Warm paper field + clean white surfaces; calm, document-like density.",
+      "One brand color (green) used for identity and 'safe / confirmed', rationed hard.",
+      "A strict 3-hue risk palette (green/amber/red) that never bleeds into decoration.",
+      "Serif display warmth (Newsreader) over neutral, legible IBM Plex Sans UI text.",
+      "Flat at rest; soft ambient shadows that deepen on hover, focus, and for overlays.",
+      "Provenance is a first-class visual language — every claim shows 'how we know'."
+    ],
+    "rules": [
+      { "name": "The Meaning-Only Color Rule", "body": "Saturated color is never decorative. Green = brand / safe / confirmed. Risk hues = allergen risk grade. Blue = observed signal. Violet = machine reasoning. If a color isn't carrying one of those meanings, it's wrong.", "section": "colors" },
+      { "name": "The Two-Tone Risk Rule", "body": "Risk always uses the vivid hue for the glance signal and the dark ink for any text. Never set risk text in the vivid ring color on white.", "section": "colors" },
+      { "name": "The One Serif Rule", "body": "Newsreader is for display and section titles only. It never drops into body, labels, buttons, or chips — that's IBM Plex Sans's job.", "section": "typography" },
+      { "name": "The Lift-On-Intent Rule", "body": "Cards and features are flat-ish at rest (e1) and rise to e3 with a -2px translate on hover. Resting elevation stays calm; motion earns the lift.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep saturated color meaningful: green = brand / safe / confirmed; the three risk hues = allergen risk grade; blue = observed signal; violet = machine reasoning.",
+      "Do pair every risk signal with a second channel — the score ring, the risk word, the 5px stripe, or text. Never communicate risk by color alone (WCAG 2.2 AA, safety-critical).",
+      "Do keep risk text in the dark ink tones (#15803D / #92400E / #991B1B); reserve the vivid ring hues for fills, rings, and stripes.",
+      "Do rest surfaces near-flat (e1) and let shadows deepen on hover/focus and for overlays.",
+      "Do use Newsreader for display and section titles only; everything else is IBM Plex Sans.",
+      "Do keep body copy at #6A5F57 or darker on the warm page; reserve #A09088 for labels, captions, and placeholders only.",
+      "Do surface provenance ('how we know') wherever a safety claim appears."
+    ],
+    "donts": [
+      "Don't drift toward the hype-y AI SaaS look — no buzzword heroes, no manufactured urgency, no 'powered by AI' theatrics. The one sanctioned gradient is the hero headline / CTA; don't add gradient text anywhere else.",
+      "Don't go childish / cutesy — no pastels-as-personality, no mascots, no gamified cheer.",
+      "Don't become a generic crowd-review app — no star-rating soup, no dense undifferentiated listings, no opinion-over-evidence ranking.",
+      "Don't use the risk palette decoratively. Amber, red, and green-safe mean exactly one thing each.",
+      "Don't use border-left/border-right > 1px as a colored accent stripe, except the documented restaurant-card risk stripe.",
+      "Don't set body text in light gray on the cream page (#A09088 and lighter fails for paragraphs).",
+      "Don't ship motion without a prefers-reduced-motion: reduce fallback."
+    ]
+  }
+}
