@@ -165,8 +165,10 @@ def _brave_allergen_sources(
 ) -> list[Candidate]:
     """Consolidated allergen web search: a small set of DISTINCT, high-value queries
     (on-domain PDF, off-domain PDF, off-domain page) instead of the prior two
-    helpers' ~6 overlapping queries. Sequential (Brave free tier is ~1 req/s, so
-    concurrency would 429 and lose results), early-break once we have enough.
+    helpers' ~6 overlapping queries. Queries fire CONCURRENTLY through the shared
+    Brave token bucket (which keeps us under the plan's per-second limit), processed
+    in query order so the highest-value query still ranks first; early-break once we
+    have enough.
     NOTE: off-domain copies can be stale -- scoring should prefer official+recent."""
     try:
         from safeplate.brave_search import BraveSearchError, brave_web_search
@@ -187,13 +189,17 @@ def _brave_allergen_sources(
     )
     queries = list(dict.fromkeys(q for q in queries if q.strip()))
 
+    def _run(query: str) -> tuple[str, list]:
+        try:
+            return query, brave_web_search(
+                query=query, api_key=api_key, user_agent=user_agent, count=6
+            )
+        except BraveSearchError:
+            return query, []
+
     out: list[Candidate] = []
     seen: set[str] = set()
-    for query in queries:
-        try:
-            results = brave_web_search(query=query, api_key=api_key, user_agent=user_agent, count=6)
-        except BraveSearchError:
-            continue
+    for query, results in map_concurrent(_run, queries, max_workers=len(queries)):
         for result in results:
             if result.url in seen:
                 continue
@@ -231,13 +237,17 @@ def _brave_menu_pdf_candidates(
         queries.append(f'"{restaurant_name}" "{city}" menu filetype:pdf')
     queries.append(f'"{restaurant_name}" menu filetype:pdf')
 
+    def _run(query: str) -> tuple[str, list]:
+        try:
+            return query, brave_web_search(
+                query=query, api_key=api_key, user_agent=user_agent, count=8
+            )
+        except BraveSearchError:
+            return query, []
+
     out: list[Candidate] = []
     seen: set[str] = set()
-    for query in queries:
-        try:
-            results = brave_web_search(query=query, api_key=api_key, user_agent=user_agent, count=8)
-        except BraveSearchError:
-            continue
+    for query, results in map_concurrent(_run, queries, max_workers=len(queries)):
         for res in results:
             base = res.url.lower().split("?")[0].split("#")[0]
             if base.endswith(".pdf") and res.url not in seen:
@@ -432,7 +442,10 @@ def discover_and_extract(
     # miss an allergen and wrongly look safer. Preserves validation-by-extraction.
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
-    _BATCH, _ENOUGH_MENU, _MAX_SOURCES, _EXTRACT_BUDGET_S = 3, 30, 8, 90.0
+    # _MAX_SOURCES lowered 8 -> 4: extract only the few best candidate sources per
+    # restaurant (allergen/menu pages are tried first), so a cold search finishes more
+    # of its restaurants inside the list budget instead of grinding through long tails.
+    _BATCH, _ENOUGH_MENU, _MAX_SOURCES, _EXTRACT_BUDGET_S = 3, 30, 4, 90.0
     result = MenuExtractionResult(items=[], coverage=[], llm_calls=0)
     seen_names: set[str] = set()
     allergen_dishes = 0

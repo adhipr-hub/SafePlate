@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import re
+from typing import Any
 
 # Allergen keys. "nuts" is the convenience union of the two nut families, which
 # is what most users mean and what the project's examples target.
@@ -603,30 +604,60 @@ def _cuisine_tokens(raw: str) -> list[str]:
     return tokens
 
 
+# Coarse country bounding boxes (lat_min, lat_max, lon_min, lon_max). Used ONLY as a
+# fallback when the address string can't resolve a country -- enough to pick the right
+# allergen-labeling/absence-inference region (country granularity), not exact borders.
+# Ordered so the US (the primary market) is checked first; the US/Canada border is
+# approximated at the 49th parallel.
+_COUNTRY_BBOXES: list[tuple[str, float, float, float, float]] = [
+    ("US", 24.5, 49.4, -125.0, -66.9),    # contiguous
+    ("US", 51.0, 71.5, -169.0, -129.0),   # Alaska
+    ("US", 18.9, 22.3, -160.3, -154.8),   # Hawaii
+    ("CA", 49.4, 83.2, -141.1, -52.6),
+    ("GB", 49.9, 60.9, -8.7, 1.8),
+    ("IE", 51.4, 55.5, -10.6, -5.9),
+    ("AU", -43.7, -10.6, 113.1, 153.7),
+    ("NZ", -47.3, -34.3, 166.3, 178.7),
+]
+
+
+def _country_from_coords(latitude: float | None, longitude: float | None) -> str | None:
+    if latitude is None or longitude is None:
+        return None
+    try:
+        lat, lon = float(latitude), float(longitude)
+    except (TypeError, ValueError):
+        return None
+    for code, lat_min, lat_max, lon_min, lon_max in _COUNTRY_BBOXES:
+        if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
+            return code
+    return None
+
+
 def region_from_address(
     address: str | None,
     *,
     latitude: float | None = None,
     longitude: float | None = None,
 ) -> str:
-    """Best-effort ISO-ish country code from an address string. 'unknown' if unsure."""
-    if not address:
-        return "unknown"
-    segments = [seg.strip() for seg in address.split(",") if seg.strip()]
-    if not segments:
-        return "unknown"
+    """Best-effort ISO-ish country code. Prefers the address string (most reliable),
+    then falls back to coordinates so a place with an unrecognized address but known
+    lat/lon still resolves a region (region drives allergen-labeling/absence-inference,
+    so 'unknown' under-credits clean menus). 'unknown' only if both fail."""
+    segments = [seg.strip() for seg in (address or "").split(",") if seg.strip()]
 
-    # Try the trailing segments as a country name first.
+    # 1) Trailing segments as a country name ("..., Australia").
     for seg in reversed(segments):
         country = COUNTRY_ALIASES.get(seg.lower())
         if country:
             return country
-
-    # Fall back to a US state code in the last segment ("San Jose, CA 95129").
-    for token in re.split(r"\s+", segments[-1].upper()):
-        if token in _US_STATE_CODES:
-            return "US"
-    return "unknown"
+    # 2) A US state code in the last segment ("San Jose, CA 95129").
+    if segments:
+        for token in re.split(r"\s+", segments[-1].upper()):
+            if token in _US_STATE_CODES:
+                return "US"
+    # 3) Coordinates fallback (coarse country bbox).
+    return _country_from_coords(latitude, longitude) or "unknown"
 
 
 def labeling_trust_for_region(region: str) -> float:

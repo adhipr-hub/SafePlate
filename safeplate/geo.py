@@ -55,12 +55,13 @@ def _best_place(results: list[dict]) -> dict:
     def rank(result: dict) -> tuple[int, float]:
         category = str(result.get("category") or result.get("class") or "").lower()
         kind = str(result.get("type") or result.get("addresstype") or "").lower()
-        if category == "place" and kind in _PLACE_TYPES:
-            tier = 2
-        elif category == "boundary" and kind == "administrative":
-            tier = 1
-        else:
-            tier = 0
+        # A city can come back as EITHER a populated place OR an administrative
+        # boundary -- treat both as the top tier so IMPORTANCE decides between
+        # same-named candidates. (Previously `place` outranked `boundary`, so a tiny
+        # 'Mountain View' village beat the real Mountain View city/boundary.)
+        is_place = category == "place" and kind in _PLACE_TYPES
+        is_admin = category == "boundary" and kind == "administrative"
+        tier = 1 if (is_place or is_admin) else 0
         try:
             importance = float(result.get("importance") or 0.0)
         except (TypeError, ValueError):

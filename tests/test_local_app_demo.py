@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from safeplate.local_app import restaurant_signals_from_evidence
-from safeplate.local_app import run_menu_extraction
+from safeplate.menu_service import restaurant_signals_from_evidence
+from safeplate.menu_service import run_menu_extraction
 from safeplate.local_app import run_restaurant_search
 from safeplate.menu_text import MenuTextRecord
 
@@ -12,7 +12,7 @@ from safeplate.menu_text import MenuTextRecord
 class LocalAppDemoTests(unittest.TestCase):
     def test_demo_search_uses_fixtures_not_live_provider(self) -> None:
         with patch(
-            "safeplate.local_app._fetch_rows_for_provider",
+            "safeplate.search_service._fetch_rows_for_provider",
             side_effect=AssertionError("live provider should not be called"),
         ):
             response = run_restaurant_search({"location": "ignored"}, demo_mode=True)

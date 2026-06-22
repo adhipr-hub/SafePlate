@@ -198,6 +198,24 @@
       transition: all .15s;
     }
     .sort-btn.on { background: var(--tx); border-color: var(--tx); color: #fff; }
+    .mode-row { display: flex; align-items: center; gap: 3px; }
+    .mode-row .mode-label { font-size: 12px; color: var(--tx2); margin-right: 4px; }
+    .modebtn {
+      font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 9px;
+      cursor: pointer; font-family: inherit;
+      border: 1.5px solid var(--border); background: var(--surface); color: var(--tx2);
+      transition: all .15s;
+    }
+    .modebtn.on { background: var(--accent, var(--tx)); border-color: var(--accent, var(--tx)); color: #fff; }
+    .card-upg {
+      font-size: 11px; font-weight: 600; color: var(--tx2);
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .card-upg .dot {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--tx2);
+      animation: upgpulse 1s ease-in-out infinite;
+    }
+    @keyframes upgpulse { 0%,100%{opacity:.3} 50%{opacity:1} }
 
     /* ─── Card grid ─── */
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(334px, 1fr)); gap: 12px; }
@@ -522,13 +540,6 @@
         <span class="allergen-chip cc" data-cc="moderate" style="cursor:pointer">Somewhat careful</span>
         <span class="allergen-chip cc" data-cc="strict" style="cursor:pointer">Very careful</span>
       </div>
-      <div class="allergen-row">
-        <span class="allergen-label">Scoring
-          <span class="cc-hint" title="Rules = transparent rule-based scoring. AI = LLM judgment that trusts a published allergen chart when one exists, else reads the raw menu (or cuisine/signals if no menu). Both share the same deterministic safety floor + guardrails.">ⓘ</span>
-        </span>
-        <span class="allergen-chip se" data-se="rules" style="cursor:pointer">Rules</span>
-        <span class="allergen-chip se on" data-se="ai" style="cursor:pointer">AI</span>
-      </div>
     </div>
   </section>
 
@@ -540,6 +551,11 @@
         <button class="sort-btn on" data-sort="risk">Safest first</button>
         <button class="sort-btn" data-sort="distance">Nearest</button>
         <button class="sort-btn" data-sort="rating">Top rated</button>
+      </div>
+      <div class="mode-row" title="Normal: wait for full menu-backed scores, then show everything at once. Progressive: show cuisine estimates instantly, then upgrade each card to a menu-backed score as it loads.">
+        <span class="mode-label">Loading</span>
+        <button class="modebtn on" data-mode="normal">Normal</button>
+        <button class="modebtn" data-mode="progressive">Progressive</button>
       </div>
     </div>
     <div class="grid" id="grid"></div>
@@ -566,7 +582,8 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const cap = s => { s = String(s||"").replace(/_/g," "); return s.charAt(0).toUpperCase()+s.slice(1); };
 const asList = v => Array.isArray(v) ? v : v ? String(v).split(";").map(x=>x.trim()).filter(Boolean) : [];
 const isNut  = t => /nut|peanut|almond|cashew|walnut|pecan|pistachio|hazelnut|pine|macadamia|praline|nutella|gianduja/i.test(t);
-const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"" };
+const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"", progressive:false };
+let _searchSeq = 0;  // guards background progressive upgrades against a newer search
 
 /* Cross-contact defaults to a severity-derived level until the user overrides it
    (mirrors _CC_DEFAULT_BY_SEVERITY server-side). state.crossContact "" == auto. */
@@ -647,7 +664,9 @@ async function search(opts={}) {
   const loc = $("#loc").value.trim();
   const hasCoords = opts.latitude != null && opts.longitude != null;
   if (!loc && !hasCoords) { toast("Enter a location first", true); return; }
-  const btn = $("#goBtn"); btn.disabled=true; btn.textContent="Reading menus…";
+  const seq = ++_searchSeq;   // any in-flight progressive upgrades from a prior search are now stale
+  const btn = $("#goBtn"); btn.disabled=true;
+  btn.textContent = state.progressive ? "Finding places…" : "Reading menus…";
   $("#results").classList.remove("hidden");
   $("#grid").innerHTML = Array.from({length:6}).map(()=>`
     <div class="skel">
@@ -662,11 +681,14 @@ async function search(opts={}) {
     const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine };
     if (hasCoords) { req.location = opts.location||"Current location"; req.latitude=opts.latitude; req.longitude=opts.longitude; }
     else { req.location = loc; }
+    if (state.progressive) req.listMode = "prior";   // instant cuisine-prior cards; upgrade in the background
     const data = await (await fetch("/api/search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(req)})).json();
     if (data.error) throw new Error(data.error);
+    if (seq !== _searchSeq) return;                  // a newer search superseded this one
     state.rows = (data.rows||[]).filter(r=>r.name);
     state.where = data.location || req.location || loc;
     renderResults();
+    if (state.progressive) upgradeCardsProgressive(seq);   // fire-and-forget menu-backed upgrades
   } catch(e) {
     toast(e.message||"Search failed",true);
     $("#grid").innerHTML = `<div class="empty-msg" style="grid-column:1/-1">
@@ -677,6 +699,59 @@ async function search(opts={}) {
       <p>Could not load places.<br/>Try a different location.</p>
     </div>`;
   } finally { btn.disabled=false; btn.textContent="Find safe places"; }
+}
+
+/* ── progressive upgrades ──
+   In progressive mode the list paints instantly with cuisine-prior cards, then we
+   upgrade the nearest cards to menu-backed scores one /api/menu call at a time and
+   swap each in place as it lands. Bounded (N + concurrency) to stay under the
+   per-IP rate limit; a failed card simply stays a cuisine estimate. */
+const _PROG_UPGRADE_N = 8;
+const _PROG_CONCURRENCY = 3;
+async function upgradeCardsProgressive(seq) {
+  const targets = [...state.rows]
+    .sort((a,b)=>(a.distance_meters??9e9)-(b.distance_meters??9e9))
+    .filter(r => (r.coverageStatus||"cuisine_estimate")!=="menu_backed")
+    .slice(0, _PROG_UPGRADE_N);
+  if (!targets.length) return;
+  targets.forEach(r => r._upgrading = true);
+  renderResults();
+
+  let idx = 0;
+  async function worker() {
+    while (idx < targets.length) {
+      if (seq !== _searchSeq) return;     // a newer search/toggle superseded this run
+      const r = targets[idx++];
+      try {
+        const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine].join("|");
+        let m = _menuCache.get(key);
+        if (!m) {
+          m = await (await fetch("/api/menu",{
+            method:"POST",headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine})
+          })).json();
+          if (!m.error) _menuCache.set(key, m);
+        }
+        if (seq !== _searchSeq) return;
+        const summary = (m && m.summary) || {};
+        const menuRisk = summary.menuBackedRisk;
+        if (menuRisk) {
+          r.menuBackedRisk = menuRisk;
+          r.coverageStatus = summary.coverageStatus || (menuRisk.isMenuBacked?"menu_backed":"cuisine_estimate");
+          // Overlay the menu-backed verdict onto the prior so the card matches a
+          // normal menu-backed card exactly (keeps cuisines/region/labelingTrust).
+          r.allergenPrior = Object.assign({}, r.allergenPrior, {
+            risk: menuRisk.risk, confidence: menuRisk.confidence, tier: menuRisk.tier,
+            basis: summary.evidenceBasis, rationale: menuRisk.rationale,
+            scoringEngine: summary.scoringEngine,
+          });
+          r.menuDetail = m;   // embed -> opening the drawer is instant
+        }
+      } catch { /* leave this card as a cuisine estimate */ }
+      finally { r._upgrading = false; if (seq===_searchSeq) renderResults(); }
+    }
+  }
+  await Promise.all(Array.from({length:_PROG_CONCURRENCY}, worker));
 }
 
 /* ── geo ── */
@@ -736,6 +811,7 @@ function renderResults() {
             ${p.tier?`<span class="cbadge" style="border-color:${textClr(risk)};color:${textClr(risk)}">${({likely_ok:"Likely OK",caution:"Caution",avoid:"Avoid"}[p.tier])||""}</span>`:""}
             ${pvchip(provenanceTier(p.basis, coverage))}
             ${state.demoMode?cbadge("Demo","live"):""}
+            ${r._upgrading?`<span class="card-upg"><span class="dot"></span>Reading menu…</span>`:""}
           </div>
         </div>
         <div class="card-risk">
@@ -1034,19 +1110,17 @@ document.querySelectorAll(".allergen-chip.cc").forEach(el => el.onclick = () => 
   paintCC();
   if (state.rows.length) search();
 });
-document.querySelectorAll(".allergen-chip.se").forEach(el => el.onclick = () => {
-  document.querySelectorAll(".allergen-chip.se").forEach(x => x.classList.remove("on"));
-  el.classList.add("on");
-  state.scoringEngine = el.dataset.se;   // rules <-> ai_assisted scorer
-  _menuCache.clear();                     // scores differ by engine -> drop memoized drawers
-  if (state.rows.length) search();
-});
 paintCC();  // highlight the severity-derived default on load
 $("#scrim").onclick  = closeDrawer;
 document.addEventListener("keydown", e => { if (e.key==="Escape") closeDrawer(); });
 document.querySelectorAll(".sort-btn").forEach(b => b.onclick=()=>{
   document.querySelectorAll(".sort-btn").forEach(x=>x.classList.remove("on"));
   b.classList.add("on"); state.sort=b.dataset.sort; renderResults();
+});
+document.querySelectorAll(".modebtn").forEach(b => b.onclick=()=>{
+  document.querySelectorAll(".modebtn").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); state.progressive = (b.dataset.mode==="progressive");
+  if (state.rows.length) search();   // re-run so the difference is visible immediately
 });
 
 loadConfig();

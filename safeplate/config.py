@@ -10,7 +10,19 @@ DEFAULT_PROVIDER = "osm"
 DEFAULT_USER_AGENT = "SafePlate student MVP/0.1"
 
 DEFAULT_FETCH_CONCURRENCY = 8
-DEFAULT_GEMINI_CONCURRENCY = 4
+# 12 matches the cold-search pipeline's natural pending-call count (the list extracts
+# ~4 restaurants in parallel x ~3 menu sources each). Empirically a paid key handles
+# >=32 concurrent full-size extraction calls with zero 429s + flat latency, so 12 is
+# safe with headroom. A free-tier key may see 429s here -- it retries/backs off, so it
+# degrades rather than breaks; lower SAFEPLATE_GEMINI_CONCURRENCY if you're free-tier.
+DEFAULT_GEMINI_CONCURRENCY = 12
+
+# Brave Search API rate governance. The paid plan caps at 50 queries/sec; we target
+# 80% of that with a token bucket so burst/jitter (Brave counts per 1s window) can't
+# trip 429s, and size the in-flight semaphore to saturate it -- Little's Law:
+# concurrency ~= rps x per-query latency (~0.5s) -> ~20.
+DEFAULT_BRAVE_RPS = 40.0
+DEFAULT_BRAVE_CONCURRENCY = 20
 
 
 def _load_dotenv() -> None:
@@ -58,8 +70,22 @@ def get_fetch_concurrency() -> int:
 
 
 def get_gemini_concurrency() -> int:
-    """Worker count for parallel Gemini calls. Keep modest for rate limits."""
+    """Max parallel Gemini calls (global semaphore). Default 12; override with
+    SAFEPLATE_GEMINI_CONCURRENCY (raise on a paid key, lower on free tier)."""
     return _positive_int_env("SAFEPLATE_GEMINI_CONCURRENCY", DEFAULT_GEMINI_CONCURRENCY)
+
+
+def get_brave_rps() -> float:
+    """Token-bucket refill rate (queries/sec) for the Brave Search API. Default 40
+    (80% of the 50/s paid cap, leaving headroom against 429s); override with
+    SAFEPLATE_BRAVE_RPS."""
+    return _positive_float_env("SAFEPLATE_BRAVE_RPS", DEFAULT_BRAVE_RPS)
+
+
+def get_brave_concurrency() -> int:
+    """Max parallel Brave calls (global semaphore). Default 20 (~rps x ~0.5s latency,
+    by Little's Law); override with SAFEPLATE_BRAVE_CONCURRENCY."""
+    return _positive_int_env("SAFEPLATE_BRAVE_CONCURRENCY", DEFAULT_BRAVE_CONCURRENCY)
 
 
 def get_http_cache_ttl() -> int:
@@ -108,6 +134,17 @@ def _positive_int_env(name: str, default: int) -> int:
     return value if value >= 1 else default
 
 
+def _positive_float_env(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if not raw_value:
+        return default
+    try:
+        value = float(raw_value.strip())
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
 def get_geoapify_api_key() -> str | None:
     value = os.environ.get("GEOAPIFY_API_KEY")
     if value and value.strip():
@@ -136,41 +173,22 @@ def get_gemini_api_key() -> str | None:
     return None
 
 
-# Canonical engine names (the product language). The old numeric "v1/v2/v3" values
-# are still accepted on input and mapped here, so existing clients/tests keep working
-# -- but "v2" no longer means TWO different things (structured extraction vs rules
-# scoring). Extraction: legacy | structured. Scoring: rules | ai_assisted.
-_EXTRACTION_ALIASES = {
-    "v1": "legacy", "legacy": "legacy",
-    "v2": "structured", "structured": "structured",
-}
+# Scoring engine (the one user-facing choice). 'ai' = label-routing LLM scorer
+# (default; falls back to the deterministic floor when there's no Gemini key/quota),
+# 'rules' = deterministic only. Legacy 'v2'/'v3'/'ai_assisted'/'ai_full_menu' values
+# still map in for back-compat. (Extraction is always the structured pipeline now.)
 _SCORING_ALIASES = {
     "v2": "rules", "rules": "rules",
-    # One label-routing LLM engine (folds the old distilled + full-menu variants).
     "v3": "ai", "ai": "ai", "ai_assisted": "ai", "ai_full_menu": "ai",
     "ai_fullmenu": "ai", "full_menu": "ai",
 }
 
 
-def normalize_extraction_engine(value: str | None) -> str:
-    """Map any extraction-engine value (incl. legacy 'v1'/'v2') to the canonical
-    'legacy' | 'structured'. Unknown -> 'structured' (the product default)."""
-    return _EXTRACTION_ALIASES.get(str(value or "").strip().lower(), "structured")
-
-
 def normalize_scoring_engine(value: str | None) -> str:
-    """Map any scoring value (incl. legacy 'v2'/'v3' and the old 'ai_assisted'/
-    'ai_full_menu') to the canonical 'rules' | 'ai'. Unset/unknown -> 'ai' (the
-    product default; it falls back to the deterministic scorer when there's no
+    """Map any scoring value to the canonical 'rules' | 'ai'. Unset/unknown -> 'ai'
+    (the product default; it falls back to the deterministic scorer when there's no
     Gemini key/quota, so defaulting to it is always safe)."""
     return _SCORING_ALIASES.get(str(value or "").strip().lower(), "ai")
-
-
-def get_engine() -> str:
-    """Menu-extraction engine: 'structured' (default) or 'legacy'. Override per-
-    request with an 'engine' field or globally with SAFEPLATE_ENGINE (the old
-    'v1'/'v2' values are still accepted)."""
-    return normalize_extraction_engine(os.environ.get("SAFEPLATE_ENGINE", "structured"))
 
 
 def get_gemini_model() -> str:

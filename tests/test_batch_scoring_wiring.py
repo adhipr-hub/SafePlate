@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import safeplate.allergen_score_llm as sll
 from safeplate.allergen_score import UserProfile, Severity, score_restaurant_for_user
-from safeplate.local_app import _build_search_cards
+from safeplate.search_service import _build_search_cards
 from safeplate.schemas import RestaurantRecord
 
 
@@ -48,11 +48,11 @@ class BatchScoringWiringTests(unittest.TestCase):
                           "rationale": [{"claim": "batched", "evidence_ids": ["E1"]}]}
                     for rid in bundles}
 
-        with patch("safeplate.local_app._extract_and_assess_structured", _fake_extract), \
-             patch("safeplate.local_app.get_gemini_api_key", return_value="k"), \
-             patch("safeplate.local_app.get_gemini_model", return_value="m"), \
+        with patch("safeplate.menu_service._extract_and_assess_structured", _fake_extract), \
+             patch("safeplate.search_service.get_gemini_api_key", return_value="k"), \
+             patch("safeplate.search_service.get_gemini_model", return_value="m"), \
              patch.object(sll, "_call_llm_scorer_batch", fake_batch):
-            cards = _build_search_cards(rows, payload, engine="structured", severity="allergy")
+            cards = _build_search_cards(rows, payload, severity="allergy")
 
         self.assertEqual(calls["n"], 1)            # ONE call for the whole list
         self.assertEqual(calls["sizes"], [2])      # both restaurants in that one call
@@ -68,10 +68,10 @@ class BatchScoringWiringTests(unittest.TestCase):
         def boom(*a, **k):
             raise AssertionError("rules must not call the batch scorer")
 
-        with patch("safeplate.local_app._extract_and_assess_structured", _fake_extract), \
-             patch("safeplate.local_app.get_gemini_api_key", return_value="k"), \
+        with patch("safeplate.menu_service._extract_and_assess_structured", _fake_extract), \
+             patch("safeplate.search_service.get_gemini_api_key", return_value="k"), \
              patch.object(sll, "_call_llm_scorer_batch", boom):
-            cards = _build_search_cards(rows, payload, engine="structured", severity="allergy")
+            cards = _build_search_cards(rows, payload, severity="allergy")
 
         self.assertEqual(len(cards), 1)            # deterministic, no LLM
 

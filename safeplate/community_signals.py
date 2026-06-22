@@ -137,8 +137,10 @@ def _search(
     *, restaurant_name: str, address: str | None, api_key: str,
     user_agent: str, want_dishes: bool,
 ) -> tuple[str, list[str]]:
-    """Return (combined snippet text, source urls). Brave is ~1 req/s -> sequential."""
+    """Return (combined snippet text, source urls). Queries fire concurrently through
+    the shared Brave token bucket (which enforces the per-second rate limit)."""
     from safeplate.brave_search import brave_web_search
+    from safeplate.concurrency import map_concurrent
 
     city = _city(address)
     loc = f' "{city}"' if city else ""
@@ -146,14 +148,16 @@ def _search(
     if want_dishes:
         queries.append(f'"{restaurant_name}"{loc} best dishes OR popular OR ordered')
 
+    def _run(q: str) -> list:
+        try:
+            return brave_web_search(query=q, api_key=api_key, user_agent=user_agent, count=6)
+        except Exception:
+            return []
+
     chunks: list[str] = []
     urls: list[str] = []
     seen: set[str] = set()
-    for q in queries:
-        try:
-            results = brave_web_search(query=q, api_key=api_key, user_agent=user_agent, count=6)
-        except Exception:
-            continue
+    for results in map_concurrent(_run, queries, max_workers=len(queries)):
         for r in results:
             if r.url in seen:
                 continue

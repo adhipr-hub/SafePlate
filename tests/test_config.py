@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from safeplate.config import get_gemini_fallback_models
-from safeplate.local_app import _is_gemini_model_fallback_error
+from safeplate.common import _is_gemini_model_fallback_error
 
 
 class ConfigTests(unittest.TestCase):
