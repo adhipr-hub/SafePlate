@@ -551,18 +551,8 @@ def extract_visible_text(
 
 
 def extract_pdf_text(url: str, user_agent: str) -> str:
-    try:
-        from pypdf import PdfReader
-    except ImportError as exc:
-        raise MenuTextError("PDF extraction requires pypdf") from exc
-
     raw, _content_type = _fetch_bytes(url, user_agent=user_agent)
-    try:
-        reader = PdfReader(BytesIO(raw))
-        page_text = [page.extract_text() or "" for page in reader.pages]
-    except Exception as exc:
-        raise MenuTextError(f"Could not extract PDF text from {url}: {exc}") from exc
-    text = "\n".join(page_text).strip()
+    text = _pdf_text_from_bytes(raw).strip()
     if not text:
         raise MenuTextError(f"No extractable PDF text found in {url}")
     return text
@@ -605,14 +595,36 @@ def _extract_pdf_items_from_bytes(
 
     return _extract_menu_items_from_text(text), "pdf_text", text
 
+# Cap pages parsed from any single PDF. Allergen charts/menus are a handful of pages;
+# a 100+ page nutrition PDF (e.g. a big chain's) would otherwise stall a worker for
+# minutes. Truncating keeps extraction bounded so we can front-load all restaurants.
+_PDF_MAX_PAGES = 40
+
+
 def _pdf_text_from_bytes(raw: bytes) -> str:
+    """Extract text from PDF bytes (first ``_PDF_MAX_PAGES`` pages). Prefers PyMuPDF
+    (C-based, ~10-50x faster than pure-Python parsers); falls back to pypdf if it's
+    not installed so the path degrades rather than breaks."""
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        fitz = None
+    if fitz is not None:
+        try:
+            with fitz.open(stream=raw, filetype="pdf") as doc:
+                pages = [doc[i].get_text() for i in range(min(doc.page_count, _PDF_MAX_PAGES))]
+            return "\n".join(pages)
+        except Exception:
+            return ""
     try:
         from pypdf import PdfReader
     except ImportError:
         return ""
     try:
         reader = PdfReader(BytesIO(raw))
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
+        return "\n".join(
+            (page.extract_text() or "") for page in reader.pages[:_PDF_MAX_PAGES]
+        )
     except Exception:
         return ""
 

@@ -399,9 +399,10 @@ def discover_and_extract(
     from safeplate.extraction2.schema import MenuExtractionResult, Policy
 
     cache_model = model or DEFAULT_MODEL
+    cache_url = _normalize_cache_url(website_url)  # share one entry across utm/clean URLs
     cache_disc = _cache_discriminator(website_url, restaurant_name)
     if use_result_cache:
-        cached = _load_result_cache(website_url, cache_model, cache_disc)
+        cached = _load_result_cache(cache_url, cache_model, cache_disc)
         if cached is not None:
             return [], cached
 
@@ -473,8 +474,13 @@ def discover_and_extract(
             return True
         return False
 
+    # One wall-clock deadline for the WHOLE per-restaurant extraction -- the main loop
+    # AND every post-loop phase (api_capture, Brave menu-PDF recovery, signals) honor
+    # it, so a slow site (many sources / a heavy off-site PDF hunt) can't run for
+    # minutes on the drawer path. A deadline-truncated result is not cached.
+    overall_deadline = time.monotonic() + _EXTRACT_BUDGET_S
     try:
-        deadline = time.monotonic() + _EXTRACT_BUDGET_S
+        deadline = overall_deadline
         for _ in range(_BATCH):
             if not _submit_next():
                 break
@@ -515,11 +521,14 @@ def discover_and_extract(
     # Tier 2a: if nothing carried allergen data, the tool likely fetches it from a
     # backend -- try to capture that API directly (free, no browser). Targeted to
     # the allergen/nutrition/menu candidates so it only runs when it's worth it.
-    if not any(it.allergen_terms for it in result.items):
+    if not any(it.allergen_terms for it in result.items) and time.monotonic() < overall_deadline:
         from safeplate.extraction2.api_capture import capture_allergen_api
 
         seen = {it.item_name.lower() for it in result.items}
         for cand in candidates:
+            if time.monotonic() >= overall_deadline:
+                timed_out = True  # don't cache: we may have skipped an allergen source
+                break
             if cand.kind not in ("allergen", "nutrition", "menu"):
                 continue
             for record in capture_allergen_api(cand.url, user_agent=user_agent):
@@ -538,6 +547,7 @@ def discover_and_extract(
         and api_key
         and restaurant_name
         and len(result.items) < _MENU_PDF_THIN
+        and time.monotonic() < overall_deadline
     ):
         seen_urls = {c.url for c in candidates}
         seen_names = {it.item_name.lower() for it in result.items}
@@ -545,6 +555,9 @@ def discover_and_extract(
             restaurant_name=restaurant_name, address=address,
             api_key=brave_api_key, user_agent=user_agent,
         ):
+            if time.monotonic() >= overall_deadline:
+                timed_out = True  # budget hit mid-recovery -> partial, don't cache
+                break
             if cand.url in seen_urls:
                 continue
             seen_urls.add(cand.url)
@@ -571,8 +584,9 @@ def discover_and_extract(
     # Directive #3: capture restaurant-level allergy-handling signals from narrative
     # allergy / allergen pages (e.g. "allergy-friendly kitchen", cross-contact, "ask
     # staff") -- valuable even when no dish x allergen matrix exists. Bounded to a few
-    # pages to keep cost down; grounded quotes only.
-    if api_key:
+    # pages to keep cost down; grounded quotes only. Skipped if the overall budget is
+    # already spent.
+    if api_key and time.monotonic() < overall_deadline:
         from safeplate.extraction2.allergy_signals import extract_allergy_signals
 
         signal_payloads: list[Any] = []
@@ -621,7 +635,7 @@ def discover_and_extract(
     # Don't cache a deadline-truncated extraction: it may be missing an allergen
     # source and would wrongly look safer on the next (cache-hit) open.
     if use_result_cache and not timed_out:
-        _save_result_cache(website_url, cache_model, result, cache_disc)
+        _save_result_cache(cache_url, cache_model, result, cache_disc)
     return candidates, result
 
 
@@ -629,6 +643,21 @@ _TWO_LEVEL_TLDS = {
     "co.uk", "org.uk", "com.au", "net.au", "co.nz", "co.jp", "com.br", "co.za",
     "com.sg", "co.in", "com.mx", "co.kr", "com.hk", "com.tw",
 }
+
+
+def _normalize_cache_url(url: str) -> str:
+    """Cache key normalization: drop query/fragment + trailing slash and lowercase the
+    host, so the SAME page cached under tracking params (a provider's
+    '...html?utm_source=Google') and a clean URL share ONE entry. Otherwise the list
+    (provider URL with utm) and the drawer (clean URL) extract the restaurant twice
+    and their menu-backed verdicts can diverge. Only the cache KEY is normalized;
+    discovery still fetches the original URL."""
+    parsed = urlparse(url or "")
+    host = (parsed.netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = (parsed.path or "").rstrip("/")
+    return f"{host}{path}" if host else (url or "")
 
 
 def _is_pdf_url(url: str) -> bool:

@@ -76,6 +76,11 @@ def items_from_allergen_matrix_soup(soup: Any) -> list[MenuItemRecord]:
     return records
 
 
+# Allergen matrices are at most a few pages; cap so a giant nutrition PDF can't make
+# pdfplumber's slow table-detection stall a worker (see Yard House).
+_MATRIX_PDF_MAX_PAGES = 25
+
+
 def extract_items_from_allergen_pdf(pdf_bytes: bytes) -> list[MenuItemRecord]:
     """Parse dish x allergen matrix tables out of a (text-based) PDF.
 
@@ -88,13 +93,19 @@ def extract_items_from_allergen_pdf(pdf_bytes: bytes) -> list[MenuItemRecord]:
         import pdfplumber
     except ImportError:
         return []
+    import logging
     from io import BytesIO
+
+    # pdfplumber (pdfminer) floods stderr with per-glyph "Cannot set non-stroke
+    # color" warnings on some PDFs and parses table structure slowly; cap the page
+    # count so a huge nutrition PDF can't stall a worker, and quiet the noise.
+    logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
     records: list[MenuItemRecord] = []
     seen: set[str] = set()
     try:
         with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
-            for page in pdf.pages:
+            for page in pdf.pages[:_MATRIX_PDF_MAX_PAGES]:
                 for table in page.extract_tables() or []:
                     records.extend(_records_from_text_grid(table, seen))
     except Exception:

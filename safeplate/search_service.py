@@ -256,10 +256,20 @@ def _restaurant_payload(row: Any, *, severity: str = "allergy") -> dict[str, Any
     return payload
 
 
-# Concurrency for the menu-backed list. Each restaurant runs a full extraction
-# (HTTP + Gemini + possibly Brave, which is rate-limited ~1/s), so keep this modest
-# to avoid 429 storms; the result cache makes repeat searches cheap regardless.
-_LIST_ASSESS_WORKERS = 4
+# Concurrency for the menu-backed list. Front-loads ALL nearest-N restaurants at once
+# (default 12 = the page size) now that PDF parsing is bounded (PyMuPDF + page caps)
+# and Brave is concurrent under a shared rate limiter, so extractions finish within
+# budget instead of trickling 4-at-a-time. Gemini is still globally capped by
+# SAFEPLATE_GEMINI_CONCURRENCY; lower SAFEPLATE_LIST_WORKERS on a small box if memory
+# is tight. The result cache makes repeat searches cheap regardless.
+def _list_workers_default() -> int:
+    try:
+        return max(1, int(os.environ.get("SAFEPLATE_LIST_WORKERS", "12")))
+    except ValueError:
+        return 12
+
+
+_LIST_ASSESS_WORKERS = _list_workers_default()
 # Overall wall-clock budget for menu-backing the list. Brave's ~1 req/s limit +
 # per-site fetch latency mean a cold list could take many minutes; this caps how
 # long the page waits. Restaurants not finished by the deadline fall back to the
