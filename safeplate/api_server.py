@@ -41,6 +41,14 @@ def _basic_auth_credentials() -> tuple[str, str] | None:
     return username, password
 
 
+# Cap on distinct per-client buckets the limiter retains. The client key is the
+# spoofable first hop of X-Forwarded-For on a public deploy, so without an upper
+# bound an attacker could grow this map without limit (memory exhaustion). When we
+# exceed it, fully-expired buckets are swept; the cap is far above any real
+# concurrent-client count.
+_RATE_LIMIT_MAX_KEYS = 10_000
+
+
 class _RateLimiter:
     """Per-client sliding-window limiter (in-memory, thread-safe). Bounds API
     spend/abuse on the paid endpoints even for authenticated users. A limit <= 0
@@ -56,15 +64,28 @@ class _RateLimiter:
         if self._max <= 0:
             return True
         now = time.monotonic()
+        cutoff = now - self._window
         with self._lock:
-            bucket = self._hits.setdefault(key, deque())
-            cutoff = now - self._window
+            bucket = self._hits.get(key)
+            if bucket is None:
+                bucket = self._hits[key] = deque()
             while bucket and bucket[0] <= cutoff:
                 bucket.popleft()
             if len(bucket) >= self._max:
                 return False
             bucket.append(now)
+            # Bound the map: clients that have gone fully quiet leave empty buckets
+            # behind, so sweep them once we cross the cap (keeps memory bounded).
+            if len(self._hits) > _RATE_LIMIT_MAX_KEYS:
+                self._sweep(cutoff)
             return True
+
+    def _sweep(self, cutoff: float) -> None:
+        """Drop buckets whose most recent hit is past the window. Caller holds the
+        lock. The currently-active key always has a fresh hit, so it survives."""
+        stale = [k for k, b in self._hits.items() if not b or b[-1] <= cutoff]
+        for k in stale:
+            del self._hits[k]
 
 
 def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandler]:
@@ -192,13 +213,22 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
                 raise ValueError("Request JSON must be an object")
             return payload
 
+        def _write_body(self, encoded: bytes) -> None:
+            # The client can disconnect mid-response (common on the slow menu-backed
+            # path); a broken pipe here is expected, not a server error, so swallow it
+            # instead of letting it surface as an unhandled traceback per dropped conn.
+            try:
+                self.wfile.write(encoded)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                pass
+
         def _send_html(self, html: str, status: int = 200) -> None:
             encoded = html.encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
-            self.wfile.write(encoded)
+            self._write_body(encoded)
 
         def _send_json(self, payload: dict[str, Any], status: int = 200) -> None:
             encoded = json.dumps(payload).encode("utf-8")
@@ -206,7 +236,7 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
-            self.wfile.write(encoded)
+            self._write_body(encoded)
 
     return SafePlateRequestHandler
 
@@ -222,21 +252,27 @@ def run_server(
 
 _APP_TEMPLATE_PATH = Path(__file__).resolve().parent / "app_template.html"
 _app_html_cache: dict[str, Any] = {"mtime": None, "html": ""}
+_app_html_lock = threading.Lock()
 
 
 def app_html() -> str:
     """Serve the page template, re-reading it when the file changes so edits show on
     a plain browser refresh -- no server restart needed. Only re-reads when the file's
     mtime changes (a cheap stat per request); on a transient read error (e.g. the file
-    caught mid-save) it keeps serving the last good copy."""
-    try:
-        mtime = _APP_TEMPLATE_PATH.stat().st_mtime
-        if mtime != _app_html_cache["mtime"]:
-            _app_html_cache["html"] = _APP_TEMPLATE_PATH.read_text(encoding="utf-8")
-            _app_html_cache["mtime"] = mtime
-    except OSError:
-        pass  # keep serving the last good copy
-    return _app_html_cache["html"]
+    caught mid-save) it keeps serving the last good copy.
+
+    The lock makes the stat/read/return atomic under ThreadingHTTPServer: without it a
+    reader could observe a new mtime paired with the old html, and concurrent first
+    requests would all re-read the file at once."""
+    with _app_html_lock:
+        try:
+            mtime = _APP_TEMPLATE_PATH.stat().st_mtime
+            if mtime != _app_html_cache["mtime"]:
+                _app_html_cache["html"] = _APP_TEMPLATE_PATH.read_text(encoding="utf-8")
+                _app_html_cache["mtime"] = mtime
+        except OSError:
+            pass  # keep serving the last good copy
+        return _app_html_cache["html"]
 
 
 
