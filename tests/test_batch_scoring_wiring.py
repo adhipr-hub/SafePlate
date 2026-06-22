@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import types
 import unittest
 from unittest.mock import patch
 
@@ -7,6 +8,11 @@ import safeplate.allergen_score_llm as sll
 from safeplate.allergen_score import UserProfile, Severity, score_restaurant_for_user
 from safeplate.search_service import _build_search_cards
 from safeplate.schemas import RestaurantRecord
+
+
+def _no_community(*a, **k):
+    # Keep the wiring tests hermetic: no real Brave/Gemini community fetch.
+    return types.SimpleNamespace(signals=None, dishes=[], quotes=[])
 
 
 def _row(name, cuisine, dist):
@@ -49,6 +55,7 @@ class BatchScoringWiringTests(unittest.TestCase):
                     for rid in bundles}
 
         with patch("safeplate.menu_service._extract_and_assess_structured", _fake_extract), \
+             patch("safeplate.menu_service._fetch_community_signals", _no_community), \
              patch("safeplate.search_service.get_gemini_api_key", return_value="k"), \
              patch("safeplate.search_service.get_gemini_model", return_value="m"), \
              patch.object(sll, "_call_llm_scorer_batch", fake_batch):
@@ -61,6 +68,30 @@ class BatchScoringWiringTests(unittest.TestCase):
         for c in cards:
             self.assertEqual(c["allergenPrior"]["tier"], "caution")
 
+    def test_community_signals_flow_into_batch_request(self):
+        # Community signals fetched for a list card must be passed into the batched
+        # scorer request (so the list reflects them, matching the drawer).
+        rows = [_row("alpha", "thai", 100)]
+        payload = {"scoringEngine": "ai_assisted"}
+        captured = {}
+        sig = types.SimpleNamespace(kind="adverse_event")
+
+        def has_community(name, address, *, want_dishes):
+            return types.SimpleNamespace(signals=[sig], dishes=[], quotes=[])
+
+        def capture_batch(reqs, **k):
+            captured["reqs"] = list(reqs)
+            return {}  # no assessments -> cards keep their deterministic score
+
+        with patch("safeplate.menu_service._extract_and_assess_structured", _fake_extract), \
+             patch("safeplate.menu_service._fetch_community_signals", has_community), \
+             patch("safeplate.search_service.get_gemini_api_key", return_value="k"), \
+             patch("safeplate.search_service.get_gemini_model", return_value="m"), \
+             patch("safeplate.allergen_score_llm.score_restaurants_with_llm_batch", capture_batch):
+            _build_search_cards(rows, payload, severity="allergy")
+
+        self.assertEqual(captured["reqs"][0]["community"], [sig])
+
     def test_rules_list_makes_no_llm_call(self):
         rows = [_row("alpha", "thai", 100)]
         payload = {"scoringEngine": "rules"}
@@ -69,6 +100,7 @@ class BatchScoringWiringTests(unittest.TestCase):
             raise AssertionError("rules must not call the batch scorer")
 
         with patch("safeplate.menu_service._extract_and_assess_structured", _fake_extract), \
+             patch("safeplate.menu_service._fetch_community_signals", _no_community), \
              patch("safeplate.search_service.get_gemini_api_key", return_value="k"), \
              patch.object(sll, "_call_llm_scorer_batch", boom):
             cards = _build_search_cards(rows, payload, severity="allergy")

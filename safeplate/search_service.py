@@ -362,7 +362,7 @@ def _build_search_cards(
         reqs = [
             {"id": str(i), "profile": ctx["profile"], "cuisines": ctx["cuisines"],
              "region": ctx["region"], "menu_items": ctx["menu_items"],
-             "signals": ctx["signals"], "community": None,
+             "signals": ctx["signals"], "community": ctx.get("community"),
              "official_domain": ctx["official_domain"]}
             for i, ctx in contexts.items()
         ]

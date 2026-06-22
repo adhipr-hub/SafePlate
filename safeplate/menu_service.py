@@ -401,6 +401,22 @@ def _write_assessment_into_card(
         payload.pop("menuDetail", None)
 
 
+def _fetch_community_signals(name: str, address: str, *, want_dishes: bool):
+    """Web-sourced community allergy signals (Brave + Gemini), cached per restaurant.
+    Shared by the drawer and the list so both feed the SAME community evidence into the
+    scorer. Best-effort: returns an empty result on any failure."""
+    from safeplate.community_signals import CommunityResult, fetch_community_signals
+
+    try:
+        return fetch_community_signals(
+            restaurant_name=name, address=address, user_agent=get_user_agent(),
+            brave_api_key=get_brave_search_api_key(), gemini_api_key=get_gemini_api_key(),
+            gemini_model=get_gemini_model(), want_dishes=want_dishes,
+        )
+    except Exception:
+        return CommunityResult()
+
+
 def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str | None,
                       scoring_engine: str = "rules") -> tuple[dict[str, Any], dict[str, Any] | None]:
     """Build a result-card payload whose ``allergenPrior`` IS the menu-backed Layer
@@ -456,6 +472,11 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
 
     ctx: dict[str, Any] | None = None
     if _is_ai_engine(scoring_engine):
+        # Community allergy signals (same source the drawer uses) so the batched list
+        # score reflects them too -- and matches the drawer. want_dishes=False: the
+        # list only folds in handling/adverse signals, not no-menu dish inference
+        # (that stays drawer-only to avoid faking menu coverage on the card).
+        cres = _fetch_community_signals(name, address, want_dishes=False)
         ctx = {
             "profile": profile,
             "cuisines": cuisines,
@@ -464,6 +485,7 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
             "signals": _build_restaurant_signals(
                 allergy_signals, name=name, address=address, website_url=website_url
             ),
+            "community": cres.signals or None,
             "official_domain": _domain_of(website_url),
             "rebuild": rebuild,
         }
