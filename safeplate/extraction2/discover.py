@@ -406,6 +406,15 @@ def discover_and_extract(
         if cached is not None:
             return [], cached
 
+    # One wall-clock budget for the ENTIRE per-restaurant extraction -- discovery,
+    # acquisition, the extraction loop, AND the post-loop phases (api_capture, Brave
+    # menu-PDF recovery, signals) all run under it, so a pathologically slow site
+    # can't tie up a worker for minutes on the drawer path. A budget-truncated result
+    # is not cached (it may be missing an allergen source and look wrongly safe).
+    _EXTRACT_BUDGET_S = 90.0
+    overall_deadline = time.monotonic() + _EXTRACT_BUDGET_S
+    timed_out = False
+
     candidates = discover_sources(
         website_url, user_agent=user_agent, restaurant_name=restaurant_name,
         address=address, api_key=api_key, model=model, brave_api_key=brave_api_key,
@@ -420,6 +429,10 @@ def discover_and_extract(
             return cand.url, acquire(cand.url, source_type=source_type, user_agent=user_agent)
         except Exception:
             return cand.url, None
+
+    # If discovery alone already ate the budget, don't start acquisition/extraction.
+    if time.monotonic() >= overall_deadline:
+        return candidates, MenuExtractionResult(items=[], coverage=[], llm_calls=0)
 
     payload_by_url: dict[str, object] = {
         url: payload
@@ -446,13 +459,12 @@ def discover_and_extract(
     # _MAX_SOURCES lowered 8 -> 4: extract only the few best candidate sources per
     # restaurant (allergen/menu pages are tried first), so a cold search finishes more
     # of its restaurants inside the list budget instead of grinding through long tails.
-    _BATCH, _ENOUGH_MENU, _MAX_SOURCES, _EXTRACT_BUDGET_S = 3, 30, 4, 90.0
+    _BATCH, _ENOUGH_MENU, _MAX_SOURCES = 3, 30, 4
     result = MenuExtractionResult(items=[], coverage=[], llm_calls=0)
     seen_names: set[str] = set()
     allergen_dishes = 0
     processed = 0
     have_allergens = False
-    timed_out = False
     work = [c for c in candidates if c.kind != "allergy_info"]
     work_iter = iter(work)
     executor = ThreadPoolExecutor(max_workers=_BATCH)
@@ -474,11 +486,6 @@ def discover_and_extract(
             return True
         return False
 
-    # One wall-clock deadline for the WHOLE per-restaurant extraction -- the main loop
-    # AND every post-loop phase (api_capture, Brave menu-PDF recovery, signals) honor
-    # it, so a slow site (many sources / a heavy off-site PDF hunt) can't run for
-    # minutes on the drawer path. A deadline-truncated result is not cached.
-    overall_deadline = time.monotonic() + _EXTRACT_BUDGET_S
     try:
         deadline = overall_deadline
         for _ in range(_BATCH):
