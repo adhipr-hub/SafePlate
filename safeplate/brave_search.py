@@ -232,7 +232,8 @@ def brave_web_search(
             with urlopen(request, timeout=30) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
-            details = exc.read().decode("utf-8", errors="replace")
+            with exc:  # HTTPError is an open response; close it after reading the body
+                details = exc.read().decode("utf-8", errors="replace")
             raise BraveSearchError(
                 f"Brave Search request failed with HTTP {exc.code}: {details}"
             ) from exc

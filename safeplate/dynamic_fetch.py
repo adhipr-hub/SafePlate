@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import threading
+from collections import OrderedDict
 
 # Generic, site-agnostic interactions that commonly reveal menu content:
 # dismiss a cookie/consent wall, then scroll to trigger lazy-loaded sections.
@@ -35,7 +36,10 @@ class DynamicFetchError(RuntimeError):
 
 
 _LOCK = threading.Lock()
-_CACHE: dict[str, str] = {}
+# Bounded LRU of rendered HTML: full-page HTML is large and this server is
+# long-running, so an unbounded dict would leak memory over time.
+_CACHE: "OrderedDict[str, str]" = OrderedDict()
+_CACHE_MAX = 64
 _state: dict[str, object] = {"pw": None, "browser": None}
 
 
@@ -44,7 +48,20 @@ def has_dynamic_rendering() -> bool:
 
 
 def _browser():
-    if _state["browser"] is None:
+    browser = _state["browser"]
+    # If Chromium died mid-run, the stored handle is dead and every new_context()
+    # would raise forever. Tear the stale handles down so we relaunch cleanly.
+    if browser is not None and not browser.is_connected():
+        old_pw = _state.get("pw")
+        if old_pw is not None:
+            try:
+                old_pw.stop()
+            except Exception:
+                pass
+        _state["browser"] = None
+        _state["pw"] = None
+        browser = None
+    if browser is None:
         pw = sync_playwright().start()
         _state["pw"] = pw
         _state["browser"] = pw.chromium.launch(headless=True)
@@ -66,6 +83,7 @@ def render_html(
 
     with _LOCK:
         if use_cache and url in _CACHE:
+            _CACHE.move_to_end(url)
             return _CACHE[url]
         context = None
         try:
@@ -84,7 +102,11 @@ def render_html(
                     pass
 
     if use_cache:
-        _CACHE[url] = html
+        with _LOCK:
+            _CACHE[url] = html
+            _CACHE.move_to_end(url)
+            while len(_CACHE) > _CACHE_MAX:
+                _CACHE.popitem(last=False)
     return html
 
 

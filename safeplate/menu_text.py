@@ -615,7 +615,7 @@ def _pdf_text_from_bytes(raw: bytes) -> str:
                 pages = [doc[i].get_text() for i in range(min(doc.page_count, _PDF_MAX_PAGES))]
             return "\n".join(pages)
         except Exception:
-            return ""
+            pass  # fitz failed on this PDF (encrypted/malformed) -> try pypdf below
     try:
         from pypdf import PdfReader
     except ImportError:

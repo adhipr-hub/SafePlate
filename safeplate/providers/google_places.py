@@ -145,7 +145,8 @@ def _fetch_google_places_payload(
         with urlopen(request, timeout=60) as response:
             return json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
-        details = exc.read().decode("utf-8", errors="replace")
+        with exc:  # HTTPError is an open response; close it after reading the body
+            details = exc.read().decode("utf-8", errors="replace")
         raise GooglePlacesError(
             f"Google Places request failed with HTTP {exc.code}: {details}"
         ) from exc

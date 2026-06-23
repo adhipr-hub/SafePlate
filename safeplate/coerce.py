@@ -17,17 +17,21 @@ def int_value(
     *,
     allow_float: bool = False,
 ) -> int:
+    if value is None or value == "":
+        return default  # explicit check so a legitimate 0 is not replaced by default
     try:
         if allow_float:
-            return int(float(value or default))
-        return int(value or default)
+            return int(float(value))
+        return int(value)
     except (TypeError, ValueError):
         return default
 
 
 def float_value(value: Any, default: float = 0.0) -> float:
+    if value is None or value == "":
+        return default  # explicit check so a legitimate 0.0 is not replaced by default
     try:
-        return float(value or default)
+        return float(value)
     except (TypeError, ValueError):
         return default
 
