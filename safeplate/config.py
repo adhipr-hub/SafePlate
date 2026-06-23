@@ -173,6 +173,16 @@ def get_google_places_api_key() -> str | None:
     return None
 
 
+def get_google_rank_preference() -> str:
+    """How Google Places searchNearby ranks results: 'DISTANCE' (nearest first) or
+    'POPULARITY'. We default to DISTANCE -- the API default is POPULARITY, which in a
+    dense area returns the most prominent places in the radius and silently omits the
+    restaurant literally next door (we then distance-sort an already-wrong set).
+    Override with SAFEPLATE_GOOGLE_RANK."""
+    value = (os.environ.get("SAFEPLATE_GOOGLE_RANK") or "").strip().upper()
+    return value if value in ("DISTANCE", "POPULARITY") else "DISTANCE"
+
+
 def get_brave_search_api_key() -> str | None:
     value = os.environ.get("BRAVE_SEARCH_API_KEY")
     if value and value.strip():

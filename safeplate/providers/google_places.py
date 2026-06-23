@@ -75,7 +75,12 @@ def fetch_nearby_restaurants(
     user_agent: str,
     included_types: list[str] | None = None,
     include_atmosphere_fields: bool = False,
+    rank_preference: str | None = None,
 ) -> list[RestaurantRecord]:
+    if rank_preference is None:
+        from safeplate.config import get_google_rank_preference
+
+        rank_preference = get_google_rank_preference()
     payload = _fetch_google_places_payload(
         latitude=latitude,
         longitude=longitude,
@@ -84,6 +89,7 @@ def fetch_nearby_restaurants(
         api_key=api_key,
         user_agent=user_agent,
         included_types=included_types or GOOGLE_INCLUDED_TYPES,
+        rank_preference=rank_preference,
         field_mask=_google_field_mask(
             include_atmosphere_fields=include_atmosphere_fields,
         ),
@@ -105,20 +111,22 @@ def fetch_nearby_restaurants(
     return rows[:limit]
 
 
-def _fetch_google_places_payload(
+def _google_search_body(
     *,
     latitude: float,
     longitude: float,
     radius_meters: int,
     limit: int,
-    api_key: str,
-    user_agent: str,
     included_types: list[str],
-    field_mask: str,
+    rank_preference: str = "DISTANCE",
 ) -> dict[str, Any]:
-    body = {
+    """Build the searchNearby request body. ``rankPreference`` is DISTANCE so Google
+    returns the NEAREST places; its default (POPULARITY) returns the most prominent in
+    the radius and drops genuinely-close restaurants before our distance sort runs."""
+    return {
         "includedTypes": included_types,
         "maxResultCount": min(limit, 20),
+        "rankPreference": rank_preference,
         "locationRestriction": {
             "circle": {
                 "center": {
@@ -129,6 +137,28 @@ def _fetch_google_places_payload(
             }
         },
     }
+
+
+def _fetch_google_places_payload(
+    *,
+    latitude: float,
+    longitude: float,
+    radius_meters: int,
+    limit: int,
+    api_key: str,
+    user_agent: str,
+    included_types: list[str],
+    field_mask: str,
+    rank_preference: str = "DISTANCE",
+) -> dict[str, Any]:
+    body = _google_search_body(
+        latitude=latitude,
+        longitude=longitude,
+        radius_meters=radius_meters,
+        limit=limit,
+        included_types=included_types,
+        rank_preference=rank_preference,
+    )
     request = Request(
         GOOGLE_NEARBY_SEARCH_URL,
         data=json.dumps(body).encode("utf-8"),
