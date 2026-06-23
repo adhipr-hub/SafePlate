@@ -257,6 +257,30 @@ _TREE_NUT_TERMS = {
     "pistacchio", "walnuss",
 }
 _GENERIC_NUT_TERMS = {"nut", "nuts"}
+# Words that merely CONTAIN "nut" but are not (tree/ground) nuts. Used to keep the
+# generic-nut fallback from firing on them. ("chestnut" is intentionally absent --
+# it is a real tree nut and is matched above.)
+_NUT_SUBSTRING_FALSE_FRIENDS = ("coconut", "butternut", "doughnut", "donut", "nutmeg")
+
+
+def _is_generic_nut(term: str) -> bool:
+    """True for a free-text allergen mention that names nuts generically -- not only
+    the exact tokens 'nut'/'nuts' but also 'mixed nuts', 'nut oil', 'tree-nuts', etc.
+
+    LLM extraction feeds raw ``allergen_mentions`` strings straight into the scorer
+    (unlike matrices, which canonicalize), so without this a confirmed nut mention
+    phrased as 'mixed nuts' would not count -- a safety-asymmetric MISS. Guards the
+    handful of words that contain 'nut' but are not nuts."""
+    if term in _GENERIC_NUT_TERMS:
+        return True
+    if "nut" not in term:
+        return False
+    # Count it unless every "nut" occurrence sits inside a false-friend word: strip
+    # those words out and see whether a "nut" survives.
+    stripped = term
+    for false_friend in _NUT_SUBSTRING_FALSE_FRIENDS:
+        stripped = stripped.replace(false_friend, "")
+    return "nut" in stripped
 
 
 def _families(allergen: str) -> set[str]:
@@ -276,10 +300,9 @@ def _nut_terms_present(allergen_terms: Sequence[str], families: set[str]) -> lis
             continue
         is_peanut = any(p in term for p in _PEANUT_TERMS)
         is_tree = any(t in term for t in _TREE_NUT_TERMS)
-        is_generic = term in _GENERIC_NUT_TERMS or term == "nut"
         if (PEANUTS in families and is_peanut) or (TREE_NUTS in families and is_tree):
             hits.append(term)
-        elif is_generic:  # bare "nuts" counts for any nut user
+        elif _is_generic_nut(term):  # generic nut mention ('nuts', 'mixed nuts', 'nut oil')
             hits.append(term)
     return hits
 

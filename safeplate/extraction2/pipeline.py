@@ -34,9 +34,10 @@ def extract_menu(
     items_all: list[MenuItemRecord] = []
     coverage: list[CoverageReport] = []
     llm_calls = 0
+    incomplete = False
 
     for payload in payloads:
-        items, interpreter, reason, llm_used = _interpret_one(
+        items, interpreter, reason, llm_used, payload_incomplete = _interpret_one(
             payload,
             policy=policy,
             llm_enabled=llm_enabled,
@@ -44,6 +45,7 @@ def extract_menu(
             model=gemini_model,
         )
         llm_calls += llm_used
+        incomplete = incomplete or payload_incomplete
         # Stamp each item with its source URL (the matrix/vision paths leave it
         # blank) so the scorer's provenance weighting can judge official-vs-off-site.
         items = [
@@ -64,7 +66,10 @@ def extract_menu(
         items_all.extend(items)
 
     return MenuExtractionResult(
-        items=_dedupe_across_sources(items_all), coverage=coverage, llm_calls=llm_calls
+        items=_dedupe_across_sources(items_all),
+        coverage=coverage,
+        llm_calls=llm_calls,
+        incomplete=incomplete,
     )
 
 
@@ -75,20 +80,22 @@ def _interpret_one(
     llm_enabled: bool,
     api_key: str | None,
     model: str | None,
-) -> tuple[list[MenuItemRecord], str, str, int]:
-    """Returns (verified_items, interpreter_name, reason_if_empty, llm_calls_used).
+) -> tuple[list[MenuItemRecord], str, str, int, bool]:
+    """Returns (verified_items, interpreter_name, reason_if_empty, llm_calls_used,
+    incomplete). ``incomplete`` is True only when an LLM text chunk failed, leaving a
+    partial menu the caller must not cache as complete.
 
     Verification happens here, per provenance: structured items came from a parsed
     schema and are trusted as-is; LLM items must be grounded in the source text.
     """
     if payload.kind == PayloadKind.VISUAL:
         if not llm_enabled:
-            return [], "none", "visual source needs LLM vision (disabled)", 0
+            return [], "none", "visual source needs LLM vision (disabled)", 0, False
         try:
             items = interpret_llm.interpret_visual(payload, api_key=api_key, model=model)
         except interpret_llm.LLMNotEnabled as exc:
-            return [], "none", str(exc), 0
-        return items, "llm_visual", "", 1
+            return [], "none", str(exc), 0, False
+        return items, "llm_visual", "", 1, False
 
     structured = interpret_structured(payload)
 
@@ -106,42 +113,51 @@ def _interpret_one(
         except interpret_llm.LLMNotEnabled:
             matrix = []
         if matrix:
-            return matrix, "gemini_pdf_matrix", "", 1
+            return matrix, "gemini_pdf_matrix", "", 1, False
 
-    def run_llm() -> tuple[bool, list[MenuItemRecord]]:
+    def run_llm() -> tuple[bool, list[MenuItemRecord], bool]:
         if not llm_enabled:
-            return False, []
+            return False, [], False
         try:
-            items = interpret_llm.interpret_text(payload, api_key=api_key, model=model)
+            items, incomplete = interpret_llm.interpret_text(
+                payload, api_key=api_key, model=model
+            )
         except interpret_llm.LLMNotEnabled:
-            return False, []
+            return False, [], False
         kept, _dropped = verify(items, payload, require_grounding=True)
-        return True, kept
+        return True, kept, incomplete
 
     if policy == Policy.HYBRID:
         if structured:
-            return structured, "structured", "", 0
-        ran, llm_items = run_llm()
+            return structured, "structured", "", 0, False
+        ran, llm_items, incomplete = run_llm()
         if not ran:
-            return [], "none", "no machine-readable schema; LLM text disabled", 0
-        return llm_items, "llm_text", ("" if llm_items else "no schema; LLM found nothing"), 1
+            return [], "none", "no machine-readable schema; LLM text disabled", 0, False
+        return (
+            llm_items,
+            "llm_text",
+            ("" if llm_items else "no schema; LLM found nothing"),
+            1,
+            incomplete,
+        )
 
     if policy == Policy.LLM_FIRST:
-        ran, llm_items = run_llm()
+        ran, llm_items, incomplete = run_llm()
         if llm_items:
-            return llm_items, "llm_text", "", 1
+            return llm_items, "llm_text", "", 1, incomplete
         if structured:
-            return structured, "structured", "LLM empty; used structured", (1 if ran else 0)
-        return [], "none", "no items from LLM or schema", (1 if ran else 0)
+            # Fell back to the complete schema items; the partial LLM read is discarded.
+            return structured, "structured", "LLM empty; used structured", (1 if ran else 0), False
+        return [], "none", "no items from LLM or schema", (1 if ran else 0), incomplete
 
     # MERGE: union structured + grounded LLM -> a dish found by EITHER is kept.
-    ran, llm_items = run_llm()
+    ran, llm_items, incomplete = run_llm()
     merged = _union(structured, llm_items)
     used = 1 if ran else 0
     if not merged:
-        return [], "none", "no items from LLM or schema", used
+        return [], "none", "no items from LLM or schema", used, incomplete
     label = "merge" if (structured and llm_items) else ("structured" if structured else "llm_text")
-    return merged, label, "", used
+    return merged, label, "", used, incomplete
 
 
 def _looks_allergen(text: str) -> bool:

@@ -85,3 +85,7 @@ class MenuExtractionResult:
     llm_calls: int = 0                    # cost accounting for hybrid-vs-llm-first
     allergy_signals: list[AllergySignal] = field(default_factory=list)
     diagnostics: dict[str, Any] = field(default_factory=dict)
+    # True when a transient LLM failure left the extraction knowingly partial (e.g. one
+    # chunk of a multi-chunk menu failed). Callers must NOT cache an incomplete result
+    # as complete -- a missing chunk could omit a risky dish and wrongly look safer.
+    incomplete: bool = False

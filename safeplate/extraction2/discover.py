@@ -508,6 +508,11 @@ def discover_and_extract(
                     continue
                 result.llm_calls += sub.llm_calls
                 result.coverage.extend(sub.coverage)
+                if sub.incomplete:
+                    # A menu chunk's LLM call failed -> this source is partial. Treat
+                    # it like a deadline truncation: keep the items we got this run but
+                    # don't cache, so the next open re-extracts the missing chunk.
+                    timed_out = True
                 for record in sub.items:
                     key = record.item_name.lower()
                     if key not in seen_names:

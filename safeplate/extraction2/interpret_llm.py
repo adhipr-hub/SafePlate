@@ -51,8 +51,12 @@ def interpret_text(
     *,
     api_key: str | None = None,
     model: str | None = None,
-) -> list[MenuItemRecord]:
+) -> tuple[list[MenuItemRecord], bool]:
     """Interpret unstructured prose / PDF text with Gemini.
+
+    Returns ``(items, incomplete)``. ``incomplete`` is True when a chunk's LLM call
+    failed after retries, so the merged item list is knowingly partial and the caller
+    must not cache it as a complete menu.
 
     This replaces the entire v1 prose-heuristic pile (`_extract_menu_items_from_html
     /_from_text`, `_looks_like_item_name`, the `_NON_DISH_*` blocklists): the model
@@ -65,7 +69,7 @@ def interpret_text(
         raise LLMNotEnabled("GEMINI_API_KEY not set")
     text = _readable_text(payload)
     if not text.strip():
-        return []
+        return [], False
     model = model or DEFAULT_MODEL
     chunks = _chunks(text)
     # Long menus span several chunks; read them in parallel (order preserved so the
@@ -82,11 +86,14 @@ def interpret_text(
             chunks,
             max_workers=min(len(chunks), 4),
         )
+    # If any chunk's call failed after retries, the merged menu is missing that
+    # chunk's items -- flag it so the caller doesn't cache a partial menu as complete.
+    incomplete = any(parsed.get("_failed") for parsed in parsed_chunks)
     merged: dict[str, MenuItemRecord] = {}
     for parsed in parsed_chunks:
         for rec in _records_from_parsed(parsed, payload):
             merged.setdefault(_norm(rec.item_name), rec)
-    return list(merged.values())
+    return list(merged.values()), incomplete
 
 
 def interpret_visual(
@@ -216,8 +223,10 @@ def _cached_or_call(text: str, *, api_key: str, model: str) -> dict[str, Any]:
         parsed = _call_with_retry(request, api_key=api_key, model=model)
     except GeminiMenuError:
         # Fail closed after exhausting retries; do not cache failures so a later
-        # rerun retries them.
-        return {"page_had_menu": False, "menu_items": []}
+        # rerun retries them. The "_failed" marker lets interpret_text tell a genuine
+        # empty page apart from a chunk whose call failed (so it won't silently drop
+        # that chunk's items and look complete).
+        return {"page_had_menu": False, "menu_items": [], "_failed": True}
 
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
