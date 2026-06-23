@@ -155,7 +155,7 @@ class IncompleteExtractionTest(unittest.TestCase):
                  "_cached_or_call",
                  return_value={"page_had_menu": False, "menu_items": [], "_failed": True},
              ):
-            items, incomplete = interpret_llm.interpret_text(
+            items, incomplete, _calls = interpret_llm.interpret_text(
                 SimpleNamespace(), api_key="k", model="m"
             )
         self.assertEqual(items, [])
@@ -169,7 +169,7 @@ class IncompleteExtractionTest(unittest.TestCase):
                  "_cached_or_call",
                  return_value={"page_had_menu": True, "menu_items": []},
              ):
-            items, incomplete = interpret_llm.interpret_text(
+            items, incomplete, _calls = interpret_llm.interpret_text(
                 SimpleNamespace(), api_key="k", model="m"
             )
         self.assertFalse(incomplete)
@@ -179,7 +179,7 @@ class IncompleteExtractionTest(unittest.TestCase):
                           kind=PayloadKind.TEXT, text="long menu text")
         with mock.patch.object(pipeline, "interpret_structured", return_value=[]), \
              mock.patch.object(
-                 interpret_llm, "interpret_text", return_value=([], True)
+                 interpret_llm, "interpret_text", return_value=([], True, 1)
              ):
             result = pipeline.extract_menu(
                 [payload], policy=Policy.HYBRID, llm_enabled=True, gemini_api_key="k"
@@ -191,7 +191,7 @@ class IncompleteExtractionTest(unittest.TestCase):
                           kind=PayloadKind.TEXT, text="long menu text")
         with mock.patch.object(pipeline, "interpret_structured", return_value=[]), \
              mock.patch.object(
-                 interpret_llm, "interpret_text", return_value=([], False)
+                 interpret_llm, "interpret_text", return_value=([], False, 1)
              ):
             result = pipeline.extract_menu(
                 [payload], policy=Policy.HYBRID, llm_enabled=True, gemini_api_key="k"

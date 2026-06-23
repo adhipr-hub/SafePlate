@@ -115,45 +115,45 @@ def _interpret_one(
         if matrix:
             return matrix, "gemini_pdf_matrix", "", 1, False
 
-    def run_llm() -> tuple[bool, list[MenuItemRecord], bool]:
+    def run_llm() -> tuple[bool, list[MenuItemRecord], bool, int]:
         if not llm_enabled:
-            return False, [], False
+            return False, [], False, 0
         try:
-            items, incomplete = interpret_llm.interpret_text(
+            items, incomplete, calls = interpret_llm.interpret_text(
                 payload, api_key=api_key, model=model
             )
         except interpret_llm.LLMNotEnabled:
-            return False, [], False
+            return False, [], False, 0
         kept, _dropped = verify(items, payload, require_grounding=True)
-        return True, kept, incomplete
+        return True, kept, incomplete, calls
 
     if policy == Policy.HYBRID:
         if structured:
             return structured, "structured", "", 0, False
-        ran, llm_items, incomplete = run_llm()
+        ran, llm_items, incomplete, calls = run_llm()
         if not ran:
             return [], "none", "no machine-readable schema; LLM text disabled", 0, False
         return (
             llm_items,
             "llm_text",
             ("" if llm_items else "no schema; LLM found nothing"),
-            1,
+            calls,
             incomplete,
         )
 
     if policy == Policy.LLM_FIRST:
-        ran, llm_items, incomplete = run_llm()
+        ran, llm_items, incomplete, calls = run_llm()
         if llm_items:
-            return llm_items, "llm_text", "", 1, incomplete
+            return llm_items, "llm_text", "", calls, incomplete
         if structured:
             # Fell back to the complete schema items; the partial LLM read is discarded.
-            return structured, "structured", "LLM empty; used structured", (1 if ran else 0), False
-        return [], "none", "no items from LLM or schema", (1 if ran else 0), incomplete
+            return structured, "structured", "LLM empty; used structured", calls, False
+        return [], "none", "no items from LLM or schema", calls, incomplete
 
     # MERGE: union structured + grounded LLM -> a dish found by EITHER is kept.
-    ran, llm_items, incomplete = run_llm()
+    ran, llm_items, incomplete, calls = run_llm()
     merged = _union(structured, llm_items)
-    used = 1 if ran else 0
+    used = calls
     if not merged:
         return [], "none", "no items from LLM or schema", used, incomplete
     label = "merge" if (structured and llm_items) else ("structured" if structured else "llm_text")

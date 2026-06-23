@@ -51,12 +51,14 @@ def interpret_text(
     *,
     api_key: str | None = None,
     model: str | None = None,
-) -> tuple[list[MenuItemRecord], bool]:
+) -> tuple[list[MenuItemRecord], bool, int]:
     """Interpret unstructured prose / PDF text with Gemini.
 
-    Returns ``(items, incomplete)``. ``incomplete`` is True when a chunk's LLM call
-    failed after retries, so the merged item list is knowingly partial and the caller
-    must not cache it as a complete menu.
+    Returns ``(items, incomplete, llm_calls)``. ``incomplete`` is True when a chunk's
+    LLM call failed after retries, so the merged item list is knowingly partial and the
+    caller must not cache it as a complete menu. ``llm_calls`` is the REAL number of
+    Gemini chunk calls (one per chunk) so callers can account for cost honestly -- a
+    long menu split into N chunks is N calls, not one payload-level call.
 
     This replaces the entire v1 prose-heuristic pile (`_extract_menu_items_from_html
     /_from_text`, `_looks_like_item_name`, the `_NON_DISH_*` blocklists): the model
@@ -69,7 +71,7 @@ def interpret_text(
         raise LLMNotEnabled("GEMINI_API_KEY not set")
     text = _readable_text(payload)
     if not text.strip():
-        return [], False
+        return [], False, 0
     model = model or DEFAULT_MODEL
     chunks = _chunks(text)
     # Long menus span several chunks; read them in parallel (order preserved so the
@@ -93,7 +95,7 @@ def interpret_text(
     for parsed in parsed_chunks:
         for rec in _records_from_parsed(parsed, payload):
             merged.setdefault(_norm(rec.item_name), rec)
-    return list(merged.values()), incomplete
+    return list(merged.values()), incomplete, len(chunks)
 
 
 def interpret_visual(
@@ -201,6 +203,13 @@ def _norm(name: str) -> str:
 
 
 def _cached_or_call(text: str, *, api_key: str, model: str) -> dict[str, Any]:
+    from safeplate.timing import span
+
+    with span("llm_chunk_call"):
+        return _cached_or_call_inner(text, api_key=api_key, model=model)
+
+
+def _cached_or_call_inner(text: str, *, api_key: str, model: str) -> dict[str, Any]:
     key = hashlib.sha1(f"{model}:{text}".encode("utf-8")).hexdigest()
     path = get_cache_dir() / "extraction2_llm" / f"{key}.json"
     try:

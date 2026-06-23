@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import time
+from unittest import mock
 
 import pytest
 
+from safeplate import timing
 from safeplate.menu_text import _PDF_MAX_PAGES, _pdf_text_from_bytes
 
 fitz = pytest.importorskip("fitz")  # PyMuPDF
@@ -39,3 +41,14 @@ def test_page_cap_truncates_giant_pdf_quickly():
 
 def test_bad_bytes_return_empty_not_raise():
     assert _pdf_text_from_bytes(b"not a pdf at all") == ""
+
+
+def test_pdf_parse_records_timing_span():
+    # With timing enabled, the PDF parse stage must be observable so the bench can
+    # attribute wall-clock to it.
+    with mock.patch.object(timing, "_ENABLED", True):
+        timing.reset()
+        _pdf_text_from_bytes(_make_pdf(2))
+        snap = timing.snapshot()
+    assert "pdf_parse" in snap
+    assert snap["pdf_parse"]["count"] == 1
