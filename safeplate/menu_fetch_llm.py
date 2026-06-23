@@ -172,6 +172,13 @@ ALLERGEN_MATRIX_SYSTEM = (
 )
 
 
+# Render the same page span the text-grid parser reads (_MATRIX_PDF_MAX_PAGES).
+# The old default of 6 silently dropped allergen rows on pages 7+ of long chain
+# matrices -- a safety-asymmetric recall loss. The per-page fallback dedupes, so a
+# higher cap never double-counts dishes.
+_MATRIX_VISION_MAX_PAGES = 25
+
+
 def extract_allergen_matrix_via_gemini_pdf(
     pdf_bytes: bytes,
     *,
@@ -179,7 +186,7 @@ def extract_allergen_matrix_via_gemini_pdf(
     restaurant_source_id: str = "",
     api_key: str | None,
     model: str = DEFAULT_MODEL,
-    max_pages: int = 6,
+    max_pages: int = _MATRIX_VISION_MAX_PAGES,
 ) -> list[MenuItemRecord]:
     """Render an allergen-matrix PDF and read its dish x allergen grid with Gemini.
 

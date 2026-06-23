@@ -32,12 +32,24 @@ def _turbo_llm(text, payload, api_key, model, max_chunks):
     if not text.strip():
         return [], 0
     chunks = interpret_llm._chunks(text)[:max_chunks]
-    parsed = [
-        interpret_llm._cached_or_call(
-            c, api_key=api_key, model=(model or interpret_llm.DEFAULT_MODEL)
+    used_model = model or interpret_llm.DEFAULT_MODEL
+    # Read a source's chunks concurrently (like production's interpret_text), so a
+    # long menu doesn't serialize 4 round-trips. Global Gemini concurrency is still
+    # bounded by the semaphore in _post_gemini_generate_content. Order is preserved
+    # so the merge stays deterministic.
+    if len(chunks) <= 1:
+        parsed = [
+            interpret_llm._cached_or_call(c, api_key=api_key, model=used_model)
+            for c in chunks
+        ]
+    else:
+        from safeplate.concurrency import map_concurrent
+
+        parsed = map_concurrent(
+            lambda c: interpret_llm._cached_or_call(c, api_key=api_key, model=used_model),
+            chunks,
+            max_workers=min(len(chunks), 4),
         )
-        for c in chunks
-    ]
     merged: dict[str, MenuItemRecord] = {}
     for p in parsed:
         for rec in interpret_llm._records_from_parsed(p, payload):
@@ -63,7 +75,7 @@ def extract_restaurant(
     user_agent,
     max_sources=3,
     max_links=6,
-    max_chunks=3,
+    max_chunks=4,
 ) -> TurboResult:
     metrics = _zero_metrics()
     if not website_url.strip():

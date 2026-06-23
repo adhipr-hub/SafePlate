@@ -855,6 +855,26 @@ def _gemini_governor() -> tuple[TokenBucket, threading.BoundedSemaphore]:
     return _GEMINI_BUCKET, _GEMINI_SEM
 
 
+def _thinking_config(model: str) -> dict[str, Any] | None:
+    """Minimal thinking for Gemini 3.x: floors thinking-token latency without hurting
+    verbatim extraction (the grounding guardrail re-checks every quote anyway). Older
+    2.x/2.5 models do not accept ``thinkingLevel``, so return None and omit it there to
+    avoid a hard 400. We never emit the legacy ``thinkingBudget``, so the two can't clash."""
+    if "gemini-3" in (model or "").lower():
+        return {"thinkingLevel": "minimal"}
+    return None
+
+
+def _apply_thinking_config(payload: dict[str, Any], model: str) -> None:
+    """Inject the per-model thinking config into generationConfig in place, unless the
+    caller already set one (explicit caller intent wins)."""
+    config = _thinking_config(model)
+    if config is None:
+        return
+    gen = payload.setdefault("generationConfig", {})
+    gen.setdefault("thinkingConfig", config)
+
+
 def _post_gemini_generate_content(
     *,
     payload: dict[str, Any],
@@ -865,6 +885,10 @@ def _post_gemini_generate_content(
     # is hit many times concurrently against one host per run, so reusing the
     # connection (and negotiating gzip on the large JSON responses) avoids a fresh
     # TLS handshake every call. The global semaphore still caps in-flight calls.
+    # Minimal thinking on 3.x trims thinking-token latency; the structured prompt is
+    # identical otherwise, so the prefix (system_instruction + schema) still implicit-
+    # caches across the concurrent chunks.
+    _apply_thinking_config(payload, model)
     body = json.dumps(payload).encode("utf-8")
     headers = {
         "Content-Type": "application/json",
@@ -889,9 +913,25 @@ def _post_gemini_generate_content(
             f"Gemini request failed with HTTP {response.status}: {details}"
         )
     try:
-        return json.loads(response.content.decode("utf-8"))
+        parsed = json.loads(response.content.decode("utf-8"))
     except json.JSONDecodeError as exc:
         raise GeminiMenuError("Gemini returned non-JSON data") from exc
+    _record_cached_token_count(parsed)
+    return parsed
+
+
+def _cached_token_count(response: dict[str, Any]) -> int:
+    """Tokens served from Gemini's implicit prefix cache on this call (0 if none).
+    Reading this confirms the fixed system_instruction+schema prefix is being reused."""
+    usage = response.get("usageMetadata") or {}
+    value = usage.get("cachedContentTokenCount", 0)
+    return value if isinstance(value, int) else 0
+
+
+def _record_cached_token_count(response: dict[str, Any]) -> None:
+    from safeplate.timing import record
+
+    record("gemini_cached_tokens", float(_cached_token_count(response)))
 
 
 def _parse_gemini_json_response(payload: dict[str, Any]) -> dict[str, Any]:
