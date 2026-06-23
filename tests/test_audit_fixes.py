@@ -199,5 +199,67 @@ class IncompleteExtractionTest(unittest.TestCase):
         self.assertFalse(result.incomplete)
 
 
+class GeminiGovernorTest(unittest.TestCase):
+    """Phase 1 -- Gemini now has a token bucket (rate) alongside the semaphore
+    (concurrency), so a retry burst can't re-trip the per-minute quota."""
+
+    def test_governor_returns_bucket_and_semaphore_memoized(self) -> None:
+        from safeplate import gemini_menu
+        from safeplate.concurrency import TokenBucket
+
+        bucket, sem = gemini_menu._gemini_governor()
+        self.assertIsInstance(bucket, TokenBucket)
+        self.assertGreater(bucket.rate, 0)
+        # Built once and reused (env read a single time).
+        bucket2, sem2 = gemini_menu._gemini_governor()
+        self.assertIs(bucket, bucket2)
+        self.assertIs(sem, sem2)
+
+
+class GeminiBoundaryGroundingTest(unittest.TestCase):
+    """Phase 1 -- the v1 grounding now matches a dish name on a word boundary, so it
+    no longer grounds on a substring of an unrelated word (mirrors the verify.py fix)."""
+
+    def test_name_does_not_ground_inside_a_longer_word(self) -> None:
+        from safeplate.gemini_menu import drop_ungrounded_evidence
+
+        extraction = {"menu_items": [{"item_name": "Panini", "evidence_quote": ""}]}
+        result = drop_ungrounded_evidence(extraction, "We sell Paninis on the menu")
+        self.assertEqual(result["menu_items"], [])
+
+    def test_real_bounded_name_still_grounds(self) -> None:
+        from safeplate.gemini_menu import drop_ungrounded_evidence
+
+        extraction = {"menu_items": [{"item_name": "Panini", "evidence_quote": ""}]}
+        result = drop_ungrounded_evidence(extraction, "Grilled Panini sandwich")
+        self.assertEqual(len(result["menu_items"]), 1)
+
+
+class DeadlineWrapperTest(unittest.TestCase):
+    """Phase 1 -- the synchronous prior-fetch path is wall-clock bounded so a slow
+    upstream can't pin a server thread."""
+
+    def test_fast_call_returns_value(self) -> None:
+        from safeplate.search_service import _with_deadline
+
+        self.assertEqual(_with_deadline(lambda: 42, seconds=5, what="x"), 42)
+
+    def test_slow_call_raises_clean_error(self) -> None:
+        import time as _time
+        from safeplate.search_service import _with_deadline
+
+        with self.assertRaises(ValueError):
+            _with_deadline(lambda: _time.sleep(1.0), seconds=0.15, what="slow op")
+
+    def test_inner_error_propagates(self) -> None:
+        from safeplate.search_service import _with_deadline
+
+        def boom():
+            raise ValueError("missing api key")
+
+        with self.assertRaises(ValueError):
+            _with_deadline(boom, seconds=5, what="x")
+
+
 if __name__ == "__main__":
     unittest.main()
