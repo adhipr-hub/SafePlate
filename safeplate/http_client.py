@@ -69,6 +69,19 @@ def _session() -> "requests.Session":
     session = getattr(_thread_local, "session", None)
     if session is None:
         session = requests.Session()
+        # Size the pool to our concurrency. The default urllib3 pool_maxsize=10
+        # and pool_connections=10 can evict warm host pools when a restaurant
+        # fans many fetches + Gemini/Brave POSTs across a few hosts, forcing a
+        # fresh TLS handshake. pool_block=True makes a saturated worker wait for a
+        # warm socket instead of churning one. Same URLs/bytes -> output-identical.
+        from safeplate.config import get_fetch_concurrency, get_gemini_concurrency
+
+        size = max(get_fetch_concurrency(), get_gemini_concurrency(), 16)
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=size, pool_maxsize=size, pool_block=True
+        )
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
         _thread_local.session = session
     return session
 
