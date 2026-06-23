@@ -81,6 +81,31 @@ def items_from_allergen_matrix_soup(soup: Any) -> list[MenuItemRecord]:
 _MATRIX_PDF_MAX_PAGES = 25
 
 
+_ALLERGEN_GRID_KEYWORDS = ("allergen", "allergy", "allergies", "nutrition", "intoleran")
+
+
+def _pdf_text_could_have_allergen_grid(text: str) -> bool:
+    """True iff the extracted PDF text could plausibly back a pdfplumber allergen grid.
+
+    Safe SUPERSET of what ``extract_items_from_allergen_pdf`` can emit: that parser
+    requires >=3 distinct recognized allergen column headers (see
+    ``_records_from_text_grid``), and those header words are part of the text layer, so
+    any PDF it could grid contains >=3 distinct allergen alias terms here. We also pass
+    on an explicit allergen/nutrition keyword. Plain menu/policy PDFs match neither, so
+    we skip the expensive ``extract_tables()`` pass on them with identical output."""
+    low = (text or "").lower()
+    if not low.strip():
+        return False
+    if any(keyword in low for keyword in _ALLERGEN_GRID_KEYWORDS):
+        return True
+    distinct = {
+        token
+        for aliases, token in _ALLERGEN_COLUMN_ALIASES
+        if any(alias in low for alias in aliases)
+    }
+    return len(distinct) >= 3
+
+
 def extract_items_from_allergen_pdf(pdf_bytes: bytes) -> list[MenuItemRecord]:
     """Parse dish x allergen matrix tables out of a (text-based) PDF.
 

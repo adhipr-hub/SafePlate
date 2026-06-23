@@ -22,13 +22,21 @@ def interpret_structured(payload: Payload) -> list[MenuItemRecord]:
     schema.org item list beats a raw JSON name/price blob.
     """
     # PDF allergen matrices: parse the dish x allergen table grid from the bytes
-    # (the HTML table parser can't read a PDF's text layer).
+    # (the HTML table parser can't read a PDF's text layer). Skip the slow pdfplumber
+    # extract_tables() pass on PDFs whose text can't back an allergen grid -- but run
+    # it when the text layer is empty (scanned PDF: we can't rule a grid out, and the
+    # call is cheap with no text), keeping output identical.
     if payload.source_type == "pdf" and payload.content:
-        from safeplate.allergen_matrix import extract_items_from_allergen_pdf
+        from safeplate.allergen_matrix import (
+            _pdf_text_could_have_allergen_grid,
+            extract_items_from_allergen_pdf,
+        )
 
-        pdf_items = extract_items_from_allergen_pdf(payload.content)
-        if pdf_items:
-            return pdf_items
+        text = payload.text or ""
+        if (not text.strip()) or _pdf_text_could_have_allergen_grid(text):
+            pdf_items = extract_items_from_allergen_pdf(payload.content)
+            if pdf_items:
+                return pdf_items
 
     html = payload.text or ""
     if not html.strip():
