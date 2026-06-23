@@ -50,13 +50,16 @@ def acquire(url: str, *, source_type: str, user_agent: str | None = None) -> Pay
     pooled HTTP / robots infra. (The offline eval harness builds payloads from
     snapshots via the helpers above and does not call this.)"""
     user_agent = user_agent or get_user_agent()
+    from safeplate.config import get_fetch_read_timeout
+
+    read_timeout = get_fetch_read_timeout()
     low = url.lower().split("?")[0]  # ignore ?v= cache-busters (Shopify etc.) for type sniffing
     if source_type == "image" or low.endswith(IMAGE_EXTS):
-        resp = http_get(url, user_agent=user_agent, timeout=30, use_cache=True)
+        resp = http_get(url, user_agent=user_agent, timeout=read_timeout, use_cache=True)
         return Payload(url=url, source_type="image", kind=PayloadKind.VISUAL,
                        content=resp.content, mime="image")
     if source_type == "pdf" or low.endswith(".pdf"):
-        resp = http_get(url, user_agent=user_agent, timeout=30, use_cache=True)
+        resp = http_get(url, user_agent=user_agent, timeout=read_timeout, use_cache=True)
         # Carry the bytes (for the allergen-matrix table parser) AND the extracted
         # text (for the LLM), routed as TEXT so structured-then-LLM both run.
         try:

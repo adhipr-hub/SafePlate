@@ -444,23 +444,26 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
     )
     prior = score_restaurant_prior(cuisines=cuisines, region=region, allergen="nuts")
 
+    from safeplate.timing import span
+
     name = str(row.name or "").strip()
     website_url = str(row.website_url or "").strip()
     address = str(row.address or "")
-    assessment, menu_items, allergy_signals, coverage, errors = _extract_and_assess_structured(
-        name=name,
-        website_url=website_url,
-        address=address,
-        categories=row.categories,
-        latitude=row.latitude,
-        longitude=row.longitude,
-        profile=profile,
-        user_agent=user_agent,
-        api_key=api_key,
-        cuisines=cuisines,  # already derived above for the prior; don't recompute
-        region=region,
-        scoring_engine="rules",  # ai_assisted re-scores the whole list in ONE batched call
-    )
+    with span("card_extract_assess"):
+        assessment, menu_items, allergy_signals, coverage, errors = _extract_and_assess_structured(
+            name=name,
+            website_url=website_url,
+            address=address,
+            categories=row.categories,
+            latitude=row.latitude,
+            longitude=row.longitude,
+            profile=profile,
+            user_agent=user_agent,
+            api_key=api_key,
+            cuisines=cuisines,  # already derived above for the prior; don't recompute
+            region=region,
+            scoring_engine="rules",  # ai_assisted re-scores the whole list in ONE batched call
+        )
     rebuild = dict(
         prior=prior, cuisines=cuisines, region=region, name=name,
         website_url=website_url, menu_items=menu_items,
@@ -476,7 +479,8 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
         # score reflects them too -- and matches the drawer. want_dishes=False: the
         # list only folds in handling/adverse signals, not no-menu dish inference
         # (that stays drawer-only to avoid faking menu coverage on the card).
-        cres = _fetch_community_signals(name, address, want_dishes=False)
+        with span("card_community"):
+            cres = _fetch_community_signals(name, address, want_dishes=False)
         ctx = {
             "profile": profile,
             "cuisines": cuisines,

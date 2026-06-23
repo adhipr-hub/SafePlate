@@ -34,9 +34,11 @@ _NAV_LINKS = (
 # Shared CSS for every non-app page. Tokens kept in sync with app_template.html.
 _BASE_CSS = """
 :root{
-  --page:#F5F3EF; --surface:#FFFFFF; --border:#E3DDD5; --border2:#C9C2B8;
-  --tx:#1A1714; --tx2:#6A5F57; --tx3:#A09088;
+  --page:#F4F6F5; --surface:#FFFFFF; --border:#E3DDD5; --border2:#C9C2B8;
+  --tx:#1A1714; --tx2:#6A5F57; --tx3:#766A60;  /* tx3 was #A09088 — failed AA for text */
   --g0:#166534; --g1:#16A34A; --g2:#22C55E; --gt:#DCFCE7;
+  --signal:#2563EB; --md:#92400E; --callahead:#7C3AED; --star:#FBBF24; --brand-grad:linear-gradient(145deg,#16A34A,#15803D);
+  --hero-1:#12492D; --hero-2:#0B3A22; --hero-ink:#F3FBF6; --hero-soft:rgba(229,245,236,.90); --mint:#86EFAC;
   --e1:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.04);
   --e2:0 4px 16px -2px rgba(0,0,0,.09),0 1px 4px rgba(0,0,0,.05);
   --e3:0 12px 36px -6px rgba(0,0,0,.14),0 3px 10px rgba(0,0,0,.06);
@@ -60,7 +62,7 @@ a{color:inherit;}
 .topbar-inner{display:flex; align-items:center; height:62px; gap:14px;}
 .brand{display:flex; align-items:center; gap:9px; text-decoration:none;}
 .brand-mark{width:30px; height:30px; border-radius:9px; flex:none;
-  background:linear-gradient(145deg,#15803D,#16A34A); display:grid; place-items:center;
+  background:var(--brand-grad); display:grid; place-items:center;
   box-shadow:0 3px 10px -2px rgba(21,128,61,.5);}
 .brand-mark svg{width:16px; height:16px;}
 .brand-name{font-weight:700; font-size:16.5px; letter-spacing:-.035em; color:var(--tx);}
@@ -72,7 +74,7 @@ a{color:inherit;}
 .nav-link.active{color:var(--g0); background:var(--gt);}
 .nav-cta{margin-left:auto; display:inline-flex; align-items:center; gap:7px;
   padding:9px 16px; border-radius:var(--pill); text-decoration:none;
-  background:linear-gradient(145deg,#16A34A,#15803D); color:#fff; font-size:13.5px;
+  background:var(--brand-grad); color:#fff; font-size:13.5px;
   font-weight:700; box-shadow:0 4px 14px -4px rgba(21,128,61,.5); transition:transform .15s,box-shadow .15s;}
 .nav-cta:hover{transform:translateY(-1px); box-shadow:0 8px 22px -4px rgba(21,128,61,.5);}
 .nav-toggle{display:none; margin-left:auto; width:40px; height:40px; border-radius:10px;
@@ -80,30 +82,34 @@ a{color:inherit;}
   cursor:pointer; align-items:center; justify-content:center;}
 
 /* ── Page hero ── */
-.phero{position:relative; overflow:hidden; padding:64px 0 30px; text-align:center;}
-.phero::before{content:""; position:absolute; pointer-events:none; width:640px; height:520px;
-  border-radius:50%; top:-240px; left:-180px;
-  background:radial-gradient(circle,rgba(22,163,74,.11) 0%,transparent 68%);}
-.phero::after{content:""; position:absolute; pointer-events:none; width:520px; height:420px;
-  border-radius:50%; top:-140px; right:-120px;
-  background:radial-gradient(circle,rgba(14,165,233,.08) 0%,transparent 65%);}
+.phero{position:relative; isolation:isolate; overflow:hidden; text-align:center;
+  padding:62px 0 56px; color:var(--hero-ink);
+  background:linear-gradient(168deg,var(--hero-1) 0%,var(--hero-2) 100%);}
+/* soft brand glow — depth, not decoration */
+.phero::before{content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(50% 70% at 14% -10%,rgba(134,239,172,.18) 0%,transparent 60%),
+    radial-gradient(44% 60% at 100% 4%,rgba(34,197,94,.12) 0%,transparent 60%);}
+/* faint dot grid, masked toward the top */
+.phero::after{content:""; position:absolute; inset:0; z-index:-1; pointer-events:none; opacity:.55;
+  background-image:radial-gradient(rgba(255,255,255,.055) 1px,transparent 1.4px); background-size:24px 24px;
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,transparent 72%);
+          mask-image:linear-gradient(180deg,#000 0%,transparent 72%);}
 .eyebrow{display:inline-flex; align-items:center; gap:6px; position:relative; z-index:1;
   font-size:11.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase;
-  color:var(--g0); padding:5px 13px; border-radius:var(--pill);
-  border:1.5px solid rgba(22,101,52,.2); background:rgba(22,101,52,.07); margin-bottom:20px;}
-.eyebrow-pip{width:5px; height:5px; border-radius:50%; background:var(--g1); flex:none;}
+  color:var(--hero-soft); padding:5px 13px; border-radius:var(--pill);
+  border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.06); margin-bottom:20px;}
+.eyebrow-pip{width:5px; height:5px; border-radius:50%; background:var(--mint); flex:none;}
 .phero h1{font-family:"Newsreader",Georgia,serif; font-weight:700; position:relative; z-index:1;
-  font-size:clamp(34px,4.6vw,52px); line-height:1.04; letter-spacing:-.025em; margin-bottom:16px;}
-.phero h1 .grad{background:linear-gradient(125deg,#15803D 5%,#0284C7 92%);
-  -webkit-background-clip:text; background-clip:text; color:transparent;}
-.phero-sub{font-size:17px; color:var(--tx2); line-height:1.6; max-width:560px;
+  font-size:clamp(34px,4.6vw,52px); line-height:1.04; letter-spacing:-.025em;
+  margin-bottom:16px; text-wrap:balance; color:var(--hero-ink);}
+.phero h1 .grad{color:var(--mint);}  /* solid mint — no gradient text (banned) */
+.phero-sub{font-size:17px; color:var(--hero-soft); line-height:1.6; max-width:560px;
   margin:0 auto; position:relative; z-index:1;}
 
 /* ── Sections ── */
 .section{padding:46px 0;}
 .section-head{text-align:center; max-width:640px; margin:0 auto 34px;}
-.section-kicker{font-size:11.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase;
-  color:var(--g1); margin-bottom:10px;}
 .section-title{font-family:"Newsreader",Georgia,serif; font-weight:700; font-size:clamp(26px,3.4vw,36px);
   letter-spacing:-.02em; line-height:1.1;}
 .section-lede{font-size:16px; color:var(--tx2); margin-top:12px; line-height:1.6;}
@@ -121,17 +127,17 @@ a{color:inherit;}
 .card p{font-size:14px; color:var(--tx2); line-height:1.55;}
 .step-num{font-family:"Newsreader",Georgia,serif; font-weight:700; font-size:18px; color:#fff;
   width:36px; height:36px; border-radius:50%; display:grid; place-items:center;
-  background:linear-gradient(145deg,#16A34A,#15803D); margin-bottom:15px;
+  background:var(--brand-grad); margin-bottom:15px;
   box-shadow:0 3px 10px -2px rgba(21,128,61,.45);}
 
 /* ── Trust / provenance chips ── */
 .pvchip{font-size:11px; font-weight:700; padding:3px 9px; border-radius:var(--pill);
   border:1.5px solid var(--border); display:inline-block;}
-.pv-confirmed{color:var(--g0); border-color:rgba(22,101,52,.32); background:rgba(22,101,52,.08);}
-.pv-signal{color:#2563EB; border-color:rgba(37,99,235,.26); background:rgba(37,99,235,.06);}
-.pv-inferred{color:#92400E; border-color:rgba(146,64,14,.26); background:rgba(146,64,14,.06);}
+.pv-confirmed{color:var(--g0); border-color:color-mix(in srgb,var(--g0) 32%,transparent); background:color-mix(in srgb,var(--g0) 8%,transparent);}
+.pv-signal{color:var(--signal); border-color:color-mix(in srgb,var(--signal) 26%,transparent); background:color-mix(in srgb,var(--signal) 6%,transparent);}
+.pv-inferred{color:var(--md); border-color:color-mix(in srgb,var(--md) 26%,transparent); background:color-mix(in srgb,var(--md) 6%,transparent);}
 .pv-estimate{color:var(--tx3); border-color:var(--border);}
-.pv-callahead{color:#7c3aed; border-color:rgba(124,58,237,.26); background:rgba(124,58,237,.06);}
+.pv-callahead{color:var(--callahead); border-color:color-mix(in srgb,var(--callahead) 26%,transparent); background:color-mix(in srgb,var(--callahead) 6%,transparent);}
 .trust-row{display:flex; gap:14px; align-items:flex-start; padding:16px 0; border-bottom:1px solid var(--border);}
 .trust-row:last-child{border-bottom:none;}
 .trust-row .tr-chip{flex:none; padding-top:2px;}
@@ -191,7 +197,7 @@ a{color:inherit;}
   letter-spacing:-.02em; margin-bottom:12px; position:relative; z-index:1;}
 .cta p{font-size:16px; color:var(--tx2); max-width:480px; margin:0 auto 22px; position:relative; z-index:1;}
 .btn-primary{display:inline-flex; align-items:center; gap:8px; padding:13px 24px; border-radius:var(--pill);
-  text-decoration:none; background:linear-gradient(145deg,#16A34A,#15803D); color:#fff;
+  text-decoration:none; background:var(--brand-grad); color:#fff;
   font-size:15px; font-weight:700; box-shadow:0 6px 20px -4px rgba(21,128,61,.5);
   transition:transform .15s,box-shadow .15s; position:relative; z-index:1;}
 .btn-primary:hover{transform:translateY(-1px); box-shadow:0 10px 28px -4px rgba(21,128,61,.5);}
@@ -219,6 +225,13 @@ a{color:inherit;}
   .nav-links{display:none;}
   .nav-cta{margin-left:auto;}
   .footer-inner{grid-template-columns:1fr 1fr; gap:24px;}
+}
+
+/* Reduced motion: neutralize motion (incl. smooth-scroll) safely */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto;}
+  *,*::before,*::after{animation-duration:.001ms!important; animation-iteration-count:1!important;
+    transition-duration:.001ms!important;}
 }
 """
 
@@ -411,7 +424,6 @@ def _how_it_works_body() -> str:
     ) + f"""
 <section class="section"><div class="wrap">
   <div class="section-head">
-    <div class="section-kicker">Three steps</div>
     <h2 class="section-title">Search, read, decide</h2>
   </div>
   <div class="grid3">{step_cards}</div>
@@ -420,7 +432,6 @@ def _how_it_works_body() -> str:
 <section class="section" style="background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
   <div class="narrow">
     <div class="section-head">
-      <div class="section-kicker">Show your work</div>
       <h2 class="section-title">Every score carries its evidence</h2>
       <p class="section-lede">We never hand you a number with no context. Each restaurant is
       tagged with how we know what we know, so you can weigh it for yourself.</p>
@@ -431,7 +442,6 @@ def _how_it_works_body() -> str:
 
 <section class="section"><div class="narrow">
   <div class="section-head">
-    <div class="section-kicker">Safety first</div>
     <h2 class="section-title">Built to fail safe</h2>
     <p class="section-lede">When evidence is thin, we say so rather than guessing low. A missing
     menu is shown as &ldquo;call ahead,&rdquo; not as &ldquo;safe.&rdquo; The score is a starting
@@ -489,7 +499,6 @@ def _about_body() -> str:
 <section class="section" style="background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
   <div class="wrap">
     <div class="section-head">
-      <div class="section-kicker">What guides us</div>
       <h2 class="section-title">Our principles</h2>
     </div>
     <div class="grid3">{value_cards}</div>
@@ -608,7 +617,7 @@ def _contact_body() -> str:
     ) + f"""
 <section class="section"><div class="narrow">
   <div class="grid2" style="grid-template-columns:1fr;">{contact_cards}</div>
-  <div class="card" style="margin-top:16px; background:var(--gt); border-color:rgba(22,101,52,.2);">
+  <div class="card" style="margin-top:16px; background:var(--gt); border-color:color-mix(in srgb,var(--g0) 20%,transparent);">
     <h3 style="color:var(--g0);">Having an allergic reaction?</h3>
     <p style="color:var(--tx2);">SafePlate is not for emergencies. If you are having a serious
     allergic reaction, use your epinephrine if prescribed and call your local emergency number

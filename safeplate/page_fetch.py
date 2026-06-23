@@ -75,8 +75,12 @@ def _fetch_static_html(url: str, *, user_agent: str) -> HtmlPage:
     if not robots_decision.allowed:
         raise PageFetchError(f"Blocked by robots.txt: {robots_decision.reason}")
 
+    from safeplate.config import get_fetch_read_timeout
+
     try:
-        response = http_get(url, user_agent=user_agent, timeout=30, use_cache=True)
+        response = http_get(
+            url, user_agent=user_agent, timeout=get_fetch_read_timeout(), use_cache=True
+        )
     except HttpError as exc:
         raise PageFetchError(str(exc)) from exc
     except HttpConnectionError as exc:

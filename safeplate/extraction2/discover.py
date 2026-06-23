@@ -283,12 +283,26 @@ def _pdf_mentions(text: str, restaurant_name: str) -> bool:
     return False
 
 
+# High-value STRUCTURED allergen sources: a dish x allergen grid (HTML or PDF-vision)
+# or app-embedded allergen JSON. Matching items are grounded per-dish allergen data --
+# the strongest, most complete signal for a safety app.
+_MATRIX_METHODS = frozenset(
+    {"allergen_matrix", "gemini_allergen_matrix", "gemini_pdf_matrix", "embedded_allergens"}
+)
+
+
+def _is_structured_matrix(method: str | None) -> bool:
+    low = (method or "").lower()
+    return low in _MATRIX_METHODS or "matrix" in low
+
+
 # Bump when extraction logic changes so cached results don't go stale across code
 # changes; menus themselves are stable within the TTL.
 # v2: second-hop discovery (menu-page -> menu-PDF) -- invalidates results cached
 # before it (e.g. restaurants that wrongly cached as "no menu").
 # v3: nut-free-claim detection (+ scanning nut-free-mentioning pages for signals).
-_RESULT_CACHE_VERSION = "3"
+# v4: matrix early-exit (stop once a menu-covering allergen matrix is found).
+_RESULT_CACHE_VERSION = "4"
 _RESULT_CACHE_TTL = 7 * 24 * 60 * 60
 # "Nothing found" (no items + no signals) is cached too -- so a dead/empty site
 # doesn't re-run discovery + the Brave fallback every search -- but with a SHORTER
@@ -460,9 +474,16 @@ def discover_and_extract(
     # restaurant (allergen/menu pages are tried first), so a cold search finishes more
     # of its restaurants inside the list budget instead of grinding through long tails.
     _BATCH, _ENOUGH_MENU, _MAX_SOURCES = 3, 30, 4
+    # A confident, menu-covering structured allergen matrix (dish x allergen grid) IS
+    # the whole menu plus per-dish allergens in one deterministic parse -- so once one
+    # yields this many dishes, stop crawling/LLM-ing other sources (speed + the most
+    # complete, grounded allergen coverage). Floor of 10 guards against a stray/partial
+    # matrix triggering an early exit on a thin grid.
+    _MATRIX_ENOUGH = 10
     result = MenuExtractionResult(items=[], coverage=[], llm_calls=0)
     seen_names: set[str] = set()
     allergen_dishes = 0
+    matrix_dishes = 0
     processed = 0
     have_allergens = False
     work = [c for c in candidates if c.kind != "allergy_info"]
@@ -520,8 +541,15 @@ def discover_and_extract(
                         result.items.append(record)
                         if record.allergen_terms:
                             allergen_dishes += 1
+                        if _is_structured_matrix(record.extraction_method):
+                            matrix_dishes += 1
             if allergen_dishes >= 3:
                 have_allergens = True
+            # Matrix early-exit: the dish x allergen grid already covers the menu, so
+            # don't pay to crawl/LLM the remaining sources.
+            if matrix_dishes >= _MATRIX_ENOUGH:
+                have_allergens = True
+                break
             if have_allergens and len(result.items) >= _ENOUGH_MENU:
                 break
             for _ in range(len(done)):  # refill the window as slots free up

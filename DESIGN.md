@@ -2,10 +2,15 @@
 name: SafePlate
 description: Allergy-aware dining decisions you can trust — evidence on the desk, risk graded in color.
 colors:
-  page: "#F5F3EF"
+  page: "#F4F6F5"
   surface: "#FFFFFF"
   border: "#E3DDD5"
   border-strong: "#C9C2B8"
+  hero-1: "#12492D"
+  hero-2: "#0B3A22"
+  hero-ink: "#F3FBF6"
+  hero-soft: "rgba(229,245,236,0.90)"
+  mint: "#86EFAC"
   ink: "#1A1714"
   ink-muted: "#6A5F57"
   ink-faint: "#A09088"
@@ -34,7 +39,6 @@ colors:
   mchip-other-bg: "#FEF9C3"
   mchip-other-border: "#FEF08A"
   mchip-other-ink: "#854D0E"
-  hero-glow-blue: "rgba(14,165,233,0.08)"
   scrim: "rgba(8,8,8,0.32)"
 typography:
   display:
@@ -129,15 +133,17 @@ components:
 **Creative North Star: "The Evidence Desk"**
 
 SafePlate is the workspace of a careful analyst who happens to be on your side. Every
-screen lays its findings out on a warm, paper-toned surface — restaurants ranked,
+screen lays its findings out on a crisp, near-white surface — restaurants ranked,
 risk graded, and the evidence behind each call within reach. The mood is unhurried
 and legible: a calm verdict you can act on, plus the reasoning you can inspect if you
 want to. This is a safety-critical tool, so the design earns trust by being
 transparent, never by being loud.
 
-The system is built from a warm off-white field (`#F5F3EF`) carrying clean white
-surfaces, a disciplined green brand ramp, and a small, semantically strict risk
-palette (green / amber / red). Type pairs a Newsreader serif for display warmth against
+The system is built from a crisp, faintly-cool off-white field (`#F4F6F5`) carrying
+clean white surfaces, fronted by a **deep forest-green hero band** (`#12492D → #0B3A22`)
+that carries the brand's calm "safe" identity — the one drenched-color moment, used once
+per surface (app and marketing page heroes). Around it sits a disciplined green brand
+ramp and a small, semantically strict risk palette (green / amber / red). Type pairs a Newsreader serif for display warmth against
 IBM Plex Sans for dense, neutral body and UI text. Color is rationed: green means *us /
 safe / confirmed*, and the three risk hues are reserved exclusively for grading
 allergen risk. The interface rests near-flat and lifts softly on interaction —
@@ -150,7 +156,7 @@ register (pastels, mascots, gamified cheer); and the **generic crowd-review app*
 leads with evidence and provenance, not the wisdom of the crowd.
 
 **Key Characteristics:**
-- Warm paper field + clean white surfaces; calm, document-like density.
+- Crisp cool-white field + clean white surfaces; a deep forest-green hero band as the brand moment; calm, document-like density.
 - One brand color (green) used for identity and "safe / confirmed", rationed hard.
 - A strict 3-hue risk palette (green/amber/red) that never bleeds into decoration.
 - Serif display warmth (Newsreader) over neutral, legible IBM Plex Sans UI text.
@@ -168,6 +174,12 @@ safety-signal palette; every saturated color carries meaning.
   links, and brand accents; **Vivid Green** (`#22C55E`) for the low-risk score ring and
   live status pips. **Green Tint** (`#DCFCE7`) backs selected chips and positive
   badges.
+- **Hero band** — a deep forest-green field (`#12492D → #0B3A22`), the brand's one
+  drenched-color moment, used once per surface (the app hero and every marketing/legal
+  page hero). It carries near-white ink (`#F3FBF6`), soft translucent white sub-text
+  (`hero-soft`), and a **Mint** (`#86EFAC`) emphasis that replaces any gradient text.
+  This is brand *chrome*, not a risk signal — never confuse the hero green with the
+  low-risk score green.
 
 ### Secondary
 - **Signal Blue** (`#2563EB`): the "live / community signal" provenance tier — data we
@@ -191,7 +203,7 @@ with `#991B1B` ink; an *other-allergen* chip on `#FEF9C3` / `#FEF08A` border / `
 ink; a *diet* chip on the green-tint family. They label dish allergens, nothing else.
 
 ### Neutral
-- **Page** (`#F5F3EF`): the warm paper field behind everything and inside inputs/drawer body.
+- **Page** (`#F4F6F5`): the crisp, faintly-cool off-white field behind everything and inside inputs/drawer body.
 - **Surface** (`#FFFFFF`): cards, the search card, drawer head, verdict panel, top bar.
 - **Ink** (`#1A1714`): primary text; also the "selected" fill on sort toggles and the toast.
 - **Ink Muted** (`#6A5F57`): secondary text, meta rows, supporting copy. The body-copy floor.
@@ -200,7 +212,7 @@ ink; a *diet* chip on the green-tint family. They label dish allergens, nothing 
   hover/active border step.
 - **Star** (`#FBBF24`): rating stars only.
 - **Scrim** (`rgba(8,8,8,0.32)`): the dim behind the open detail drawer.
-- **Hero glow** (`rgba(14,165,233,0.08)`): the faint blue radial accent in the hero backdrop (paired with a green glow) — atmosphere only, never content.
+- **Hero backdrop**: on the deep-green hero band, a soft mint/green radial glow (`rgba(134,239,172,0.18)` + `rgba(34,197,94,0.12)`) over a faint white dot-grid masked toward the top — atmosphere only, never content.
 
 ### Named Rules
 **The Meaning-Only Color Rule.** Saturated color is never decorative. Green = brand /
@@ -221,7 +233,7 @@ Fraunces, Geist, etc.). Newsreader is a warm editorial text serif — it gives
 headlines a calm, document/longform authority, the reassuring human voice. IBM Plex
 Sans carries UI and evidence text: precise and technical with quiet warmth, and its
 excellent tabular figures make the risk scores, prices, and percentages line up
-cleanly. The warmth lives in the serif and the paper, not in decoration.
+cleanly. The warmth lives in the serif and the green, not in decoration.
 
 ### Hierarchy
 - **Display** (Newsreader 700, `clamp(36px, 5.2vw, 62px)`, line-height 1.02, tracking

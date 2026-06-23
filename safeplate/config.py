@@ -76,6 +76,27 @@ def get_fetch_concurrency() -> int:
     return _positive_int_env("SAFEPLATE_FETCH_CONCURRENCY", DEFAULT_FETCH_CONCURRENCY)
 
 
+def get_connect_timeout() -> float:
+    """TCP/TLS connect timeout (seconds) for page fetches, split out from the read
+    timeout. Short by design: a host that won't connect in a few seconds is almost
+    always dead or blocking us, and a long connect wait is the most common way one
+    slow site starves the per-restaurant budget. Override SAFEPLATE_CONNECT_TIMEOUT."""
+    return _positive_float_env("SAFEPLATE_CONNECT_TIMEOUT", 4.0)
+
+
+def get_fetch_read_timeout() -> float:
+    """Read timeout (seconds) for page/PDF fetches -- generous enough for a real menu
+    PDF but well under the old hardcoded 30s, so a stalled transfer fails sooner.
+    Override SAFEPLATE_FETCH_READ_TIMEOUT."""
+    return _positive_float_env("SAFEPLATE_FETCH_READ_TIMEOUT", 20.0)
+
+
+def get_max_download_bytes() -> int:
+    """Cap on a single fetched body so one pathologically large file (a huge PDF or
+    asset) can't blow the budget. Override SAFEPLATE_MAX_DOWNLOAD_MB (megabytes)."""
+    return int(_positive_float_env("SAFEPLATE_MAX_DOWNLOAD_MB", 12.0) * 1024 * 1024)
+
+
 def get_gemini_concurrency() -> int:
     """Max parallel Gemini calls (global semaphore). Default 12; override with
     SAFEPLATE_GEMINI_CONCURRENCY (raise on a paid key, lower on free tier)."""

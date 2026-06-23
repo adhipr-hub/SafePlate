@@ -58,18 +58,24 @@ def run_restaurant_search(payload: dict[str, Any], *, demo_mode: bool = False) -
     radius = _bounded_int(payload.get("radius"), default=1500, minimum=100, maximum=50000)
     limit = _bounded_int(payload.get("limit"), default=20, minimum=1, maximum=50)
     user_agent = get_user_agent()
-    location_label, coordinates = _coordinates_from_payload(payload, user_agent)
-    rows = _with_deadline(
-        lambda: _fetch_rows_for_provider(
-            provider=provider,
-            coordinates=coordinates,
-            radius=radius,
-            limit=limit,
-            user_agent=user_agent,
-        ),
-        seconds=_PROVIDER_FETCH_BUDGET_S,
-        what="Finding nearby restaurants",
-    )
+    from safeplate import timing
+
+    if timing.enabled():
+        timing.reset()
+    with timing.span("geocode"):
+        location_label, coordinates = _coordinates_from_payload(payload, user_agent)
+    with timing.span("provider_fetch"):
+        rows = _with_deadline(
+            lambda: _fetch_rows_for_provider(
+                provider=provider,
+                coordinates=coordinates,
+                radius=radius,
+                limit=limit,
+                user_agent=user_agent,
+            ),
+            seconds=_PROVIDER_FETCH_BUDGET_S,
+            what="Finding nearby restaurants",
+        )
 
     summary = build_quality_summary(
         rows=rows,
@@ -93,12 +99,13 @@ def run_restaurant_search(payload: dict[str, Any], *, demo_mode: bool = False) -
     # menu-backed via /api/menu in the background. Default stays menu-backed (one
     # batched response) so the existing "normal" flow is unchanged.
     list_mode = str(payload.get("listMode") or "menu_backed").strip().lower()
-    if list_mode == "prior":
-        cards = [_restaurant_payload(row, severity=severity) for row in rows]
-    else:
-        cards = _build_search_cards(rows, payload, severity=severity)
+    with timing.span("build_cards"):
+        if list_mode == "prior":
+            cards = [_restaurant_payload(row, severity=severity) for row in rows]
+        else:
+            cards = _build_search_cards(rows, payload, severity=severity)
 
-    return {
+    response = {
         "location": location_label,
         "coordinates": asdict(coordinates),
         "provider": provider,
@@ -109,6 +116,9 @@ def run_restaurant_search(payload: dict[str, Any], *, demo_mode: bool = False) -
         "summary": summary,
         "files": files,
     }
+    if timing.enabled():
+        response["timing"] = timing.snapshot()
+    return response
 
 
 def _run_demo_restaurant_search(payload: dict[str, Any]) -> dict[str, Any]:
@@ -409,9 +419,12 @@ def _build_search_cards(
             for i, ctx in contexts.items()
         ]
         try:
-            scored = score_restaurants_with_llm_batch(
-                reqs, api_key=api_key, model=get_gemini_model()
-            )
+            from safeplate.timing import span
+
+            with span("batch_rescore"):
+                scored = score_restaurants_with_llm_batch(
+                    reqs, api_key=api_key, model=get_gemini_model()
+                )
             for i, ctx in contexts.items():
                 assessment = scored.get(str(i))
                 if assessment is not None and results[i] is not None:

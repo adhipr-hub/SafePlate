@@ -10,14 +10,21 @@
   <style>
     /* ─── Design tokens ─── */
     :root {
-      --page:    #F5F3EF;
+      --page:    #F4F6F5;   /* crisp cool off-white — replaces the cream that read "AI default" */
       --surface: #FFFFFF;
       --border:  #E3DDD5;
       --border2: #C9C2B8;
 
+      /* Hero band — deep forest green, the brand's calm "safe" identity moment */
+      --hero-1:  #12492D;
+      --hero-2:  #0B3A22;
+      --hero-ink:  #F3FBF6;
+      --hero-soft: rgba(229,245,236,0.90);
+      --mint:    #86EFAC;
+
       --tx:  #1A1714;
       --tx2: #6A5F57;
-      --tx3: #766A60;   /* readable on cream (~4.7:1) — was #A09088 which failed AA for text */
+      --tx3: #766A60;   /* readable on the page (~4.7:1) — was #A09088 which failed AA for text */
 
       /* Brand */
       --g0: #166534;   /* deep green */
@@ -33,6 +40,16 @@
       --tl: #F0FDF4;  --tm: #FFFBEB;  --th: #FEF2F2;
       /* Risk border */
       --bl: #BBF7D0;  --bm: #FDE68A;  --bh: #FECACA;
+
+      /* Semantic accents — each carries exactly one meaning */
+      --signal:     #2563EB;   /* observed / community signal */
+      --ai:         #6D28D9;   /* machine reasoning */
+      --ai-tint:    #EDE9FE;
+      --callahead:  #7C3AED;   /* call-ahead provenance */
+      --star:       #FBBF24;   /* rating stars only */
+      --brand-grad: linear-gradient(145deg, #16A34A, #15803D);
+      /* Menu-chip tints */
+      --mchip-nut: #FEE2E2;  --mchip-other: #FEF9C3;  --mchip-other-bd: #FEF08A;  --mchip-other-ink: #854D0E;
 
       /* Elevation */
       --e1: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
@@ -83,7 +100,7 @@
     .brand { display: flex; align-items: center; gap: 9px; text-decoration: none; }
     .brand-mark {
       width: 30px; height: 30px; border-radius: 9px; flex: none;
-      background: linear-gradient(145deg, #15803D, #16A34A);
+      background: var(--brand-grad);
       display: grid; place-items: center;
       box-shadow: 0 3px 10px -2px rgba(21,128,61,0.5);
     }
@@ -100,37 +117,40 @@
     .s-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex: none; }
     .s-dot.live { background: var(--g2); box-shadow: 0 0 7px rgba(34,197,94,0.7); }
 
-    /* ─── Hero ─── */
-    .hero { padding: 58px 0 32px; text-align: center; position: relative; overflow: hidden; }
+    /* ─── Hero band ─── */
+    .hero {
+      position: relative; isolation: isolate; overflow: hidden;
+      color: var(--hero-ink); padding: 66px 0 128px;
+      background: linear-gradient(168deg, var(--hero-1) 0%, var(--hero-2) 100%);
+    }
+    /* soft brand glow — depth, not decoration */
     .hero::before {
-      content: ""; pointer-events: none; position: absolute;
-      width: 640px; height: 520px; border-radius: 50%; top: -220px; left: -180px;
-      background: radial-gradient(circle, rgba(22,163,74,0.11) 0%, transparent 68%);
+      content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(58% 80% at 10% -10%, rgba(134,239,172,0.18) 0%, transparent 60%),
+        radial-gradient(46% 64% at 102% 6%, rgba(34,197,94,0.12) 0%, transparent 60%);
     }
+    /* faint dot grid, masked toward the band's top */
     .hero::after {
-      content: ""; pointer-events: none; position: absolute;
-      width: 520px; height: 420px; border-radius: 50%; top: -120px; right: -120px;
-      background: radial-gradient(circle, rgba(14,165,233,0.08) 0%, transparent 65%);
+      content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .6;
+      background-image: radial-gradient(rgba(255,255,255,0.055) 1px, transparent 1.4px);
+      background-size: 24px 24px;
+      -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 72%);
+              mask-image: linear-gradient(180deg, #000 0%, transparent 72%);
     }
-
-    .eyebrow {
-      display: inline-flex; align-items: center; gap: 6px; position: relative; z-index: 1;
-      font-size: 11.5px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
-      color: var(--g0); padding: 5px 13px; border-radius: var(--pill);
-      border: 1.5px solid rgba(22,101,52,0.2); background: rgba(22,101,52,0.07);
-      margin-bottom: 22px;
+    .hero-inner {
+      display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 46px; align-items: center;
     }
-    .eyebrow-pip { width: 5px; height: 5px; border-radius: 50%; background: var(--g1); flex: none; }
-
+    .hero-copy { max-width: 540px; }
     h1 {
-      font-family: "Newsreader", Georgia, serif; font-weight: 700; position: relative; z-index: 1;
-      font-size: clamp(36px, 5.2vw, 62px); line-height: 1.02; letter-spacing: -0.018em;
-      margin-bottom: 16px;
+      font-family: "Newsreader", Georgia, serif; font-weight: 700;
+      font-size: clamp(40px, 5.6vw, 66px); line-height: 1.0; letter-spacing: -0.02em;
+      margin-bottom: 18px; text-wrap: balance; color: var(--hero-ink);
     }
-    h1 .grad { color: var(--g0); }
+    h1 .grad { color: var(--mint); }   /* emphasis: solid mint, never gradient text */
     .hero-sub {
-      font-size: 17px; color: var(--tx2); line-height: 1.6;
-      max-width: 470px; margin: 0 auto 28px; position: relative; z-index: 1;
+      font-size: 17.5px; color: var(--hero-soft); line-height: 1.6;
+      max-width: 466px; margin-bottom: 24px;
     }
 
     /* ─── Search ─── */
@@ -167,7 +187,7 @@
 
     .go-btn {
       padding: 0 20px; height: 50px; border: none; cursor: pointer;
-      background: linear-gradient(145deg, #16A34A, #15803D);
+      background: var(--brand-grad);
       color: #fff; font-family: inherit; font-size: 14.5px; font-weight: 700;
       border-radius: var(--rM); white-space: nowrap;
       box-shadow: 0 4px 16px -4px rgba(21,128,61,0.52);
@@ -191,9 +211,15 @@
     .allergen-chip.on {
       border-color: var(--g1); background: var(--gt); color: var(--g0); font-weight: 600;
     }
-    .allergen-chip.locked { opacity: .32; cursor: not-allowed; }
-    .cc-hint { font-size: 11px; color: var(--tx3); cursor: help; opacity: .7;
+    .allergen-chip.locked { color: var(--tx3); border-style: dashed; cursor: not-allowed; }
+    .allergen-chip.locked .soon {
+      font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      margin-left: 6px; padding: 1px 5px; border-radius: var(--pill);
+      background: var(--page); border: 1px solid var(--border); color: var(--tx3);
+    }
+    .cc-hint { position: relative; font-size: 11px; color: var(--tx3); cursor: help; opacity: .7;
       background: none; border: none; padding: 0; line-height: 1; font-family: inherit; }
+    .cc-hint::before { content: ""; position: absolute; inset: -16px; }  /* ~44px touch target without affecting layout */
 
     /* ─── Results bar ─── */
     .results { padding: 0 0 80px; }
@@ -258,7 +284,7 @@
       display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
     }
     .meta-sep { color: var(--border2); }
-    .star { color: #FBBF24; }
+    .star { color: var(--star); }
     .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
     .ctag {
       font-size: 11.5px; font-weight: 500; padding: 3px 8px; border-radius: 7px;
@@ -269,24 +295,24 @@
       font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: var(--pill);
       border: 1.5px solid var(--border); color: var(--tx2); background: var(--page);
     }
-    .cbadge.menu   { color: var(--g0); border-color: rgba(22,101,52,0.28); background: rgba(22,101,52,0.07); }
-    .cbadge.nomenu { color: var(--md); border-color: rgba(146,64,14,0.22); background: rgba(146,64,14,0.07); }
-    .cbadge.live   { color: #2563EB;   border-color: rgba(37,99,235,0.22);  background: rgba(37,99,235,0.06); }
+    .cbadge.menu   { color: var(--g0); border-color: color-mix(in srgb, var(--g0) 28%, transparent); background: color-mix(in srgb, var(--g0) 7%, transparent); }
+    .cbadge.nomenu { color: var(--md); border-color: color-mix(in srgb, var(--md) 22%, transparent); background: color-mix(in srgb, var(--md) 7%, transparent); }
+    .cbadge.live   { color: var(--signal); border-color: color-mix(in srgb, var(--signal) 22%, transparent); background: color-mix(in srgb, var(--signal) 6%, transparent); }
 
     /* provenance / "how we know" chips */
     .pvchip { font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: var(--pill);
               border: 1.5px solid var(--border); letter-spacing: .02em; }
-    .pv-confirmed { color: var(--g0); border-color: rgba(22,101,52,.32); background: rgba(22,101,52,.08); }
-    .pv-signal    { color: #2563EB; border-color: rgba(37,99,235,.26); background: rgba(37,99,235,.06); }
-    .pv-inferred  { color: var(--md); border-color: rgba(146,64,14,.26); background: rgba(146,64,14,.06); }
+    .pv-confirmed { color: var(--g0); border-color: color-mix(in srgb, var(--g0) 32%, transparent); background: color-mix(in srgb, var(--g0) 8%, transparent); }
+    .pv-signal    { color: var(--signal); border-color: color-mix(in srgb, var(--signal) 26%, transparent); background: color-mix(in srgb, var(--signal) 6%, transparent); }
+    .pv-inferred  { color: var(--md); border-color: color-mix(in srgb, var(--md) 26%, transparent); background: color-mix(in srgb, var(--md) 6%, transparent); }
     .pv-estimate  { color: var(--tx3); border-color: var(--border); }
-    .pv-callahead { color: #7c3aed; border-color: rgba(124,58,237,.26); background: rgba(124,58,237,.06); }
+    .pv-callahead { color: var(--callahead); border-color: color-mix(in srgb, var(--callahead) 26%, transparent); background: color-mix(in srgb, var(--callahead) 6%, transparent); }
     .verdict-prov { font-size: 12px; font-weight: 600; margin-top: 7px; display: flex; gap: 7px; align-items: baseline; flex-wrap: wrap; }
     .verdict-prov .pv-blurb { font-weight: 400; color: var(--tx3); }
     .risky-row.clickable { cursor: pointer; }
     .risky-row.clickable:hover .risky-name { text-decoration: underline; }
     .mitem.flash { animation: flashbg 1.6s ease; border-radius: 6px; }
-    @keyframes flashbg { 0%,100% { background: transparent; } 15% { background: rgba(146,64,14,.16); } }
+    @keyframes flashbg { 0%,100% { background: transparent; } 15% { background: color-mix(in srgb, var(--md) 16%, transparent); } }
 
     .card-risk {
       display: flex; flex-direction: column; align-items: center; flex: none; padding-top: 1px;
@@ -365,7 +391,7 @@
     }
     .ai-badge {
       font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: none;
-      color: #6D28D9; background: #EDE9FE; padding: 1px 7px; border-radius: var(--pill);
+      color: var(--ai); background: var(--ai-tint); padding: 1px 7px; border-radius: var(--pill);
     }
     .why-list { list-style: none; display: flex; flex-direction: column; gap: 7px; }
     .why-list li {
@@ -377,7 +403,7 @@
     .why-list li.tappable:hover { color: var(--tx); }
     .why-list li.tappable:hover .why-text { text-decoration: underline; }
     .cite {
-      font-size: 10.5px; font-weight: 700; color: #6D28D9; background: #EDE9FE;
+      font-size: 10.5px; font-weight: 700; color: var(--ai); background: var(--ai-tint);
       padding: 0 5px; border-radius: 4px; margin-left: 4px; white-space: nowrap;
       vertical-align: 1px;
     }
@@ -390,7 +416,7 @@
       font-size: 12.5px; font-weight: 500; padding: 6px 11px; border-radius: var(--pill);
       border: 1.5px solid var(--border); background: var(--surface); color: var(--tx2);
     }
-    .sig-chip.yes { color: var(--g0); border-color: rgba(22,101,52,0.3); background: rgba(22,101,52,0.07); }
+    .sig-chip.yes { color: var(--g0); border-color: color-mix(in srgb, var(--g0) 30%, transparent); background: color-mix(in srgb, var(--g0) 7%, transparent); }
     .sig-pip { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex: none; }
     .sig-chip.yes .sig-pip { background: var(--g2); }
 
@@ -427,9 +453,9 @@
     .mi-desc { font-size: 12.5px; color: var(--tx3); margin-top: 2px; line-height: 1.4; }
     .mi-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .mchip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
-    .mchip-nut   { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
-    .mchip-other { background: #FEF9C3; color: #854D0E; border: 1px solid #FEF08A; }
-    .mchip-diet  { background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; }
+    .mchip-nut   { background: var(--mchip-nut); color: var(--hi); border: 1px solid var(--bh); }
+    .mchip-other { background: var(--mchip-other); color: var(--mchip-other-ink); border: 1px solid var(--mchip-other-bd); }
+    .mchip-diet  { background: var(--gt); color: var(--g0); border: 1px solid var(--bl); }
 
     /* States */
     .spinner-wrap {
@@ -458,11 +484,11 @@
     .skel-stripe { width: 5px; flex: none; background: linear-gradient(var(--border), var(--border2)); }
     .skel-body { flex: 1; padding: 17px; overflow: hidden; position: relative; }
     .skel-body::after {
-      content: ""; position: absolute; inset: 0;
-      background: linear-gradient(90deg, transparent 25%, rgba(0,0,0,0.035) 50%, transparent 75%);
-      background-size: 200% 100%; animation: shimmer 1.5s ease infinite;
+      content: ""; position: absolute; inset: 0; will-change: transform;
+      background: linear-gradient(90deg, transparent 30%, rgba(0,0,0,0.05) 50%, transparent 70%);
+      animation: shimmer 1.5s ease infinite;
     }
-    @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
     .skel-line { height: 12px; border-radius: 5px; background: var(--border); }
 
     /* Toast */
@@ -483,25 +509,20 @@
 
     /* ─── Trust strip (under hero) ─── */
     .trust-strip {
-      display: flex; align-items: center; justify-content: center; gap: 22px; flex-wrap: wrap;
-      margin: 26px auto 0; position: relative; z-index: 1;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 2px;
     }
     .trust-item {
       display: inline-flex; align-items: center; gap: 7px;
-      font-size: 12.5px; font-weight: 600; color: var(--tx2);
+      font-size: 12.5px; font-weight: 600; color: var(--hero-soft);
     }
-    .trust-item svg { width: 15px; height: 15px; color: var(--g1); flex: none; }
-    .trust-sep { width: 1px; height: 13px; background: var(--border2); }
+    .trust-item svg { width: 15px; height: 15px; color: var(--mint); flex: none; }
+    .trust-sep { width: 1px; height: 13px; background: rgba(255,255,255,0.22); }
 
     /* ─── Landing marketing sections ─── */
     .landing-extra.hidden { display: none; }
     .section { padding: 54px 0; }
     .section.tint { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
     .section-head { text-align: center; max-width: 620px; margin: 0 auto 36px; }
-    .section-kicker {
-      font-size: 11.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
-      color: var(--g1); margin-bottom: 10px;
-    }
     .section-title {
       font-family: "Newsreader", Georgia, serif; font-weight: 700;
       font-size: clamp(25px, 3.2vw, 34px); letter-spacing: -.02em; line-height: 1.1;
@@ -536,7 +557,7 @@
     .feat .step-num {
       font-family: "Newsreader", Georgia, serif; font-weight: 700; font-size: 18px; color: #fff;
       width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
-      background: linear-gradient(145deg, #16A34A, #15803D); margin-bottom: 15px;
+      background: var(--brand-grad); margin-bottom: 15px;
       box-shadow: 0 3px 10px -2px rgba(21,128,61,.45);
     }
 
@@ -585,7 +606,69 @@
     @media (pointer: coarse) {
       .allergen-chip, .sort-btn, .modebtn, .nav-link { min-height: 44px; }
       .allergen-chip, .sort-btn, .modebtn { display: inline-flex; align-items: center; }
-      .d-close { width: 40px; height: 40px; }
+      .d-close { width: 44px; height: 44px; }
+    }
+
+    /* ─── Hero product preview (the signature, shown up front) ─── */
+    .hero-preview { display: flex; flex-direction: column; gap: 11px; }
+    .hp-cap {
+      align-self: flex-start; font-size: 10.5px; font-weight: 700; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--hero-soft);
+      border: 1px solid rgba(255,255,255,0.22); border-radius: var(--pill); padding: 4px 11px;
+    }
+    .hp-card {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--surface); color: var(--tx); border-radius: var(--rL);
+      padding: 14px 16px; box-shadow: var(--e3); border: 1px solid rgba(0,0,0,0.05);
+    }
+    .hp-card.lift { margin-left: 26px; }
+    .hp-info { flex: 1; min-width: 0; }
+    .hp-name { font-size: 15px; font-weight: 700; letter-spacing: -.015em; }
+    .hp-meta { font-size: 12px; color: var(--tx2); margin-top: 2px; }
+    .hp-badges { display: flex; gap: 5px; margin-top: 9px; flex-wrap: wrap; }
+    .hp-ring { position: relative; flex: none; }
+    .hp-ring svg { transform: rotate(-90deg); display: block; }
+    .hp-ring .ring-mid { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    .hp-ring .ring-num { font-size: 16px; font-weight: 700; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+
+    /* ─── Search zone — straddles the hero band and the body ─── */
+    .search-zone { position: relative; z-index: 5; margin-top: -92px; }
+
+    /* Hero entrance — gentle, staggered, gated to motion-OK */
+    @media (prefers-reduced-motion: no-preference) {
+      .hero-copy > *, .hero-preview > * { animation: heroRise .62s cubic-bezier(.2,.75,.25,1) backwards; }
+      .hero-copy > *:nth-child(1) { animation-delay: .02s; }
+      .hero-copy > *:nth-child(2) { animation-delay: .08s; }
+      .hero-copy > *:nth-child(3) { animation-delay: .14s; }
+      .hero-preview > *:nth-child(1) { animation-delay: .16s; }
+      .hero-preview > *:nth-child(2) { animation-delay: .22s; }
+      .hero-preview > *:nth-child(3) { animation-delay: .28s; }
+      .search-zone { animation: heroRise .62s cubic-bezier(.2,.75,.25,1) .18s backwards; }
+    }
+    @keyframes heroRise { from { opacity: 0; transform: translateY(14px); } }
+
+    /* Hero responsive */
+    @media (max-width: 940px) {
+      .hero-inner { grid-template-columns: 1fr; }
+      .hero-copy { max-width: none; }
+      .hero-preview { display: none; }  /* decorative; the clean green band carries the hero on small screens */
+    }
+    @media (max-width: 540px) {
+      .hero { padding: 40px 0 116px; }
+      .hp-card.lift { margin-left: 0; }
+      .search-zone { margin-top: -86px; }
+      /* Declutter the results toolbar: count + location on top, full-width segmented controls below */
+      .sort-row { margin-left: 0; flex: 1 0 100%; }
+      .mode-row { flex: 1 0 100%; }
+      .sort-btn, .modebtn { flex: 1; text-align: center; }
+    }
+
+    /* Reduced motion: neutralize motion safely across the board */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important; scroll-behavior: auto !important;
+      }
     }
   </style>
 </head>
@@ -618,12 +701,71 @@
   </div>
 </header>
 
-<main class="wrap">
-  <section class="hero" id="search">
-    <div class="eyebrow"><span class="eyebrow-pip" aria-hidden="true"></span>Allergy-aware dining</div>
-    <h1>Eat out without<br/><span class="grad">the guesswork</span>.</h1>
-    <p class="hero-sub">Find restaurants near you, ranked by how likely their menu involves nuts. Built from real menu evidence, cuisine, and location.</p>
+<section class="hero">
+  <div class="wrap hero-inner">
+    <div class="hero-copy">
+      <h1 id="heroTitle">Eat out without<br/><span class="grad">the guesswork</span>.</h1>
+      <p class="hero-sub">Find restaurants near you, ranked by how likely their menu involves nuts — built from real menu evidence, cuisine, and location, with the proof shown for every score.</p>
+      <div class="trust-strip">
+        <span class="trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h6M8 16h4"/></svg>
+          Reads real menus
+        </span>
+        <span class="trust-sep" aria-hidden="true"></span>
+        <span class="trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          Shows its evidence
+        </span>
+        <span class="trust-sep" aria-hidden="true"></span>
+        <span class="trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg>
+          Built to fail safe
+        </span>
+      </div>
+    </div>
 
+    <div class="hero-preview" aria-hidden="true">
+      <span class="hp-cap">Example ranking</span>
+      <div class="hp-card">
+        <div class="hp-info">
+          <div class="hp-name">Tonda Pizzeria</div>
+          <div class="hp-meta">Italian · 0.4 km</div>
+          <div class="hp-badges">
+            <span class="cbadge" style="border-color:var(--lo);color:var(--lo)">Likely OK</span>
+            <span class="pvchip pv-confirmed">Confirmed</span>
+          </div>
+        </div>
+        <div class="hp-ring" style="width:54px;height:54px">
+          <svg width="54" height="54">
+            <circle cx="27" cy="27" r="21.3" stroke="var(--border)" stroke-width="5.5" fill="none"/>
+            <circle cx="27" cy="27" r="21.3" stroke="var(--rl)" stroke-width="5.5" fill="none" stroke-linecap="round" stroke-dasharray="133.8" stroke-dashoffset="121.8"/>
+          </svg>
+          <div class="ring-mid"><span class="ring-num" style="color:var(--lo)">9</span></div>
+        </div>
+      </div>
+      <div class="hp-card lift">
+        <div class="hp-info">
+          <div class="hp-name">Saffron House</div>
+          <div class="hp-meta">Thai · 0.7 km</div>
+          <div class="hp-badges">
+            <span class="cbadge" style="border-color:var(--md);color:var(--md)">Caution</span>
+            <span class="pvchip pv-inferred">Inferred</span>
+          </div>
+        </div>
+        <div class="hp-ring" style="width:54px;height:54px">
+          <svg width="54" height="54">
+            <circle cx="27" cy="27" r="21.3" stroke="var(--border)" stroke-width="5.5" fill="none"/>
+            <circle cx="27" cy="27" r="21.3" stroke="var(--rm)" stroke-width="5.5" fill="none" stroke-linecap="round" stroke-dasharray="133.8" stroke-dashoffset="72.3"/>
+          </svg>
+          <div class="ring-mid"><span class="ring-num" style="color:var(--md)">46</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="wrap" aria-labelledby="heroTitle">
+  <div class="search-zone" id="search">
     <div class="search-card">
       <div class="search-row">
         <label class="search-field">
@@ -645,9 +787,9 @@
       <div class="allergen-row">
         <span class="allergen-label">Avoiding</span>
         <span class="allergen-chip on">🥜 Tree nuts &amp; peanuts</span>
-        <span class="allergen-chip locked" title="Coming soon">Sesame</span>
-        <span class="allergen-chip locked" title="Coming soon">Dairy</span>
-        <span class="allergen-chip locked" title="Coming soon">Gluten</span>
+        <button type="button" class="allergen-chip locked" disabled>Sesame<span class="soon">Soon</span></button>
+        <button type="button" class="allergen-chip locked" disabled>Dairy<span class="soon">Soon</span></button>
+        <button type="button" class="allergen-chip locked" disabled>Gluten<span class="soon">Soon</span></button>
       </div>
       <div class="allergen-row" role="group" aria-labelledby="sevLabel">
         <span class="allergen-label" id="sevLabel">How serious</span>
@@ -665,24 +807,7 @@
         <button type="button" class="allergen-chip cc" data-cc="strict" aria-pressed="false">Very careful</button>
       </div>
     </div>
-
-    <div class="trust-strip">
-      <span class="trust-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h6M8 16h4"/></svg>
-        Reads real menus
-      </span>
-      <span class="trust-sep" aria-hidden="true"></span>
-      <span class="trust-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-        Shows its evidence
-      </span>
-      <span class="trust-sep" aria-hidden="true"></span>
-      <span class="trust-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg>
-        Built to fail safe
-      </span>
-    </div>
-  </section>
+  </div>
 
   <section class="results hidden" id="results">
     <div class="results-bar">

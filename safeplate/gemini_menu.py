@@ -872,10 +872,14 @@ def _post_gemini_generate_content(
     }
     url = GEMINI_GENERATE_URL.format(model=model)
     bucket, semaphore = _gemini_governor()
+    from safeplate.timing import span
+
     try:
         with semaphore:
-            bucket.acquire()  # block just enough to stay under the per-second rate
-            response = http_post(url, data=body, headers=headers, timeout=90)
+            with span("gemini_throttle_wait"):
+                bucket.acquire()  # block just enough to stay under the per-second rate
+            with span("gemini_http"):
+                response = http_post(url, data=body, headers=headers, timeout=90)
     except HttpConnectionError as exc:
         raise GeminiMenuError(f"Gemini request failed: {exc}") from exc
 

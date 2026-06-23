@@ -5,6 +5,11 @@ PyMuPDF>=1.24.0
 pypdf>=4.0.0
 pdfplumber>=0.11.0
 
+# Optional: turbo extraction core (efficiency-first; async fetch + fast HTML/main-content parse).
+httpx>=0.27.0
+selectolax>=0.3.0
+trafilatura>=1.8.0
+
 # Optional: headless-browser rendering for JavaScript menus (fetch_mode=dynamic).
 # playwright>=1.40.0
 # Optional: render allergen-matrix PDFs to images for Gemini vision extraction.

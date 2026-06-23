@@ -98,10 +98,13 @@ def http_get(
                 _cache_store(cache_key, disk_cached)
             return disk_cached
 
-    if _HAS_REQUESTS:
-        response = _http_get_requests(url, user_agent=user_agent, timeout=timeout)
-    else:
-        response = _http_get_urllib(url, user_agent=user_agent, timeout=timeout)
+    from safeplate.timing import span
+
+    with span("http_get"):
+        if _HAS_REQUESTS:
+            response = _http_get_requests(url, user_agent=user_agent, timeout=timeout)
+        else:
+            response = _http_get_urllib(url, user_agent=user_agent, timeout=timeout)
 
     if cache_key is not None:
         with _CACHE_LOCK:
@@ -179,6 +182,8 @@ def clear_cache() -> None:
 def _http_get_requests(
     url: str, *, user_agent: str, timeout: float
 ) -> HttpResponse:
+    from safeplate.config import get_connect_timeout, get_max_download_bytes
+
     headers = {
         "User-Agent": user_agent,
         "Accept-Encoding": "gzip, deflate",
@@ -187,22 +192,51 @@ def _http_get_requests(
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
     }
+    # Split connect vs read: a short connect timeout fails fast on dead/blocking hosts
+    # (the common slow case) while the read timeout stays generous for real downloads.
     try:
-        response = _session().get(url, headers=headers, timeout=timeout)
+        response = _session().get(
+            url, headers=headers, timeout=(get_connect_timeout(), timeout), stream=True
+        )
     except requests.exceptions.RequestException as exc:  # type: ignore[union-attr]
         raise HttpConnectionError(f"Could not fetch {url}: {exc}") from exc
 
-    if response.status_code >= 400:
-        raise HttpError(
-            response.status_code,
-            f"HTTP {response.status_code} while fetching {url}",
+    try:
+        if response.status_code >= 400:
+            raise HttpError(
+                response.status_code,
+                f"HTTP {response.status_code} while fetching {url}",
+            )
+        # Stream with a size cap AND a TOTAL-time deadline. requests' read timeout is
+        # per socket-read, so a server that dribbles bytes can keep a connection alive
+        # far past it; enforce wall-clock here so one slow-trickle site can't eat the
+        # whole per-restaurant budget.
+        max_bytes = get_max_download_bytes()
+        deadline = time.monotonic() + timeout
+        chunks: list[bytes] = []
+        total = 0
+        try:
+            for chunk in response.iter_content(65536):
+                if not chunk:
+                    continue
+                chunks.append(chunk)
+                total += len(chunk)
+                if total >= max_bytes:
+                    break  # size cap
+                if time.monotonic() > deadline:
+                    raise HttpConnectionError(
+                        f"Read exceeded {timeout:.0f}s (slow trickle) for {url}"
+                    )
+        except requests.exceptions.RequestException as exc:  # type: ignore[union-attr]
+            raise HttpConnectionError(f"Could not fetch {url}: {exc}") from exc
+        return HttpResponse(
+            status=response.status_code,
+            final_url=response.url,
+            content=b"".join(chunks),
+            content_type=response.headers.get("Content-Type", ""),
         )
-    return HttpResponse(
-        status=response.status_code,
-        final_url=response.url,
-        content=response.content,
-        content_type=response.headers.get("Content-Type", ""),
-    )
+    finally:
+        response.close()
 
 
 def http_post(
