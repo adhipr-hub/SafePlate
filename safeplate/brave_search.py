@@ -5,12 +5,12 @@ from datetime import datetime, timezone
 import json
 import re
 import threading
-import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
+from safeplate.concurrency import TokenBucket as _TokenBucket
 from safeplate.menu_sources import (
     _dedupe_records,
     _evidence_grade,
@@ -24,35 +24,6 @@ from safeplate.schemas import MenuSourceRecord, RestaurantRecord
 
 
 BRAVE_WEB_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
-
-
-class _TokenBucket:
-    """Shared rate limiter. Hands out at most ``rate`` tokens per second across ALL
-    threads, allowing a short burst up to ``capacity``. ``acquire`` blocks just long
-    enough to stay under the rate -- the governor that keeps us off Brave's 429s
-    regardless of how fast individual queries return (a pure semaphore can't, since
-    fast/cached replies let many fire within one 1s window)."""
-
-    def __init__(self, rate: float, capacity: float | None = None) -> None:
-        self.rate = rate
-        self.capacity = capacity if capacity is not None else rate
-        self.tokens = self.capacity
-        self.updated = time.monotonic()
-        self.lock = threading.Lock()
-
-    def acquire(self) -> None:
-        while True:
-            with self.lock:
-                now = time.monotonic()
-                self.tokens = min(
-                    self.capacity, self.tokens + (now - self.updated) * self.rate
-                )
-                self.updated = now
-                if self.tokens >= 1:
-                    self.tokens -= 1
-                    return
-                wait = (1 - self.tokens) / self.rate
-            time.sleep(wait)  # sleep OUTSIDE the lock so other threads can refill-check
 
 
 # One shared bucket + concurrency semaphore for the whole process, built lazily from

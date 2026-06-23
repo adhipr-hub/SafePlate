@@ -9,6 +9,7 @@ import re
 import threading
 from typing import Any
 
+from safeplate.concurrency import TokenBucket
 from safeplate.http_client import HttpConnectionError, http_post
 from safeplate.coerce import float_value as _float_value
 from safeplate.coerce import int_value as _int_value
@@ -831,24 +832,27 @@ def _build_gemini_payload(
     }
 
 
-# Global ceiling on concurrent Gemini calls, shared by EVERY caller (menu text +
-# its parallel chunks, vision matrices, the list's per-restaurant extractions, the
-# discovery link-select). Without this, parallelizing chunks/sources would multiply
-# into the free-tier RPM wall that caused ~20% silent 429 failures earlier. Sized by
-# SAFEPLATE_GEMINI_CONCURRENCY (default 4); created lazily so config/env is read once.
+# Global governor shared by EVERY Gemini caller (menu text + its parallel chunks,
+# vision matrices, the list's per-restaurant extractions, the discovery link-select).
+# The SEMAPHORE caps in-flight calls (sockets/memory); the TOKEN BUCKET caps the call
+# RATE -- a semaphore alone can't, since a burst of calls that all back off on a 429
+# and retry together would re-trip the free-tier RPM wall (the documented cause of the
+# old ~20% silent failures). Both are sized from config and built lazily (env read once).
+_GEMINI_BUCKET: TokenBucket | None = None
 _GEMINI_SEM: threading.BoundedSemaphore | None = None
-_GEMINI_SEM_LOCK = threading.Lock()
+_GEMINI_GOVERNOR_LOCK = threading.Lock()
 
 
-def _gemini_semaphore() -> threading.BoundedSemaphore:
-    global _GEMINI_SEM
-    if _GEMINI_SEM is None:
-        with _GEMINI_SEM_LOCK:
-            if _GEMINI_SEM is None:
-                from safeplate.config import get_gemini_concurrency
+def _gemini_governor() -> tuple[TokenBucket, threading.BoundedSemaphore]:
+    global _GEMINI_BUCKET, _GEMINI_SEM
+    if _GEMINI_BUCKET is None or _GEMINI_SEM is None:
+        with _GEMINI_GOVERNOR_LOCK:
+            if _GEMINI_BUCKET is None or _GEMINI_SEM is None:
+                from safeplate.config import get_gemini_concurrency, get_gemini_rps
 
+                _GEMINI_BUCKET = TokenBucket(get_gemini_rps())
                 _GEMINI_SEM = threading.BoundedSemaphore(max(1, get_gemini_concurrency()))
-    return _GEMINI_SEM
+    return _GEMINI_BUCKET, _GEMINI_SEM
 
 
 def _post_gemini_generate_content(
@@ -867,8 +871,10 @@ def _post_gemini_generate_content(
         "x-goog-api-key": api_key,
     }
     url = GEMINI_GENERATE_URL.format(model=model)
+    bucket, semaphore = _gemini_governor()
     try:
-        with _gemini_semaphore():
+        with semaphore:
+            bucket.acquire()  # block just enough to stay under the per-second rate
             response = http_post(url, data=body, headers=headers, timeout=90)
     except HttpConnectionError as exc:
         raise GeminiMenuError(f"Gemini request failed: {exc}") from exc
@@ -917,6 +923,18 @@ def _normalize_for_grounding(text: str) -> str:
     return re.sub(r"\s+", "", text)
 
 
+def _collapse_for_grounding(text: str) -> str:
+    # Like _normalize_for_grounding but COLLAPSES whitespace to single spaces instead
+    # of stripping it, so word boundaries survive -- a short dish name can then match
+    # as a whole word rather than as a substring of an unrelated word.
+    text = (text or "").lower()
+    for curly, straight in (
+        ("“", '"'), ("”", '"'), ("‘", "'"), ("’", "'"),
+    ):
+        text = text.replace(curly, straight)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 _ELLIPSIS_RE = re.compile(r"\.\.\.|…")
 
 
@@ -940,16 +958,36 @@ def _is_quote_grounded(quote: str, normalized_source: str) -> bool:
     return _contains(_normalize_for_grounding(quote), normalized_source)
 
 
+def _name_grounded(name_raw: str, *, normalized_source: str, collapsed_source: str) -> bool:
+    # Primary: the dish name appears as a bounded word-run in the readable source, so
+    # "panini" does NOT ground inside "paninis" while "coffee" still does as a word.
+    collapsed_name = _collapse_for_grounding(name_raw)
+    if len(collapsed_name) >= 3 and re.search(
+        rf"(?<!\w){re.escape(collapsed_name)}(?!\w)", collapsed_source
+    ):
+        return True
+    # Fallback: the whitespace-stripped match defeats PDF letter-spacing, but only for
+    # names long enough that a coincidental substring collision is implausible.
+    stripped = _normalize_for_grounding(name_raw)
+    return len(stripped) >= 8 and _contains(stripped, normalized_source)
+
+
 def _is_record_grounded(
-    record: dict[str, Any], normalized_source: str, *, name_key: str | None
+    record: dict[str, Any],
+    normalized_source: str,
+    collapsed_source: str,
+    *,
+    name_key: str | None,
 ) -> bool:
     # For menu items, the dish name appearing in the source is the strongest
     # "this is a real item" signal (robust to quote reflow). Notes have no name,
     # so they rely on the quote alone.
-    if name_key:
-        name = _normalize_for_grounding(record.get(name_key, ""))
-        if len(name) >= 6 and _contains(name, normalized_source):
-            return True
+    if name_key and _name_grounded(
+        record.get(name_key, ""),
+        normalized_source=normalized_source,
+        collapsed_source=collapsed_source,
+    ):
+        return True
     return _is_quote_grounded(record.get("evidence_quote", ""), normalized_source)
 
 
@@ -970,12 +1008,13 @@ def drop_ungrounded_evidence(
     normalized_source = _normalize_for_grounding(source_text)
     if not normalized_source:
         return extraction
+    collapsed_source = _collapse_for_grounding(source_text)
 
     dropped_items = 0
     kept_items = []
     for item in extraction.get("menu_items", []):
         if isinstance(item, dict) and _is_record_grounded(
-            item, normalized_source, name_key="item_name"
+            item, normalized_source, collapsed_source, name_key="item_name"
         ):
             kept_items.append(item)
         else:
@@ -987,7 +1026,7 @@ def drop_ungrounded_evidence(
     kept_notes = []
     for note in extraction.get("restaurant_notes", []):
         if isinstance(note, dict) and _is_record_grounded(
-            note, normalized_source, name_key=None
+            note, normalized_source, collapsed_source, name_key=None
         ):
             kept_notes.append(note)
         else:

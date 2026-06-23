@@ -59,12 +59,16 @@ def run_restaurant_search(payload: dict[str, Any], *, demo_mode: bool = False) -
     limit = _bounded_int(payload.get("limit"), default=20, minimum=1, maximum=50)
     user_agent = get_user_agent()
     location_label, coordinates = _coordinates_from_payload(payload, user_agent)
-    rows = _fetch_rows_for_provider(
-        provider=provider,
-        coordinates=coordinates,
-        radius=radius,
-        limit=limit,
-        user_agent=user_agent,
+    rows = _with_deadline(
+        lambda: _fetch_rows_for_provider(
+            provider=provider,
+            coordinates=coordinates,
+            radius=radius,
+            limit=limit,
+            user_agent=user_agent,
+        ),
+        seconds=_PROVIDER_FETCH_BUDGET_S,
+        what="Finding nearby restaurants",
     )
 
     summary = build_quality_summary(
@@ -161,7 +165,11 @@ def _coordinates_from_payload(
     location = str(payload.get("location") or "").strip()
     if not location:
         raise ValueError("Enter a location or use browser location.")
-    return location, geocode_location(location, user_agent=user_agent)
+    return location, _with_deadline(
+        lambda: geocode_location(location, user_agent=user_agent),
+        seconds=_GEOCODE_BUDGET_S,
+        what="Geocoding the location",
+    )
 
 
 def _fetch_rows_for_provider(
@@ -280,6 +288,40 @@ _LIST_ASSESS_BUDGET_S = 22.0
 # keep the first load fast. Farther ones show the cuisine prior and upgrade to
 # menu-backed when opened. Tune up for more coverage at the cost of latency/spend.
 _LIST_MENU_BACKED_TOP_N = 12
+
+
+def _float_env(name: str, default: float) -> float:
+    try:
+        return max(1.0, float(os.environ.get(name) or default))
+    except (TypeError, ValueError):
+        return default
+
+
+# Wall-clock caps for the synchronous prior-fetch path. Each provider/geocoder call
+# already has a socket timeout, but a slow upstream (OSM cycling through its mirrors,
+# a hung geocoder) can still tie up a server thread far longer than a user will wait.
+# These bound how long the request blocks before failing cleanly.
+_GEOCODE_BUDGET_S = _float_env("SAFEPLATE_GEOCODE_BUDGET_S", 12.0)
+_PROVIDER_FETCH_BUDGET_S = _float_env("SAFEPLATE_PROVIDER_BUDGET_S", 25.0)
+
+
+def _with_deadline(fn, *, seconds: float, what: str):
+    """Run ``fn()`` with a wall-clock cap, raising a clean ValueError on overrun. The
+    orphaned worker thread finishes on its own (its socket timeout ends it); we just
+    stop waiting so the request returns instead of pinning the thread."""
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeout
+
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(fn)
+        try:
+            return future.result(timeout=seconds)
+        except _FuturesTimeout:
+            raise ValueError(
+                f"{what} timed out after ~{seconds:.0f}s. Please try again, or narrow the search."
+            )
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 def _row_distance(row: Any) -> float:

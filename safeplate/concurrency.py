@@ -1,10 +1,41 @@
 from __future__ import annotations
 
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Iterable, List, TypeVar
 
 T = TypeVar("T")
 R = TypeVar("R")
+
+
+class TokenBucket:
+    """Shared rate limiter. Hands out at most ``rate`` tokens per second across ALL
+    threads, allowing a short burst up to ``capacity``. ``acquire`` blocks just long
+    enough to stay under the rate -- the governor that keeps API callers off 429s
+    regardless of how fast individual calls return (a pure semaphore can't, since
+    fast/cached replies let many fire within one 1s window)."""
+
+    def __init__(self, rate: float, capacity: float | None = None) -> None:
+        self.rate = rate
+        self.capacity = capacity if capacity is not None else rate
+        self.tokens = self.capacity
+        self.updated = time.monotonic()
+        self.lock = threading.Lock()
+
+    def acquire(self) -> None:
+        while True:
+            with self.lock:
+                now = time.monotonic()
+                self.tokens = min(
+                    self.capacity, self.tokens + (now - self.updated) * self.rate
+                )
+                self.updated = now
+                if self.tokens >= 1:
+                    self.tokens -= 1
+                    return
+                wait = (1 - self.tokens) / self.rate
+            time.sleep(wait)  # sleep OUTSIDE the lock so other threads can refill-check
 
 
 def map_concurrent(

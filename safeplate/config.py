@@ -16,6 +16,13 @@ DEFAULT_FETCH_CONCURRENCY = 8
 # safe with headroom. A free-tier key may see 429s here -- it retries/backs off, so it
 # degrades rather than breaks; lower SAFEPLATE_GEMINI_CONCURRENCY if you're free-tier.
 DEFAULT_GEMINI_CONCURRENCY = 12
+# Token-bucket request rate (calls/sec) for Gemini, in addition to the concurrency
+# semaphore. A semaphore caps in-flight calls but NOT calls-per-window, so when a
+# burst of calls all back off on a 429 and retry together they can re-trip the
+# free-tier RPM wall (the documented cause of the old ~20% silent failures). Default
+# 12/s ~= the concurrency cap at ~1s/call, so it never throttles a paid key in steady
+# state; free-tier keys should lower SAFEPLATE_GEMINI_RPS (e.g. 0.25 for 15 RPM).
+DEFAULT_GEMINI_RPS = 12.0
 
 # Brave Search API rate governance. The paid plan caps at 50 queries/sec; we target
 # 80% of that with a token bucket so burst/jitter (Brave counts per 1s window) can't
@@ -73,6 +80,13 @@ def get_gemini_concurrency() -> int:
     """Max parallel Gemini calls (global semaphore). Default 12; override with
     SAFEPLATE_GEMINI_CONCURRENCY (raise on a paid key, lower on free tier)."""
     return _positive_int_env("SAFEPLATE_GEMINI_CONCURRENCY", DEFAULT_GEMINI_CONCURRENCY)
+
+
+def get_gemini_rps() -> float:
+    """Token-bucket refill rate (calls/sec) for Gemini, paired with the concurrency
+    semaphore so a retry burst can't re-trip the per-minute rate wall. Default 12/s;
+    lower SAFEPLATE_GEMINI_RPS on a free-tier key (e.g. 0.25 for a 15 RPM quota)."""
+    return _positive_float_env("SAFEPLATE_GEMINI_RPS", DEFAULT_GEMINI_RPS)
 
 
 def get_brave_rps() -> float:
