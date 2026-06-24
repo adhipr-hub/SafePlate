@@ -99,6 +99,18 @@ def _interpret_one(
 
     structured = interpret_structured(payload)
 
+    def run_llm() -> tuple[bool, list[MenuItemRecord], bool, int]:
+        if not llm_enabled:
+            return False, [], False, 0
+        try:
+            items, incomplete, calls = interpret_llm.interpret_text(
+                payload, api_key=api_key, model=model
+            )
+        except interpret_llm.LLMNotEnabled:
+            return False, [], False, 0
+        kept, _dropped = verify(items, payload, require_grounding=True)
+        return True, kept, incomplete, calls
+
     # Allergen-matrix PDFs whose grid pdfplumber can't read (rotated/icon headers,
     # the norm for big chains): recover the dish x allergen grid with Gemini vision.
     # High value for a safety app, so it runs before the plain text interpreter.
@@ -113,19 +125,16 @@ def _interpret_one(
         except interpret_llm.LLMNotEnabled:
             matrix = []
         if matrix:
-            return matrix, "gemini_pdf_matrix", "", 1, False
-
-    def run_llm() -> tuple[bool, list[MenuItemRecord], bool, int]:
-        if not llm_enabled:
-            return False, [], False, 0
-        try:
-            items, incomplete, calls = interpret_llm.interpret_text(
-                payload, api_key=api_key, model=model
-            )
-        except interpret_llm.LLMNotEnabled:
-            return False, [], False, 0
-        kept, _dropped = verify(items, payload, require_grounding=True)
-        return True, kept, incomplete, calls
+            # The vision matrix read is built for grids and UNDER-extracts a TEXT-based
+            # allergen/ingredient PDF (Pressed: 22 of ~117 products). Also run the text
+            # LLM and UNION: the matrix's allergen-bearing rows win on dedupe, so the
+            # full catalog is recovered WITHOUT losing any allergen data (no tier
+            # regression). On an image-only matrix PDF the text is empty, so run_llm
+            # returns nothing and this collapses to matrix-only at zero extra cost.
+            ran, llm_items, incomplete, calls = run_llm()
+            merged = _union(matrix, llm_items)
+            label = "gemini_pdf_matrix+text" if llm_items else "gemini_pdf_matrix"
+            return merged, label, "", (1 + calls), incomplete
 
     if policy == Policy.HYBRID:
         if structured:
