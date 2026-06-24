@@ -25,6 +25,7 @@ from typing import Any, Sequence
 
 from safeplate.allergen_prior import (
     NUTS,
+    cuisines_for,
     labeling_trust_for_region,
     normalize_cuisine,
     region_from_address,
@@ -196,6 +197,7 @@ def score_restaurant_with_llm(
     signals: RestaurantSignals | None = None,
     community: Sequence[CommunitySignal] | None = None,
     official_domain: str | None = None,
+    name: str | None = None,
     api_key: str | None = None,
     model: str | None = None,
 ) -> UserAllergenAssessment:
@@ -217,7 +219,7 @@ def score_restaurant_with_llm(
     severity = profile.allergens[0].severity
     bundle = _build_bundle(
         profile=profile, cuisines=cuisines or [], region=region, det=det,
-        signals=signals, community=community, menu_items=menu_items,
+        signals=signals, community=community, menu_items=menu_items, name=name,
     )
     try:
         llm = _call_llm_scorer(
@@ -239,7 +241,8 @@ def assess_restaurant_record_with_llm(
     api_key: str | None = None,
     model: str | None = None,
 ) -> UserAllergenAssessment:
-    cuisines = normalize_cuisine(getattr(record, "categories", None) or [])
+    name = getattr(record, "name", None)
+    cuisines = cuisines_for(getattr(record, "categories", None) or [], name)
     region = region_from_address(
         getattr(record, "address", None),
         latitude=getattr(record, "latitude", None),
@@ -249,7 +252,7 @@ def assess_restaurant_record_with_llm(
         profile, cuisines=cuisines, region=region, menu_items=menu_items,
         signals=signals, community=community,
         official_domain=_domain_of(getattr(record, "website_url", None)),
-        api_key=api_key, model=model,
+        name=name, api_key=api_key, model=model,
     )
 
 
@@ -294,7 +297,7 @@ def score_restaurants_with_llm_batch(
             profile=profile, cuisines=req.get("cuisines") or [],
             region=req.get("region", "unknown"), det=det,
             signals=req.get("signals"), community=req.get("community"),
-            menu_items=req.get("menu_items"),
+            menu_items=req.get("menu_items"), name=req.get("name"),
         )
 
     out: dict[str, UserAllergenAssessment] = dict(dets)  # default to deterministic
@@ -353,6 +356,7 @@ def _build_bundle(
     signals: RestaurantSignals | None,
     community: Sequence[CommunitySignal] | None,
     menu_items: Sequence[Any] | None,
+    name: str | None = None,
 ) -> dict[str, Any]:
     """Build ONE restaurant's bundle, routed by label coverage:
       - 'labeled'  -> a `chart_summary` (authoritative per-item counts); no raw menu.
@@ -372,8 +376,9 @@ def _build_bundle(
         evidence.append({"id": f"E{len(evidence) + 1}", "type": typ, "text": text, **extra})
 
     add("cuisine",
-        f"Cuisine(s): {', '.join(cuisines) or 'unknown'}; region {region}; "
-        f"allergen-labeling trust {labeling_trust_for_region(region):.2f}.")
+        (f'Restaurant name: "{name}". ' if name else "")
+        + f"Cuisine(s): {', '.join(cuisines) or 'unknown — infer the likely cuisine from the name'}; "
+        + f"region {region}; allergen-labeling trust {labeling_trust_for_region(region):.2f}.")
     if signals:
         for label, val in (
             ("allergy disclaimer / allergy-aware", signals.allergy_disclaimer),

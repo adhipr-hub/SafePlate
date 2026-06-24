@@ -1189,13 +1189,32 @@ function sortRows(rows) {
 /* ── perceived-speed: in-place progressive upgrades ── */
 function cardNode(r) { return document.querySelector(`.rcard[data-i="${state.rows.indexOf(r)}"]`); }
 
+/* Cuisine chips for a card: prefer the scorer's canonical cuisines, else fall back
+   to provider categories — but drop generic place-types ("restaurant", "meal
+   takeaway") and de-duplicate, so a card never shows "Restaurant · Restaurant". */
+const _GENERIC_TYPE = new Set([
+  "restaurant","food","establishment","point of interest","meal takeaway",
+  "meal delivery","store","grocery or supermarket","premise","general","business",
+]);
+function cuisineTags(r) {
+  const p = r.allergenPrior||{};
+  const raw = p.cuisines?.length ? p.cuisines : (r.categories||[]).map(c=>String(c).split(":").pop());
+  const seen = new Set(), out = [];
+  for (const c of raw) {
+    const label = cap(c), key = label.toLowerCase();
+    if (!label || _GENERIC_TYPE.has(key) || seen.has(key)) continue;
+    seen.add(key); out.push(label);
+  }
+  return out.slice(0,2);
+}
+
 /* The inner HTML of one result card (everything inside <article>). Shared by the
    full render and the in-place upgrade so an upgraded card matches a fresh one exactly. */
 function cardMarkup(r) {
   const p = r.allergenPrior||{risk:0.3};
   const risk = p.risk;
   const coverage = r.coverageStatus||(r.menuBackedRisk?.isMenuBacked?"menu_backed":"cuisine_estimate");
-  const cz = (p.cuisines?.length?p.cuisines:(r.categories||[]).map(c=>c.split(":").pop())).slice(0,2);
+  const cz = cuisineTags(r);
   const dist = r.distance_meters
     ? (r.distance_meters<1000?Math.round(r.distance_meters)+" m":(r.distance_meters/1000).toFixed(1)+" km")
     : "";
@@ -1208,7 +1227,7 @@ function cardMarkup(r) {
         <div class="card-info">
           <div class="card-name">${esc(r.name)}</div>
           <div class="card-meta">${metaParts.join('<span class="meta-sep">·</span>')}</div>
-          <div class="card-tags">${cz.map(c=>`<span class="ctag">${esc(cap(c))}</span>`).join("")}</div>
+          <div class="card-tags">${cz.map(c=>`<span class="ctag">${esc(c)}</span>`).join("")}</div>
           <div class="card-badges">
             ${p.tier?`<span class="cbadge" style="border-color:${textClr(risk)};color:${textClr(risk)}">${({likely_ok:"Likely OK",caution:"Caution",avoid:"Avoid"}[p.tier])||""}</span>`:""}
             ${pvchip(provenanceTier(p.basis, coverage))}

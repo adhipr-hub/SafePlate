@@ -238,6 +238,7 @@ def _restaurant_payload(row: Any, *, severity: str = "allergy") -> dict[str, Any
     language. Used for the farther/degraded cards; opening one runs the full
     extraction and upgrades it to menu-backed."""
     from safeplate.allergen_prior import (
+        infer_cuisine_from_name,
         normalize_cuisine,
         region_from_address,
         score_restaurant_prior,
@@ -247,6 +248,12 @@ def _restaurant_payload(row: Any, *, severity: str = "allergy") -> dict[str, Any
     payload = asdict(row)
     payload["categories"] = row.categories
     cuisines = normalize_cuisine(row.categories)
+    # No cuisine in the provider categories (often just "restaurant")? Infer one
+    # from the name so the card and the prior aren't stuck on the bare default.
+    name_inferred_cuisine = False
+    if not cuisines:
+        cuisines = infer_cuisine_from_name(getattr(row, "name", None))
+        name_inferred_cuisine = bool(cuisines)
     region = region_from_address(
         row.address, latitude=row.latitude, longitude=row.longitude
     )
@@ -268,6 +275,11 @@ def _restaurant_payload(row: Any, *, severity: str = "allergy") -> dict[str, Any
         "cuisines": cuisines,
         "region": region,
     }
+    if name_inferred_cuisine:
+        payload["allergenPrior"]["rationale"] = [
+            *payload["allergenPrior"]["rationale"],
+            f"cuisine inferred from the name “{row.name}” (no cuisine in listing data)",
+        ]
     payload["coverageStatus"] = "cuisine_estimate"
     if isinstance(row.raw_payload, dict) and row.raw_payload.get("demo_scenario"):
         payload["demoScenario"] = row.raw_payload["demo_scenario"]
@@ -415,7 +427,8 @@ def _build_search_cards(
             {"id": str(i), "profile": ctx["profile"], "cuisines": ctx["cuisines"],
              "region": ctx["region"], "menu_items": ctx["menu_items"],
              "signals": ctx["signals"], "community": ctx.get("community"),
-             "official_domain": ctx["official_domain"]}
+             "official_domain": ctx["official_domain"],
+             "name": ctx.get("rebuild", {}).get("name")}
             for i, ctx in contexts.items()
         ]
         try:

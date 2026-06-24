@@ -208,9 +208,9 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     longitude = _optional_float(payload.get("longitude"))
     # Derive cuisines/region once and reuse for both the extraction-stage score and
     # the community re-score below, instead of each call re-deriving them.
-    from safeplate.allergen_prior import normalize_cuisine, region_from_address
+    from safeplate.allergen_prior import cuisines_for, region_from_address
 
-    cuisines = normalize_cuisine(categories)
+    cuisines = cuisines_for(categories, restaurant_name)
     region = region_from_address(address, latitude=latitude, longitude=longitude)
     assessment, menu_items, allergy_signals, coverage, errors = _extract_and_assess_structured(
         name=restaurant_name,
@@ -430,7 +430,7 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
     not per restaurant -- so this also returns a re-scoring context (inputs + the bits
     needed to rewrite the card with the batched assessment), or ``None`` for rules."""
     from safeplate.allergen_prior import (
-        normalize_cuisine,
+        cuisines_for,
         region_from_address,
         score_restaurant_prior,
     )
@@ -438,7 +438,7 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
 
     payload = asdict(row)
     payload["categories"] = row.categories
-    cuisines = normalize_cuisine(row.categories)
+    cuisines = cuisines_for(row.categories, str(row.name or "").strip())
     region = region_from_address(
         row.address, latitude=row.latitude, longitude=row.longitude
     )
@@ -597,12 +597,12 @@ def _menu_backed_nut_risk(
     restaurant_payload: dict[str, Any],
     menu_items: list[Any],
 ) -> dict[str, Any]:
-    from safeplate.allergen_prior import normalize_cuisine
+    from safeplate.allergen_prior import cuisines_for
     from safeplate.allergen_prior import region_from_address
     from safeplate.allergen_prior import restaurant_nut_risk
 
     categories = _string_list(restaurant_payload.get("categories"))
-    cuisines = normalize_cuisine(categories)
+    cuisines = cuisines_for(categories, str(restaurant_payload.get("name") or ""))
     latitude = _optional_float(restaurant_payload.get("latitude"))
     longitude = _optional_float(restaurant_payload.get("longitude"))
     region = region_from_address(

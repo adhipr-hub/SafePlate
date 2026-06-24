@@ -604,6 +604,88 @@ def _cuisine_tokens(raw: str) -> list[str]:
     return tokens
 
 
+# --------------------------------------------------------------------------- #
+# Name-based cuisine inference: when a provider only gives a generic place type
+# ("restaurant", "meal_takeaway"), a distinctive word in the restaurant's NAME is
+# often the only cuisine signal we have. Deterministic and free, like the rest of
+# this layer. Whole-word matched on the lowercased name; values are canonical
+# CUISINE_NUT_BASELINE keys. A name cue is a weak signal, so the prior it yields is
+# still a low-confidence cuisine_baseline -- it cannot fabricate menu evidence.
+# --------------------------------------------------------------------------- #
+NAME_CUISINE_HINTS: dict[str, str] = {
+    # Japanese
+    "sushi": "japanese", "ramen": "japanese", "izakaya": "japanese",
+    "yakitori": "japanese", "teriyaki": "japanese", "donburi": "japanese",
+    "udon": "japanese", "soba": "japanese", "omakase": "japanese",
+    # Vietnamese / Thai
+    "pho": "vietnamese", "banh mi": "vietnamese",
+    "thai": "thai", "pad thai": "thai", "tom yum": "thai",
+    # Italian
+    "pizzeria": "italian", "trattoria": "italian", "osteria": "italian",
+    "ristorante": "italian", "pizza": "italian", "pasta": "italian",
+    # Mexican
+    "taqueria": "mexican", "cantina": "mexican", "burrito": "mexican",
+    "taco": "mexican", "tacos": "mexican", "mexican": "mexican",
+    # Indian (incl. sweets/mithai -- cashew/pistachio heavy)
+    "tandoor": "indian", "tandoori": "indian", "biryani": "indian",
+    "masala": "indian", "tikka": "indian", "dosa": "indian", "chaat": "indian",
+    "curry": "indian", "punjabi": "indian", "mithai": "indian", "indian": "indian",
+    # Middle Eastern / Mediterranean
+    "kebab": "middle_eastern", "shawarma": "middle_eastern",
+    "falafel": "middle_eastern", "hummus": "middle_eastern", "gyro": "middle_eastern",
+    "mediterranean": "mediterranean", "greek": "mediterranean", "souvlaki": "mediterranean",
+    # Chinese / pan-Asian
+    "dim sum": "chinese", "szechuan": "chinese", "sichuan": "chinese",
+    "wok": "chinese", "dumpling": "chinese", "dumplings": "chinese", "chinese": "chinese",
+    "noodle": "asian", "noodles": "asian",
+    # Korean
+    "korean": "korean", "bulgogi": "korean", "kimchi": "korean",
+    # BBQ
+    "bbq": "bbq", "barbecue": "bbq", "smokehouse": "bbq",
+    # Sweet / baked
+    "gelato": "ice_cream", "creamery": "ice_cream", "ice cream": "ice_cream",
+    "patisserie": "bakery", "boulangerie": "bakery", "bakery": "bakery",
+    "bakehouse": "bakery", "bakeshop": "bakery", "donut": "bakery",
+    "donuts": "bakery", "doughnut": "bakery", "doughnuts": "bakery",
+    "sweets": "dessert", "candy": "dessert", "confectionery": "dessert",
+    # Cafe / French
+    "cafe": "cafe", "café": "cafe", "coffee": "cafe", "espresso": "cafe",
+    "teahouse": "cafe", "boba": "cafe",
+    "bistro": "french", "brasserie": "french", "creperie": "french", "crêperie": "french",
+    # Others
+    "tapas": "spanish", "poke": "hawaiian", "ceviche": "peruvian", "peruvian": "peruvian",
+    "churrasco": "brazilian", "churrascaria": "brazilian",
+    "ethiopian": "ethiopian", "seafood": "seafood", "oyster": "seafood",
+    "diner": "american", "steakhouse": "american", "burger": "american", "deli": "american",
+    "vegan": "vegan", "plant based": "vegan", "plant-based": "vegan", "vegetarian": "vegetarian",
+}
+
+
+def infer_cuisine_from_name(name: str | None) -> list[str]:
+    """Best-effort canonical cuisines from a restaurant NAME, used only when the
+    provider categories carry no cuisine signal. Whole-word matched and order-
+    preserving. Returns ``[]`` when nothing distinctive is found."""
+    text = _normalize(name or "")
+    if not text:
+        return []
+    found: list[str] = []
+    for cue, canonical in NAME_CUISINE_HINTS.items():
+        if canonical in found:
+            continue
+        if re.search(r"\b" + re.escape(cue) + r"\b", text):
+            found.append(canonical)
+    return found
+
+
+def cuisines_for(categories: list[str] | None, name: str | None = None) -> list[str]:
+    """Canonical cuisines from provider categories, falling back to name inference
+    when the categories carry no cuisine signal (e.g. only 'restaurant')."""
+    cuisines = normalize_cuisine(categories)
+    if not cuisines and name:
+        cuisines = infer_cuisine_from_name(name)
+    return cuisines
+
+
 # Coarse country bounding boxes (lat_min, lat_max, lon_min, lon_max). Used ONLY as a
 # fallback when the address string can't resolve a country -- enough to pick the right
 # allergen-labeling/absence-inference region (country granularity), not exact borders.
