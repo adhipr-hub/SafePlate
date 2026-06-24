@@ -257,6 +257,24 @@
     }
     @keyframes upgpulse { 0%,100%{opacity:.3} 50%{opacity:1} }
 
+    /* ── perceived-speed: progressive load ── */
+    .prog { display: flex; align-items: center; gap: 12px; margin: 2px 0 14px; }
+    .prog.hidden { display: none; }
+    .prog-track { flex: 1; height: 4px; border-radius: var(--pill); background: var(--border); overflow: hidden; }
+    .prog-fill { height: 100%; width: 0; border-radius: var(--pill); background: var(--brand-grad);
+      transition: width .5s cubic-bezier(.22,.9,.22,1); }
+    .prog.done .prog-fill { background: var(--g1); }
+    .prog-label { font-size: 12.5px; font-weight: 600; color: var(--tx2); white-space: nowrap;
+      font-variant-numeric: tabular-nums; }
+    /* a card just confirmed to a menu-backed score — calm green settle (border eases via the .rcard transition) */
+    .rcard.upgraded { border-color: var(--g1); box-shadow: var(--e2); }
+    /* a card awaiting its menu — gentle stripe pulse marks localized work */
+    .rcard.is-reading .card-stripe { animation: stripePulse 1.15s ease-in-out infinite; }
+    @keyframes stripePulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    /* provenance chip pops when its evidence upgrades */
+    .pvchip.pop { animation: chipPop .5s ease; }
+    @keyframes chipPop { 0% { transform: scale(.82); } 55% { transform: scale(1.09); } 100% { transform: scale(1); } }
+
     /* ─── Card grid ─── */
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; }
 
@@ -824,6 +842,10 @@
         <button class="modebtn" data-mode="progressive">Progressive</button>
       </div>
     </div>
+    <div class="prog hidden" id="progStrip">
+      <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+      <span class="prog-label" id="progLabel"></span>
+    </div>
     <div class="grid" id="grid"></div>
     <p class="disclaimer">SafePlate estimates risk from menu evidence, cuisine, and location. It is not a medical guarantee. Always confirm with the restaurant before ordering with a serious allergy.</p>
   </section>
@@ -1041,6 +1063,7 @@ async function search(opts={}) {
   btn.textContent = state.progressive ? "Finding places…" : "Reading menus…";
   $("#landingExtra").classList.add("hidden");   // hide marketing once searching
   $("#results").classList.remove("hidden");
+  hideProg();   // clear any progress bar from a previous search
   $("#grid").innerHTML = Array.from({length:6}).map(()=>`
     <div class="skel">
       <div class="skel-stripe"></div>
@@ -1087,14 +1110,17 @@ async function upgradeCardsProgressive(seq) {
     .filter(r => (r.coverageStatus||"cuisine_estimate")!=="menu_backed")
     .slice(0, _PROG_UPGRADE_N);
   if (!targets.length) return;
-  targets.forEach(r => r._upgrading = true);
-  renderResults();
+  markReading(targets);
+  let _done = 0;
+  startProg(targets.length, seq);
 
   let idx = 0;
   async function worker() {
     while (idx < targets.length) {
       if (seq !== _searchSeq) return;     // a newer search/toggle superseded this run
       const r = targets[idx++];
+      const prevRisk = r.allergenPrior?.risk;   // the estimate, before we overlay the menu-backed score
+      let landed = false;
       try {
         const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine].join("|");
         let m = _menuCache.get(key);
@@ -1119,12 +1145,20 @@ async function upgradeCardsProgressive(seq) {
             scoringEngine: summary.scoringEngine,
           });
           r.menuDetail = m;   // embed -> opening the drawer is instant
+          landed = true;
         }
       } catch { /* leave this card as a cuisine estimate */ }
-      finally { r._upgrading = false; if (seq===_searchSeq) renderResults(); }
+      finally {
+        r._upgrading = false;
+        if (seq===_searchSeq) {
+          landed ? applyUpgrade(r, prevRisk) : clearReading(r);  // swap one card in place — no full re-render
+          tickProg(++_done, targets.length, seq);
+        }
+      }
     }
   }
   await Promise.all(Array.from({length:_PROG_CONCURRENCY}, worker));
+  endProg(seq);
 }
 
 /* ── geo ── */
@@ -1152,29 +1186,24 @@ function sortRows(rows) {
   });
 }
 
-function renderResults() {
-  const rows = sortRows(state.rows);
-  const n = rows.length;
-  $("#resCount").textContent = `${n} place${n!==1?"s":""}`;
-  $("#resWhere").textContent = state.where ? `near ${state.where}` : "";
-  if (!n) {
-    $("#grid").innerHTML = `<div class="empty-msg" style="grid-column:1/-1"><p>No restaurants found here.</p></div>`;
-    return;
-  }
-  $("#grid").innerHTML = rows.map((r,i) => {
-    const p = r.allergenPrior||{risk:0.3};
-    const risk = p.risk;
-    const coverage = r.coverageStatus||(r.menuBackedRisk?.isMenuBacked?"menu_backed":"cuisine_estimate");
-    const cz = (p.cuisines?.length?p.cuisines:(r.categories||[]).map(c=>c.split(":").pop())).slice(0,2);
-    const dist = r.distance_meters
-      ? (r.distance_meters<1000?Math.round(r.distance_meters)+" m":(r.distance_meters/1000).toFixed(1)+" km")
-      : "";
-    const conf = p.confidence!=null?Math.round(p.confidence*100)+"%":"";
-    const metaParts=[];
-    if (r.rating) metaParts.push(`<span class="rating" aria-label="Rated ${r.rating} out of 5${r.review_count?`, ${r.review_count} reviews`:""}"><span class="star" aria-hidden="true">★</span> ${r.rating}${r.review_count?` (${r.review_count})`:""}</span>`);
-    if (dist) metaParts.push(dist);
-    return `<article class="rcard" tabindex="0" role="button" aria-label="${esc(r.name)} — ${riskWord(risk)} for nuts. View details." style="animation-delay:${i*32}ms" data-i="${state.rows.indexOf(r)}">
-      <div class="card-stripe" style="background:${stripeClr(risk)}"></div>
+/* ── perceived-speed: in-place progressive upgrades ── */
+function cardNode(r) { return document.querySelector(`.rcard[data-i="${state.rows.indexOf(r)}"]`); }
+
+/* The inner HTML of one result card (everything inside <article>). Shared by the
+   full render and the in-place upgrade so an upgraded card matches a fresh one exactly. */
+function cardMarkup(r) {
+  const p = r.allergenPrior||{risk:0.3};
+  const risk = p.risk;
+  const coverage = r.coverageStatus||(r.menuBackedRisk?.isMenuBacked?"menu_backed":"cuisine_estimate");
+  const cz = (p.cuisines?.length?p.cuisines:(r.categories||[]).map(c=>c.split(":").pop())).slice(0,2);
+  const dist = r.distance_meters
+    ? (r.distance_meters<1000?Math.round(r.distance_meters)+" m":(r.distance_meters/1000).toFixed(1)+" km")
+    : "";
+  const conf = p.confidence!=null?Math.round(p.confidence*100)+"%":"";
+  const metaParts=[];
+  if (r.rating) metaParts.push(`<span class="rating" aria-label="Rated ${r.rating} out of 5${r.review_count?`, ${r.review_count} reviews`:""}"><span class="star" aria-hidden="true">★</span> ${r.rating}${r.review_count?` (${r.review_count})`:""}</span>`);
+  if (dist) metaParts.push(dist);
+  return `<div class="card-stripe" style="background:${stripeClr(risk)}"></div>
       <div class="card-body">
         <div class="card-info">
           <div class="card-name">${esc(r.name)}</div>
@@ -1192,9 +1221,92 @@ function renderResults() {
           <div class="risk-word" style="color:${textClr(risk)}">${riskWord(risk)}</div>
           ${conf?`<div class="risk-conf">${conf} conf.</div>`:""}
         </div>
-      </div>
-    </article>`;
-  }).join("");
+      </div>`;
+}
+
+/* Ease a number from -> to (ms), ease-out-cubic. */
+function countUp(el, from, to, ms) {
+  if (from===to) { el.textContent = to; return; }
+  const t0 = performance.now();
+  (function step(t){
+    const k = Math.min(1,(t-t0)/ms), e = 1-Math.pow(1-k,3);
+    el.textContent = Math.round(from+(to-from)*e);
+    if (k<1) requestAnimationFrame(step);
+  })(t0);
+}
+
+/* Mark target cards as "reading" (stripe pulse + chip) without a full re-render. */
+function markReading(targets) {
+  targets.forEach(r => { r._upgrading = true; const el = cardNode(r); if (el) { el.innerHTML = cardMarkup(r); el.classList.add("is-reading"); } });
+}
+function clearReading(r) { const el = cardNode(r); if (el) { el.classList.remove("is-reading"); el.innerHTML = cardMarkup(r); } }
+
+/* Swap one card to its menu-backed score in place: tween the ring from the
+   estimate to the confirmed value, count the number up, pop the provenance chip,
+   and flash a calm green confirm — instead of re-rendering (and re-animating +
+   re-sorting) the whole grid on every upgrade. */
+function applyUpgrade(r, prevRisk) {
+  const el = cardNode(r);
+  if (!el) return;
+  el.classList.remove("is-reading");
+  const newRisk = r.allergenPrior?.risk ?? prevRisk ?? 0.3;
+  el.innerHTML = cardMarkup(r);
+  el.setAttribute("aria-label", `${r.name} — ${riskWord(newRisk)} for nuts. View details.`);
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduce && prevRisk!=null) {
+    const R = 56*0.395, C = 2*Math.PI*R;
+    const circ = el.querySelector(".card-risk .ring svg circle:last-of-type");
+    if (circ) {
+      circ.style.transition = "none";
+      circ.style.strokeDashoffset = (C*(1-prevRisk)).toFixed(1);   // start at the estimate
+      void circ.getBoundingClientRect();                            // commit before re-enabling transition
+      circ.style.transition = "stroke-dashoffset .7s cubic-bezier(.22,.9,.22,1)";
+      requestAnimationFrame(() => { circ.style.strokeDashoffset = (C*(1-newRisk)).toFixed(1); });
+    }
+    const numEl = el.querySelector(".ring-num");
+    if (numEl) countUp(numEl, Math.round(prevRisk*100), Math.round(newRisk*100), 700);
+    const chip = el.querySelector(".pvchip"); if (chip) chip.classList.add("pop");
+  }
+  el.classList.add("upgraded");
+  setTimeout(() => el.classList.remove("upgraded"), 850);
+}
+
+/* Determinate progress for the progressive fill — a finishing bar feels faster
+   than an open-ended spinner. Guarded by seq so a superseded run can't paint. */
+function startProg(total, seq) {
+  if (seq!==_searchSeq) return;
+  const s = $("#progStrip"); clearTimeout(s._t);
+  s.classList.remove("hidden","done");
+  $("#progFill").style.width = "0%";
+  $("#progLabel").textContent = "Reading nearby menus…";
+}
+function tickProg(done, total, seq) {
+  if (seq!==_searchSeq) return;
+  $("#progFill").style.width = Math.round(done/total*100)+"%";
+  $("#progLabel").textContent = done>=total ? "Finishing…" : `Reading nearby menus · ${done}/${total}`;
+}
+function endProg(seq) {
+  if (seq!==_searchSeq) return;
+  const s = $("#progStrip");
+  $("#progFill").style.width = "100%";
+  $("#progLabel").textContent = "✓ Menus updated";
+  s.classList.add("done");
+  clearTimeout(s._t); s._t = setTimeout(() => s.classList.add("hidden"), 1500);
+}
+function hideProg() { const s = $("#progStrip"); if (s) { clearTimeout(s._t); s.classList.add("hidden"); } }
+
+function renderResults() {
+  const rows = sortRows(state.rows);
+  const n = rows.length;
+  $("#resCount").textContent = `${n} place${n!==1?"s":""}`;
+  $("#resWhere").textContent = state.where ? `near ${state.where}` : "";
+  if (!n) {
+    $("#grid").innerHTML = `<div class="empty-msg" style="grid-column:1/-1"><p>No restaurants found here.</p></div>`;
+    return;
+  }
+  $("#grid").innerHTML = rows.map((r,i) =>
+    `<article class="rcard" tabindex="0" role="button" aria-label="${esc(r.name)} — ${riskWord(r.allergenPrior?.risk??0.3)} for nuts. View details." style="animation-delay:${i*32}ms" data-i="${state.rows.indexOf(r)}">${cardMarkup(r)}</article>`
+  ).join("");
   document.querySelectorAll(".rcard").forEach(el=>{
     const open = () => openDetail(state.rows[+el.dataset.i]);
     el.onclick = open;
