@@ -29,6 +29,7 @@ from safeplate.extraction2.interpret_llm import DEFAULT_MODEL, _call_with_retry
 from safeplate.gemini_menu import GeminiMenuError
 from safeplate.page_fetch import PageFetchError, fetch_html_page
 from safeplate.soup import make_soup
+from safeplate.textutil import registrable_domain
 
 RELEVANT_KINDS = ("allergen", "allergy_info", "nutrition", "menu")
 _KIND_PRIORITY = {"allergen": 0, "allergy_info": 1, "nutrition": 2, "menu": 3}
@@ -686,12 +687,6 @@ def discover_and_extract(
     return candidates, result
 
 
-_TWO_LEVEL_TLDS = {
-    "co.uk", "org.uk", "com.au", "net.au", "co.nz", "co.jp", "com.br", "co.za",
-    "com.sg", "co.in", "com.mx", "co.kr", "com.hk", "com.tw",
-}
-
-
 def _normalize_cache_url(url: str) -> str:
     """Cache key normalization: drop query/fragment + trailing slash and lowercase the
     host, so the SAME page cached under tracking params (a provider's
@@ -723,19 +718,9 @@ def _mentions_nut_free(text: str) -> bool:
     ))
 
 
-def _registrable_domain(host: str) -> str:
-    """eTLD+1 (approx) so subdomains of the SAME site count as on-site:
-    orders.lazydogrestaurants.com -> lazydogrestaurants.com. Handles common
-    two-level TLDs (co.uk etc.)."""
-    host = (host or "").lower().split(":")[0]
-    if host.startswith("www."):
-        host = host[4:]
-    labels = [seg for seg in host.split(".") if seg]
-    if len(labels) <= 2:
-        return ".".join(labels)
-    if ".".join(labels[-2:]) in _TWO_LEVEL_TLDS:
-        return ".".join(labels[-3:])
-    return ".".join(labels[-2:])
+# Shared canonical eTLD+1 helper (re-exported under the old private name so existing
+# callers/tests are unchanged).
+_registrable_domain = registrable_domain
 
 
 def _seed_urls(website_url: str) -> list[str]:

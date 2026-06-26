@@ -21,6 +21,7 @@ from safeplate.menu_sources import (
 from safeplate.page_fetch import PageFetchError, fetch_html_page
 from safeplate.soup import make_soup
 from safeplate.schemas import MenuSourceRecord, RestaurantRecord
+from safeplate.textutil import registrable_domain as _registrable_domain
 
 
 BRAVE_WEB_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
@@ -801,11 +802,6 @@ def _host_without_www(url_or_host: str) -> str:
     return host
 
 
-def _registrable_domain(host: str) -> str:
-    parts = [part for part in host.lower().split(".") if part]
-    if len(parts) <= 2:
-        return host.lower()
-    return ".".join(parts[-2:])
 
 
 def _is_http_url(url: str) -> bool:

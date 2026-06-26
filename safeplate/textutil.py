@@ -67,3 +67,26 @@ def slugify(value: str, default: str = "item") -> str:
     """Filesystem/id-safe slug from arbitrary text."""
     cleaned = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip().lower())
     return cleaned.strip("_") or default
+
+
+# Common two-level public suffixes, so "shop.foo.co.uk" -> "foo.co.uk" (not "co.uk").
+_TWO_LEVEL_TLDS = {
+    "co.uk", "org.uk", "com.au", "net.au", "co.nz", "co.jp", "com.br", "co.za",
+    "com.sg", "co.in", "com.mx", "co.kr", "com.hk", "com.tw",
+}
+
+
+def registrable_domain(host: str) -> str:
+    """eTLD+1 (approx): the registrable part of a host, so subdomains of the SAME site
+    compare equal (orders.lazydogrestaurants.com -> lazydogrestaurants.com) and common
+    two-level TLDs are kept whole (shop.foo.co.uk -> foo.co.uk, not co.uk). Single
+    source of truth for the on-site / same-domain checks across the pipeline."""
+    host = (host or "").lower().split(":")[0]
+    if host.startswith("www."):
+        host = host[4:]
+    labels = [seg for seg in host.split(".") if seg]
+    if len(labels) <= 2:
+        return ".".join(labels)
+    if ".".join(labels[-2:]) in _TWO_LEVEL_TLDS:
+        return ".".join(labels[-3:])
+    return ".".join(labels[-2:])

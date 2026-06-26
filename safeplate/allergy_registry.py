@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from safeplate.textutil import registrable_domain as _registrable
+
 _PATH = Path(__file__).resolve().parent / "data" / "allergy_registry.json"
 _ENTRIES: list[dict[str, Any]] | None = None
 
@@ -35,14 +37,6 @@ def _entries() -> list[dict[str, Any]]:
 
 def _norm(value: str | None) -> str:
     return "".join(ch for ch in (value or "").lower() if ch.isalnum())
-
-
-def _registrable(host: str) -> str:
-    host = (host or "").lower().split(":")[0]
-    if host.startswith("www."):
-        host = host[4:]
-    labels = [seg for seg in host.split(".") if seg]
-    return ".".join(labels[-2:]) if len(labels) > 2 else ".".join(labels)
 
 
 def lookup_registry(

@@ -106,3 +106,19 @@ def test_matrix_with_nut_column_still_vouches_when_unmarked():
     # A chart that DOES have a peanut column and marks no nut anywhere is real evidence
     # of absence -> the clean pull-down applies (basis allergen_matrix).
     assert a.evidence_basis == "allergen_matrix"
+
+
+# --- Q3: one registrable-domain helper shared across modules (co.uk aware) ---------
+def test_registrable_domain_helpers_agree():
+    from safeplate.extraction2.discover import _registrable_domain as d
+    from safeplate.brave_search import _registrable_domain as b
+    from safeplate.allergy_registry import _registrable as a
+    from safeplate.textutil import registrable_domain
+    for host, expected in [
+        ("shop.foo.co.uk", "foo.co.uk"),     # two-level TLD kept whole
+        ("orders.bar.com", "bar.com"),
+        ("www.baz.com.au", "baz.com.au"),
+        ("Brand.COM", "brand.com"),
+    ]:
+        assert registrable_domain(host) == expected
+        assert d(host) == b(host) == a(host) == expected
