@@ -605,7 +605,13 @@ def _score_one_allergen(
     # floor -- otherwise a high-nut cuisine marks every dish risky and nothing is
     # ever navigable (the bug that pinned a labeled chain at its worst dish).
     name_risk_threshold = max(0.5, cuisine_floor + 0.1)
-    inferred_risky = {n for n, r in base.riskiest_items if r >= name_risk_threshold}
+    # Read the FULL per-dish list (item_details), not riskiest_items, which is capped at
+    # the top 5 for display. On a menu with >5 name-risky dishes the cap undercounted
+    # risky_count -- inflating safe_count, mislabeling a pervasive menu as navigable, and
+    # producing an under-warning "the other N are safe" rationale (the dangerous direction).
+    inferred_risky = {
+        d["name"] for d in base.item_details if d["risk"] >= name_risk_threshold
+    }
     risky_names = set(matrix_hit_items) | set(text_hit_items) | inferred_risky
     # SUSPECTED: dish types that often HIDE nuts (low-confidence assumption). Treated
     # as UNCERTAIN -- they don't count as confirmed nut dishes, but they aren't

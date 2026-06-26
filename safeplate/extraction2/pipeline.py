@@ -178,12 +178,16 @@ def _looks_allergen(text: str) -> bool:
 _norm = norm_ws
 
 
-def _rank(item: MenuItemRecord) -> tuple[int, float, int]:
-    """Prefer schema-parsed items over LLM reads, then higher confidence, then
-    items that carry a price (more complete)."""
+def _rank(item: MenuItemRecord) -> tuple[int, int, float, int]:
+    """Dedupe priority for the same dish across sources. Allergen evidence wins FIRST:
+    a record carrying dish->allergen data (e.g. an allergen-matrix row) must not be
+    dropped in favour of a richer-looking schema.org/price record that lacks it -- that
+    silently discarded a confirmed nut mapping (a false negative). Then prefer
+    schema-parsed over LLM reads, higher confidence, and a present price."""
+    has_allergen = 1 if item.allergen_terms else 0
     is_structured = 0 if item.extraction_method.startswith("gemini") else 1
     has_price = 1 if (item.price or "").strip() else 0
-    return (is_structured, item.confidence, has_price)
+    return (has_allergen, is_structured, item.confidence, has_price)
 
 
 def _union(primary: list[MenuItemRecord], secondary: list[MenuItemRecord]) -> list[MenuItemRecord]:

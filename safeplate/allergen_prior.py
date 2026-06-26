@@ -380,6 +380,8 @@ CUISINE_HOME_REGIONS: dict[str, set[str]] = {
     "ukrainian": {"UA"},
     "british": {"GB", "IE"},
     "mongolian": {"MN"},
+    "hawaiian": {"US"},     # macadamia-forward; "at home" in the US (HI)
+    "soul_food": {"US"},    # pecan/peanut-forward; at home in the US
 }
 
 # Allergen-labeling culture: how much a *missing* nut label can be trusted.
@@ -526,8 +528,16 @@ CUISINE_ALIASES: dict[str, str] = {
     "taco": "mexican",
     "asian": "asian",
     "pan_asian": "asian",
+    "pan-asian": "asian",
+    "asian_fusion": "asian",
+    "fusion": "asian",
+    "oriental": "asian",
     "noodle": "asian",
     "noodles": "asian",
+    # Common American-tag variants providers emit (were falling to the flat default).
+    "southern": "soul_food",
+    "new_american": "american",
+    "modern_american": "american",
     "fast_food": "american",
     "fried_chicken": "american",
     "chicken_wings": "american",
