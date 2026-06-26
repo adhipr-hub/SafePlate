@@ -110,12 +110,19 @@ def discover_sources(
     # page, while the actual menu/category links live on the homepage.
     links: list[tuple[str, str]] = []
     seen_link_urls: set[str] = set()
-    for seed in _seed_urls(website_url):
+
+    def _fetch_seed_links(seed: str) -> list[tuple[str, str]]:
         try:
-            html = fetch_html_page(seed, user_agent=user_agent).html
+            return _harvest_links(fetch_html_page(seed, user_agent=user_agent).html, seed)
         except PageFetchError:
-            continue
-        for url, text in _harvest_links(html, seed):
+            return []
+
+    # The seeds (given URL + site root) are independent fetches; run them concurrently.
+    # map_concurrent preserves input order and the dedupe is reapplied in that same
+    # order, so the harvested `links` list is identical to the old sequential version.
+    seeds = list(_seed_urls(website_url))
+    for harvested in map_concurrent(_fetch_seed_links, seeds, max_workers=max(1, len(seeds))):
+        for url, text in harvested:
             if url not in seen_link_urls:
                 seen_link_urls.add(url)
                 links.append((url, text))
@@ -811,21 +818,32 @@ def _harvest_second_hop(candidates: list[Candidate], *, user_agent: str) -> list
         if len(pages) >= _SECOND_HOP_PAGES:
             break
 
-    out: list[Candidate] = []
-    for parent in pages:
+    def _children(parent: Candidate) -> list[Candidate]:
         try:
             html = fetch_html_page(parent.url, user_agent=user_agent).html
         except PageFetchError:
-            continue
+            return []
+        found: list[Candidate] = []
         for url, text in _harvest_links(html, parent.url):
-            if url in seen:
-                continue
             low = url.lower().split("?")[0]
             is_doc = low.endswith(".pdf") or low.endswith(IMAGE_EXTS)
             haystack = f"{url} {text}".lower()
             if is_doc or any(tok in haystack for tok in _SECOND_HOP_TOKENS):
-                seen.add(url)
-                out.append(Candidate(url=url, anchor_text=text, kind=parent.kind, source="link2"))
+                found.append(
+                    Candidate(url=url, anchor_text=text, kind=parent.kind, source="link2")
+                )
+        return found
+
+    # Fetch the (few) second-hop pages concurrently. map_concurrent preserves page
+    # order and the `seen` dedupe is reapplied sequentially in that order, so the
+    # resulting candidate list is identical to the old sequential fetch.
+    out: list[Candidate] = []
+    for child_list in map_concurrent(_children, pages, max_workers=max(1, len(pages))):
+        for cand in child_list:
+            if cand.url in seen:
+                continue
+            seen.add(cand.url)
+            out.append(cand)
     return out
 
 

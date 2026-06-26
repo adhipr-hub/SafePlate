@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 import re
 from typing import Any
 
+from safeplate.textutil import norm_ws
+
 # Allergen keys. "nuts" is the convenience union of the two nut families, which
 # is what most users mean and what the project's examples target.
 PEANUTS = "peanuts"
@@ -506,7 +508,6 @@ CUISINE_ALIASES: dict[str, str] = {
     "scottish": "british",
     "irish": "british",
     "uzbek": "uzbek",
-    "afghani": "afghan",
     "mongolian": "mongolian",
     "soul_food": "soul_food",
     "soul": "soul_food",
@@ -782,15 +783,18 @@ def score_menu_item_prior(
     region: str = "unknown",
     allergen: str = NUTS,
     baseline: "AllergenPrior | None" = None,
+    wanted: set[str] | None = None,
 ) -> AllergenPrior:
     """Prior risk that a specific menu item involves ``allergen``.
 
     Dish knowledge (specific) overrides the cuisine baseline (general); an
     explicit nut-free claim lowers the prior. ``baseline`` lets a caller scoring
     many items for one restaurant pass the (identical) cuisine/location prior in
-    once instead of having it recomputed per item.
+    once instead of having it recomputed per item; ``wanted`` similarly lets the
+    caller pass the pre-expanded allergen family.
     """
-    wanted = _expand_allergen(allergen)
+    if wanted is None:
+        wanted = _expand_allergen(allergen)
     text = _normalize(f"{item_name or ''} {description or ''}")
     trust = labeling_trust_for_region(region)
 
@@ -900,14 +904,22 @@ def restaurant_nut_risk(
     menu_items: list[dict[str, str]] | None = None,
     allergen: str = NUTS,
     risky_threshold: float = 0.5,
+    baseline: "AllergenPrior | None" = None,
 ) -> RestaurantNutRisk:
     """Combine the cuisine/location prior with per-item dish priors.
 
     The cuisine/location prior is the floor (works with no menu); known risky
     dishes raise it. This is a prior summary, NOT a final safety verdict — the
-    menu-evidence stage should still refine it.
+    menu-evidence stage should still refine it. ``baseline`` lets a caller that has
+    already computed the (identical) cuisine/location prior pass it in instead of
+    having it recomputed here.
     """
-    base = score_restaurant_prior(cuisines=cuisines, region=region, allergen=allergen)
+    base = baseline if baseline is not None else score_restaurant_prior(
+        cuisines=cuisines, region=region, allergen=allergen
+    )
+    # The wanted allergen family is constant across the restaurant's items; expand it
+    # once and thread it into the per-item prior instead of rebuilding it per item.
+    wanted = _expand_allergen(allergen)
     item_scores: list[tuple[str, float]] = []
     item_details: list[dict[str, Any]] = []
     for item in menu_items or []:
@@ -918,6 +930,7 @@ def restaurant_nut_risk(
             region=region,
             allergen=allergen,
             baseline=base,  # reuse the one cuisine/location prior; don't recompute per item
+            wanted=wanted,
         )
         name = (item.get("item_name") or item.get("name") or "").strip()
         if name:
@@ -978,6 +991,11 @@ def _best_dish_match(text: str, wanted: set[str]) -> tuple[float, str] | None:
         if _pattern_present(pattern, text):
             if best is None or risk > best[0]:
                 best = (risk, note)
+                # The table maxes out at MAX_RISK; once we've matched a top-risk dish
+                # no later entry can beat it (strict >), so stop scanning. Same result,
+                # fewer substring checks. (Home boost is applied once, afterward.)
+                if best[0] >= MAX_RISK:
+                    break
     return best
 
 
@@ -1032,9 +1050,18 @@ def _apply_home_boost(
     return risk
 
 
-def _normalize(text: str) -> str:
-    return re.sub(r"\s+", " ", text.lower()).strip()
+# Canonical text key (lowercase + collapse whitespace + trim); shared via textutil.
+_normalize = norm_ws
 
 
-def _clamp(value: float) -> float:
-    return max(0.0, min(0.97, value))
+# Shared risk ceiling for the whole pipeline: a verdict is never presented as 100%
+# certain. The prior layer and the scorer must agree on it, so it lives here (the
+# scorer imports clamp_risk) and cannot drift between the two layers.
+MAX_RISK = 0.97
+
+
+def clamp_risk(value: float) -> float:
+    return max(0.0, min(MAX_RISK, value))
+
+
+_clamp = clamp_risk

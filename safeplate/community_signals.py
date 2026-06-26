@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -29,6 +28,7 @@ from safeplate.allergen_score import CommunitySignal
 from safeplate.config import get_cache_dir
 from safeplate.gemini_menu import GeminiMenuError
 from safeplate.menu_text import MenuItemRecord
+from safeplate.textutil import norm_ws
 
 _CACHE_VERSION = "1"
 _CACHE_TTL = 7 * 24 * 60 * 60
@@ -202,8 +202,7 @@ def _classify(snippets: str, *, api_key: str, model: str) -> dict[str, Any]:
     return _call_with_retry(request, api_key=api_key, model=model)
 
 
-def _normalize(text: str) -> str:
-    return re.sub(r"\s+", " ", (text or "").lower()).strip()
+_normalize = norm_ws
 
 
 def _allergen_key(raw: str | None) -> str | None:

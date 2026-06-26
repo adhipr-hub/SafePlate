@@ -27,9 +27,33 @@ PRICE_PATTERN = re.compile(
 )
 
 
+_WS_RE = re.compile(r"\s+")
+
+
 def clean_text(text: str) -> str:
     """Collapse whitespace and trim."""
-    return re.sub(r"\s+", " ", text).strip()
+    return _WS_RE.sub(" ", text).strip()
+
+
+def norm_ws(text: str) -> str:
+    """Lowercase + collapse internal whitespace runs to one space + trim.
+
+    The canonical text key used for dedupe/matching/prior normalization. Single
+    source of truth for what was several identical private ``_normalize``/``_norm``
+    copies. ``clean_text`` already collapses+trims; lowercasing after is equivalent
+    because case-folding never adds or removes whitespace. ``None`` is treated as "".
+    """
+    return clean_text(text or "").lower()
+
+
+def strip_ws(text: str) -> str:
+    """Lowercase and remove ALL whitespace.
+
+    Used for letter-spacing-proof grounding (e.g. PDF text where an allergen word is
+    rendered with a space between every glyph). Single source of truth for the two
+    identical private copies in the extraction grounding path.
+    """
+    return "".join(ch for ch in text.lower() if not ch.isspace())
 
 
 def classlist_text(value: object) -> str:

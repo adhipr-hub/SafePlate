@@ -39,11 +39,13 @@ def first_string(obj: dict[str, Any], keys: set[str]) -> str | None:
     return None
 
 
-def json_blobs(html: str) -> list[str]:
+def json_blobs(html: str, *, soup: Any = None) -> list[str]:
     """All embedded JSON payloads: `<script id=__NEXT_DATA__>` / `type=application/json`
     blobs PLUS inline `window.__NUXT__ = {...}`-style state assignments (brace-matched).
-    Schema.org JSON-LD is skipped -- it has a dedicated extractor."""
-    soup = make_soup(html)
+    Schema.org JSON-LD is skipped -- it has a dedicated extractor. ``soup`` lets a caller
+    that already parsed this HTML reuse the tree instead of re-parsing it."""
+    if soup is None:
+        soup = make_soup(html)
     blobs: list[str] = []
     for script in soup.find_all("script"):
         script_type = (script.get("type") or "").lower()
@@ -136,11 +138,13 @@ def extract_records_from_html(
     item_fn: Callable[[dict], Any],
     key_fn: Callable[[Any], Any],
     max_items: int = _MAX_ITEMS,
+    soup: Any = None,
 ) -> list:
-    """Harvest every embedded JSON blob and walk it, building deduped records."""
+    """Harvest every embedded JSON blob and walk it, building deduped records.
+    ``soup`` lets a caller reuse an already-parsed tree (avoids re-parsing the HTML)."""
     out: list = []
     seen: set = set()
-    for blob in json_blobs(html):
+    for blob in json_blobs(html, soup=soup):
         try:
             payload = json.loads(blob)
         except (json.JSONDecodeError, ValueError):

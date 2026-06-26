@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from safeplate.allergen_matrix import extract_items_from_allergen_matrix
+from safeplate.allergen_matrix import items_from_allergen_matrix_soup
 from safeplate.embedded_json import extract_items_from_embedded_json
 from safeplate.extraction2.schema import Payload
 from safeplate.menu_text import (
     MenuItemRecord,
-    _extract_schema_org_menu_items_from_html,
+    _extract_schema_org_menu_items_from_soup,
 )
+from safeplate.soup import make_soup
 
 
 def interpret_structured(payload: Payload) -> list[MenuItemRecord]:
@@ -41,17 +42,21 @@ def interpret_structured(payload: Payload) -> list[MenuItemRecord]:
     html = payload.text or ""
     if not html.strip():
         return []
+    # Parse the HTML into a soup ONCE and reuse it across all structured passes below.
+    # Each pass is read-only (none mutate the tree), so a shared soup is output-identical
+    # while removing the ~3x redundant lxml parse this function used to pay per page.
+    soup = make_soup(html)
     # Tier 1: structured allergen data embedded in hydration JSON (price-optional).
     # Highest value for a safety app, and a no-op on pages without such data.
     from safeplate.extraction2.embedded_allergens import (
         extract_allergen_items_from_embedded_json,
     )
 
-    items = extract_allergen_items_from_embedded_json(html)
+    items = extract_allergen_items_from_embedded_json(html, soup=soup)
     if not items:
-        items = extract_items_from_allergen_matrix(html)
+        items = items_from_allergen_matrix_soup(soup)
     if not items:
-        items = _extract_schema_org_menu_items_from_html(html)
+        items = _extract_schema_org_menu_items_from_soup(soup)
     if not items:
-        items = extract_items_from_embedded_json(html)
+        items = extract_items_from_embedded_json(html, soup=soup)
     return items

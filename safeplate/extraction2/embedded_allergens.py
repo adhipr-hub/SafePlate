@@ -32,9 +32,12 @@ _FLAG_KEYS = ("contains", "present", "value", "status", "flag", "ispresent", "ha
 _ALLERGEN_NAME_KEYS = {"name", "allergen", "allergenname", "allergen_name", "label", "title", "code"}
 
 
-def extract_allergen_items_from_embedded_json(html: str) -> list[MenuItemRecord]:
+def extract_allergen_items_from_embedded_json(
+    html: str, *, soup: Any = None
+) -> list[MenuItemRecord]:
     return extract_records_from_html(
-        html, item_fn=_item_from_object, key_fn=lambda record: record.item_name.lower()
+        html, item_fn=_item_from_object, key_fn=lambda record: record.item_name.lower(),
+        soup=soup,
     )
 
 

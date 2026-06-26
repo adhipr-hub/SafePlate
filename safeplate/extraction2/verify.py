@@ -4,6 +4,7 @@ import re
 
 from safeplate.extraction2.schema import Payload
 from safeplate.menu_text import MenuItemRecord
+from safeplate.textutil import norm_ws, strip_ws
 
 # Below this length, a whitespace-stripped substring match is too collision-prone to
 # trust on its own ("rice" inside "price", "ice" inside "service"), so a short name
@@ -11,15 +12,11 @@ from safeplate.menu_text import MenuItemRecord
 _MIN_STRIPPED_GROUND_LEN = 8
 
 
-def _normalize(text: str) -> str:
-    """Collapse whitespace and case so grounding survives PDF letter-spacing and
-    quote reflow (the same defeat-"f a c i l i t y" trick v1's guardrail uses)."""
-    return "".join(ch for ch in text.lower() if not ch.isspace())
-
-
-def _collapse(text: str) -> str:
-    """Whitespace-collapsed (not stripped) lowercase, so word boundaries survive."""
-    return re.sub(r"\s+", " ", text.lower()).strip()
+# Grounding keys (shared via textutil): _normalize strips ALL whitespace so grounding
+# survives PDF letter-spacing / quote reflow ("f a c i l i t y"); _collapse keeps word
+# boundaries (single-space) for the boundary-anchored primary match.
+_normalize = strip_ws
+_collapse = norm_ws
 
 
 def _is_grounded(name: str, *, source_norm: str, source_collapsed: str) -> bool:

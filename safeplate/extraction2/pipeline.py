@@ -13,6 +13,7 @@ from safeplate.extraction2.schema import (
 )
 from safeplate.extraction2.verify import mean_confidence, verify
 from safeplate.menu_text import MenuItemRecord
+from safeplate.textutil import norm_ws
 
 
 def extract_menu(
@@ -174,8 +175,7 @@ def _looks_allergen(text: str) -> bool:
     return "allergen" in low or "allergy" in low
 
 
-def _norm(name: str) -> str:
-    return " ".join((name or "").split()).lower()
+_norm = norm_ws
 
 
 def _rank(item: MenuItemRecord) -> tuple[int, float, int]:

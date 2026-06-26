@@ -14,6 +14,7 @@ from safeplate.gemini_menu import (
     _post_gemini_generate_content,
 )
 from safeplate.menu_fetch_llm import URL_MENU_SCHEMA
+from safeplate.textutil import norm_ws
 from safeplate.menu_text import MenuItemRecord
 from safeplate.soup import make_soup
 
@@ -198,8 +199,7 @@ def _chunks(text: str) -> list[str]:
     return out
 
 
-def _norm(name: str) -> str:
-    return " ".join((name or "").split()).lower()
+_norm = norm_ws
 
 
 def _cached_or_call(text: str, *, api_key: str, model: str) -> dict[str, Any]:

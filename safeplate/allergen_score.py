@@ -42,6 +42,7 @@ from safeplate.allergen_prior import (
     PEANUTS,
     TREE_NUTS,
     absence_inference_factor,
+    clamp_risk as _clamp,
     labeling_trust_for_region,
     normalize_cuisine,
     region_from_address,
@@ -283,9 +284,14 @@ def _is_generic_nut(term: str) -> bool:
     return "nut" in stripped
 
 
-def _families(allergen: str) -> set[str]:
+# The nut family is constant; share one frozenset instead of rebuilding a set per call
+# (called per allergen and per community signal). All callers only read it (& / in).
+_NUT_FAMILY_SET = frozenset({PEANUTS, TREE_NUTS})
+
+
+def _families(allergen: str) -> set[str] | frozenset[str]:
     if allergen == NUTS:
-        return {PEANUTS, TREE_NUTS}
+        return _NUT_FAMILY_SET
     return {allergen}
 
 
@@ -495,26 +501,43 @@ def _score_one_allergen(
     caution_threshold, severity_floor = _SEVERITY_TUNING[severity]
     labeling_trust = labeling_trust_for_region(region)
 
+    # Materialize each item's fields ONCE (raw name, stripped name, description,
+    # method, terms, source url) so the prior call, the grounded-evidence loop, and
+    # the parsed-count below don't each re-walk menu_items via repeated _field calls.
+    rows = []
+    for item in menu_items:
+        name_raw = _field(item, "item_name") or _field(item, "name") or ""
+        rows.append(
+            (
+                name_raw,
+                name_raw.strip(),
+                _field(item, "description") or "",
+                _field(item, "extraction_method") or "",
+                _field(item, "allergen_terms") or [],
+                _field(item, "menu_source_url") or "",
+            )
+        )
+
+    # Cuisine-only baseline (no dish priors): used both as the per-item baseline inside
+    # restaurant_nut_risk AND to tell a dish that is nut-risky by NAME (e.g. "Satay")
+    # apart from one merely inheriting a high-nut cuisine's floor (e.g. "Rice" at a Thai
+    # place). Computed once here and threaded down so it isn't evaluated twice.
+    cuisine_prior = score_restaurant_prior(
+        cuisines=cuisines, region=region, allergen=pref.allergen
+    )
+
     # T4 + T5: cuisine/location floor + dish-name priors (reuses the prior layer).
     base = restaurant_nut_risk(
         cuisines=cuisines,
         region=region,
         menu_items=[
-            {
-                "item_name": _field(item, "item_name") or _field(item, "name") or "",
-                "description": _field(item, "description") or "",
-            }
-            for item in menu_items
+            {"item_name": name_raw, "description": desc}
+            for name_raw, _name, desc, _method, _terms, _src in rows
         ],
         allergen=pref.allergen,
+        baseline=cuisine_prior,
     )
-    # Cuisine-only baseline (no dish priors): used to tell a dish that is nut-risky
-    # by NAME (e.g. "Satay") apart from one merely inheriting a high-nut cuisine's
-    # floor (e.g. "Rice" at a Thai place). Without this every dish at a high-nut
-    # cuisine looks risky and nothing is ever navigable.
-    cuisine_floor = score_restaurant_prior(
-        cuisines=cuisines, region=region, allergen=pref.allergen
-    ).risk
+    cuisine_floor = cuisine_prior.risk
 
     risk = base.risk
     confidence = base.confidence
@@ -532,14 +555,11 @@ def _score_one_allergen(
     matrix_hit_items: list[str] = []
     text_hit_items: list[str] = []
     matrix_source_urls: list[str] = []
-    for item in menu_items:
-        method = _field(item, "extraction_method") or ""
-        terms = _field(item, "allergen_terms") or []
-        name = (_field(item, "item_name") or _field(item, "name") or "").strip()
+    for _name_raw, name, _desc, method, terms, src_url in rows:
         hits = _nut_terms_present(terms, families)
         if _is_matrix_method(method):
             matrix_present = True
-            matrix_source_urls.append(_field(item, "menu_source_url") or "")
+            matrix_source_urls.append(src_url)
             if name:
                 matrix_dish_total += 1
             if hits and name:
@@ -549,18 +569,17 @@ def _score_one_allergen(
 
     # Provenance trust of the allergen chart -- the most conservative (lowest) of
     # its source(s). A stale/off-site chart should not strongly vouch for absence.
+    # A matrix usually shares ONE source url across all its rows; dedupe so the
+    # urlparse/regex/datetime in _source_trust runs once per distinct url, not per row.
     matrix_trust = min(
-        (_source_trust(url, official_domain) for url in matrix_source_urls), default=1.0
+        (_source_trust(url, official_domain) for url in set(matrix_source_urls)),
+        default=1.0,
     )
 
     # How much menu we parsed, and which dishes are nut-RISKY by ANY evidence:
     # grounded chart/text hits OR dish-name inference. Navigability + the coverage
     # discount both read these.
-    parsed_count = sum(
-        1
-        for item in menu_items
-        if (_field(item, "item_name") or _field(item, "name") or "").strip()
-    )
+    parsed_count = sum(1 for row in rows if row[1])
     coverage_fraction = min(1.0, parsed_count / _COVERAGE_FULL) if parsed_count else 0.0
 
     # A dish is nut-risky by NAME only if its prior is ELEVATED above the cuisine
@@ -990,7 +1009,3 @@ def _pull_down(risk: float, *, strength: float, labeling_trust: float, floor: fl
     strength x how much a missing label can be trusted here, never below ``floor``."""
     effective = strength * labeling_trust
     return max(floor, risk * (1.0 - effective))
-
-
-def _clamp(value: float) -> float:
-    return max(0.0, min(0.97, value))

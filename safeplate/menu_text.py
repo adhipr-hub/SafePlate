@@ -67,6 +67,10 @@ TEXT_EXTRACTABLE_SOURCE_TYPES = (
     HTML_MENU_SOURCE_TYPES + PDF_MENU_SOURCE_TYPES + IMAGE_MENU_SOURCE_TYPES
 )
 
+# The HTML path has a single fixed extraction method (visible text after soup cleaning);
+# it does not vary by fetch mode. A single constant makes that explicit.
+_HTML_EXTRACTION_METHOD = "html_visible_text"
+
 DIETARY_TERMS = [
     "vegan",
     "vegetarian",
@@ -171,6 +175,13 @@ CATEGORY_HINTS = [
     "to share",
     "to add",
 ]
+
+# Precomputed once: CATEGORY_HINTS reduced to their alnum-collapsed match keys. Built
+# at import (CATEGORY_HINTS is a constant) so _looks_like_category doesn't rebuild this
+# set on every menu line. Identical membership semantics, just hoisted out of the hot loop.
+_CATEGORY_KEYS = frozenset(
+    re.sub(r"[^a-z0-9]+", " ", hint).strip() for hint in CATEGORY_HINTS
+)
 
 ITEM_NEGATIVE_SIGNALS = [
     "free shipping",
@@ -373,7 +384,7 @@ def _extract_source_once(
 
     if source_type in HTML_MENU_SOURCE_TYPES:
         html = _fetch_html(url, user_agent=user_agent, fetch_mode=fetch_mode)
-        items_method = _html_extraction_method(fetch_mode)
+        items_method = _HTML_EXTRACTION_METHOD
         soup = make_soup(html)
         from safeplate.allergen_matrix import items_from_allergen_matrix_soup
 
@@ -385,7 +396,7 @@ def _extract_source_once(
         # _extract_menu_items_from_soup runs _remove_non_content_tags, so this is
         # the same cleaned visible text the old text stage produced.
         raw_text = soup.get_text(" ", strip=True)
-        text_method = "html_visible_text"
+        text_method = _HTML_EXTRACTION_METHOD
         if not candidates:
             candidates = _recover_html_items(
                 html=html,
@@ -530,7 +541,7 @@ def extract_text_for_menu_source(
                 user_agent=user_agent,
                 fetch_mode=fetch_mode,
             ),
-            _html_extraction_method(fetch_mode),
+            _HTML_EXTRACTION_METHOD,
         )
     if source_type == "pdf":
         return extract_pdf_text(url, user_agent=user_agent), "pdf_text"
@@ -693,10 +704,6 @@ def _fetch_html(
         ).html
     except PageFetchError as exc:
         raise MenuTextError(str(exc)) from exc
-
-
-def _html_extraction_method(fetch_mode: str) -> str:
-    return "html_visible_text"
 
 
 def _fetch_bytes(url: str, user_agent: str) -> tuple[bytes, str]:
@@ -1407,16 +1414,19 @@ def write_menu_text_json(path: Path, rows: list[MenuTextRecord]) -> None:
     write_dataclass_json(path, rows)
 
 
-def write_menu_text_csv(path: Path, rows: list[MenuTextRecord]) -> None:
-    def transform(record: dict[str, object], row: MenuTextRecord) -> None:
-        record["dietary_terms"] = "; ".join(row.dietary_terms)
-        record["allergen_terms"] = "; ".join(row.allergen_terms)
+def _join_terms_transform(record: dict[str, object], row: object) -> None:
+    """Serialize the term lists to '; '-joined strings for CSV. Shared by both the
+    text and item writers (their MenuTextRecord/MenuItemRecord both expose the fields)."""
+    record["dietary_terms"] = "; ".join(row.dietary_terms)
+    record["allergen_terms"] = "; ".join(row.allergen_terms)
 
+
+def write_menu_text_csv(path: Path, rows: list[MenuTextRecord]) -> None:
     write_dataclass_csv(
         path,
         rows,
         fieldnames=MENU_TEXT_CSV_FIELDS,
-        transform=transform,
+        transform=_join_terms_transform,
     )
 
 
@@ -1435,15 +1445,11 @@ def write_menu_items_json(path: Path, rows: list[MenuItemRecord]) -> None:
 
 
 def write_menu_items_csv(path: Path, rows: list[MenuItemRecord]) -> None:
-    def transform(record: dict[str, object], row: MenuItemRecord) -> None:
-        record["dietary_terms"] = "; ".join(row.dietary_terms)
-        record["allergen_terms"] = "; ".join(row.allergen_terms)
-
     write_dataclass_csv(
         path,
         rows,
         fieldnames=MENU_ITEM_CSV_FIELDS,
-        transform=transform,
+        transform=_join_terms_transform,
     )
 
 
@@ -1489,11 +1495,7 @@ def _looks_like_category(line: str) -> bool:
     if len(normalized) > 45:
         return False
     normalized_key = re.sub(r"[^a-z0-9]+", " ", normalized).strip()
-    category_keys = {
-        re.sub(r"[^a-z0-9]+", " ", hint).strip()
-        for hint in CATEGORY_HINTS
-    }
-    return normalized_key in category_keys
+    return normalized_key in _CATEGORY_KEYS
 
 
 def _split_item_name_and_description(value: str) -> tuple[str, str]:

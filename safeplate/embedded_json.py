@@ -31,12 +31,13 @@ _DESC_KEYS = {"description", "desc", "caption", "subtitle"}
 _MAX_ITEMS = 500
 
 
-def extract_items_from_embedded_json(html: str) -> list[MenuItemRecord]:
+def extract_items_from_embedded_json(html: str, *, soup: Any = None) -> list[MenuItemRecord]:
     return extract_records_from_html(
         html,
         item_fn=_item_from_object,
         key_fn=lambda record: (record.item_name.lower(), record.price.lower()),
         max_items=_MAX_ITEMS,
+        soup=soup,
     )
 
 

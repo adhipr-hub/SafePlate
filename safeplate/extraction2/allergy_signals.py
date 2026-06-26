@@ -20,6 +20,7 @@ from safeplate.config import get_cache_dir
 from safeplate.extraction2.interpret_llm import _call_with_retry, _readable_text
 from safeplate.extraction2.schema import AllergySignal, Payload
 from safeplate.gemini_menu import GeminiMenuError
+from safeplate.textutil import strip_ws
 
 DEFAULT_MODEL = "gemini-3.1-flash-lite"
 _CACHE_TTL = 14 * 24 * 60 * 60
@@ -111,8 +112,8 @@ def extract_allergy_signals(
     )
 
 
-def _normalize(text: str) -> str:
-    return "".join(ch for ch in text.lower() if not ch.isspace())
+# Letter-spacing-proof grounding key (lowercase, strip ALL whitespace); via textutil.
+_normalize = strip_ws
 
 
 def _alnum(text: str) -> str:
