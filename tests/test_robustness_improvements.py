@@ -122,3 +122,16 @@ def test_registrable_domain_helpers_agree():
     ]:
         assert registrable_domain(host) == expected
         assert d(host) == b(host) == a(host) == expected
+
+
+# --- R7: the cheap embedded-JSON extraction path also surfaces foreign nut labels --
+def test_embedded_json_foreign_nut_label_is_recognized():
+    from safeplate.extraction2.embedded_allergens import extract_allergen_items_from_embedded_json
+    html = (
+        '<script type="application/json">'
+        '{"items":[{"name":"Almond Tart","allergens":["\u30a2\u30fc\u30e2\u30f3\u30c9"]}]}'
+        '</script>'
+    )  # allergens: ["アーモンド"] (almond, ja)
+    items = extract_allergen_items_from_embedded_json(html)
+    assert items, "embedded allergen item not extracted"
+    assert any(_nut_terms_present(it.allergen_terms, NUTS) for it in items)
