@@ -212,6 +212,14 @@
       border-color: var(--g1); background: var(--gt); color: var(--g0); font-weight: 600;
     }
     .allergen-chip.locked { color: var(--tx3); border-style: dashed; cursor: not-allowed; }
+    /* Per-nut picker: peanut sits a touch apart (it's a legume, its own toggle). */
+    .nut-row .allergen-chip.nut { font-size: 12px; padding: 5px 10px; }
+    .nut-row .nut-all { font-weight: 700; }
+    .nut-row .nut-peanut { margin-left: 12px; position: relative; }
+    .nut-row .nut-peanut::before {
+      content: ""; position: absolute; left: -7px; top: 4px; bottom: 4px;
+      width: 1.5px; background: var(--border);
+    }
     .allergen-chip.locked .soon {
       font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
       margin-left: 6px; padding: 1px 5px; border-radius: var(--pill);
@@ -238,15 +246,6 @@
       transition: all .15s;
     }
     .sort-btn.on { background: var(--tx); border-color: var(--tx); color: #fff; }
-    .mode-row { display: flex; align-items: center; gap: 3px; }
-    .mode-row .mode-label { font-size: 12px; color: var(--tx2); margin-right: 4px; }
-    .modebtn {
-      font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 9px;
-      cursor: pointer; font-family: inherit;
-      border: 1.5px solid var(--border); background: var(--surface); color: var(--tx2);
-      transition: all .15s;
-    }
-    .modebtn.on { background: var(--accent, var(--tx)); border-color: var(--accent, var(--tx)); color: #fff; }
     .card-upg {
       font-size: 11px; font-weight: 600; color: var(--tx2);
       display: inline-flex; align-items: center; gap: 5px;
@@ -420,11 +419,18 @@
     .why-list li.tappable { cursor: pointer; }
     .why-list li.tappable:hover { color: var(--tx); }
     .why-list li.tappable:hover .why-text { text-decoration: underline; }
+    /* A claim that links out to its source page gets a subtle external-link hint. */
+    .why-list li.srclink .why-text::after {
+      content: "↗"; font-size: 10px; font-weight: 700; color: var(--ai);
+      margin-left: 4px; vertical-align: 1px;
+    }
     .cite {
       font-size: 10.5px; font-weight: 700; color: var(--ai); background: var(--ai-tint);
       padding: 0 5px; border-radius: 4px; margin-left: 4px; white-space: nowrap;
-      vertical-align: 1px;
+      vertical-align: 1px; border: 0; font-family: inherit; cursor: default; line-height: 1.5;
     }
+    .cite.linked { cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
+    .cite.linked:hover, .cite.linked:focus-visible { background: var(--ai); color: #fff; outline: none; }
     .why-trust { font-size: 12px; color: var(--tx3); margin-top: 9px; }
 
     /* Awareness chips */
@@ -622,8 +628,8 @@
     }
     /* Comfortable touch targets on touch devices */
     @media (pointer: coarse) {
-      .allergen-chip, .sort-btn, .modebtn, .nav-link { min-height: 44px; }
-      .allergen-chip, .sort-btn, .modebtn { display: inline-flex; align-items: center; }
+      .allergen-chip, .sort-btn, .nav-link { min-height: 44px; }
+      .allergen-chip, .sort-btn { display: inline-flex; align-items: center; }
       .d-close { width: 44px; height: 44px; }
     }
 
@@ -677,8 +683,7 @@
       .search-zone { margin-top: -86px; }
       /* Declutter the results toolbar: count + location on top, full-width segmented controls below */
       .sort-row { margin-left: 0; flex: 1 0 100%; }
-      .mode-row { flex: 1 0 100%; }
-      .sort-btn, .modebtn { flex: 1; text-align: center; }
+      .sort-btn { flex: 1; text-align: center; }
     }
 
     /* Reduced motion: neutralize motion safely across the board */
@@ -804,10 +809,27 @@
       </div>
       <div class="allergen-row">
         <span class="allergen-label">Avoiding</span>
-        <span class="allergen-chip on">🥜 Tree nuts &amp; peanuts</span>
+        <span class="allergen-chip on">🥜 Nuts</span>
         <button type="button" class="allergen-chip locked" disabled>Sesame<span class="soon">Soon</span></button>
         <button type="button" class="allergen-chip locked" disabled>Dairy<span class="soon">Soon</span></button>
         <button type="button" class="allergen-chip locked" disabled>Gluten<span class="soon">Soon</span></button>
+      </div>
+      <div class="allergen-row nut-row" role="group" aria-labelledby="nutLabel">
+        <span class="allergen-label" id="nutLabel">Which nuts
+          <button type="button" class="cc-hint" aria-label="Which nuts?" title="Pick the exact nuts you react to. We flag only dishes with those nuts; other nuts add just a small cross-contact note. Leave 'All nuts' on if any nut is a problem.">ⓘ</button>
+        </span>
+        <button type="button" class="allergen-chip nut nut-all on" data-nut="__all" aria-pressed="true">All nuts</button>
+        <button type="button" class="allergen-chip nut on" data-nut="almond" aria-pressed="true">Almond</button>
+        <button type="button" class="allergen-chip nut on" data-nut="cashew" aria-pressed="true">Cashew</button>
+        <button type="button" class="allergen-chip nut on" data-nut="walnut" aria-pressed="true">Walnut</button>
+        <button type="button" class="allergen-chip nut on" data-nut="pecan" aria-pressed="true">Pecan</button>
+        <button type="button" class="allergen-chip nut on" data-nut="pistachio" aria-pressed="true">Pistachio</button>
+        <button type="button" class="allergen-chip nut on" data-nut="hazelnut" aria-pressed="true">Hazelnut</button>
+        <button type="button" class="allergen-chip nut on" data-nut="macadamia" aria-pressed="true">Macadamia</button>
+        <button type="button" class="allergen-chip nut on" data-nut="brazil_nut" aria-pressed="true">Brazil</button>
+        <button type="button" class="allergen-chip nut on" data-nut="pine_nut" aria-pressed="true">Pine nut</button>
+        <button type="button" class="allergen-chip nut on" data-nut="chestnut" aria-pressed="true">Chestnut</button>
+        <button type="button" class="allergen-chip nut nut-peanut on" data-nut="peanuts" aria-pressed="true">Peanut</button>
       </div>
       <div class="allergen-row" role="group" aria-labelledby="sevLabel">
         <span class="allergen-label" id="sevLabel">How serious</span>
@@ -835,11 +857,6 @@
         <button class="sort-btn on" data-sort="risk">Safest first</button>
         <button class="sort-btn" data-sort="distance">Nearest</button>
         <button class="sort-btn" data-sort="rating">Top rated</button>
-      </div>
-      <div class="mode-row" title="Normal: wait for full menu-backed scores, then show everything at once. Progressive: show cuisine estimates instantly, then upgrade each card to a menu-backed score as it loads.">
-        <span class="mode-label">Loading</span>
-        <button class="modebtn on" data-mode="normal">Normal</button>
-        <button class="modebtn" data-mode="progressive">Progressive</button>
       </div>
     </div>
     <div class="prog hidden" id="progStrip">
@@ -972,7 +989,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const cap = s => { s = String(s||"").replace(/_/g," "); return s.charAt(0).toUpperCase()+s.slice(1); };
 const asList = v => Array.isArray(v) ? v : v ? String(v).split(";").map(x=>x.trim()).filter(Boolean) : [];
 const isNut  = t => /nut|peanut|almond|cashew|walnut|pecan|pistachio|hazelnut|pine|macadamia|praline|nutella|gianduja/i.test(t);
-const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"", progressive:false };
+const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"", nutTypes:[] };
 let _searchSeq = 0;  // guards background progressive upgrades against a newer search
 
 /* Cross-contact defaults to a severity-derived level until the user overrides it
@@ -1060,7 +1077,7 @@ async function search(opts={}) {
   if (!loc && !hasCoords) { toast("Enter a location first", true); return; }
   const seq = ++_searchSeq;   // any in-flight progressive upgrades from a prior search are now stale
   const btn = $("#goBtn"); btn.disabled=true;
-  btn.textContent = state.progressive ? "Finding places…" : "Reading menus…";
+  btn.textContent = "Finding places…";
   $("#landingExtra").classList.add("hidden");   // hide marketing once searching
   $("#results").classList.remove("hidden");
   hideProg();   // clear any progress bar from a previous search
@@ -1074,17 +1091,17 @@ async function search(opts={}) {
       </div>
     </div>`).join("");
   try {
-    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine };
+    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine, nutTypes: state.nutTypes };
     if (hasCoords) { req.location = opts.location||"Current location"; req.latitude=opts.latitude; req.longitude=opts.longitude; }
     else { req.location = loc; }
-    if (state.progressive) req.listMode = "prior";   // instant cuisine-prior cards; upgrade in the background
+    req.listMode = "prior";   // progressive is the only mode: instant cuisine-prior cards, upgraded in the background
     const data = await (await fetch("/api/search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(req)})).json();
     if (data.error) throw new Error(data.error);
     if (seq !== _searchSeq) return;                  // a newer search superseded this one
     state.rows = (data.rows||[]).filter(r=>r.name);
     state.where = data.location || req.location || loc;
     renderResults();
-    if (state.progressive) upgradeCardsProgressive(seq);   // fire-and-forget menu-backed upgrades
+    upgradeCardsProgressive(seq);   // fire-and-forget menu-backed upgrades
   } catch(e) {
     toast(e.message||"Search failed",true);
     $("#grid").innerHTML = `<div class="empty-msg" style="grid-column:1/-1">
@@ -1122,12 +1139,12 @@ async function upgradeCardsProgressive(seq) {
       const prevRisk = r.allergenPrior?.risk;   // the estimate, before we overlay the menu-backed score
       let landed = false;
       try {
-        const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine].join("|");
+        const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(",")].join("|");
         let m = _menuCache.get(key);
         if (!m) {
           m = await (await fetch("/api/menu",{
             method:"POST",headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine})
+            body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes})
           })).json();
           if (!m.error) _menuCache.set(key, m);
         }
@@ -1338,10 +1355,54 @@ function riskForRow(r) {
   return r.menuBackedRisk||r.allergenPrior||{risk:0.3,confidence:0.25,rationale:["Estimated from cuisine and location."]};
 }
 
-// Render one rationale claim: escape the text, turn its [E1, E2] citations into chips.
+// Render one rationale claim: escape the text, turn its [E1, E2] citations into
+// individually-clickable chips (wired up to open their source in renderMenu).
 function renderClaim(line) {
-  return esc(String(line)).replace(/\[(E\d+(?:,\s*E\d+)*)\]/g,
-    (_m, ids) => `<span class="cite">${esc(ids.replace(/\s+/g, " "))}</span>`);
+  return esc(String(line)).replace(/\[(E\d+(?:,\s*E\d+)*)\]/g, (_m, ids) => {
+    const chips = ids.split(",").map(s => s.trim()).filter(Boolean)
+      .map(id => `<button type="button" class="cite" data-eid="${esc(id)}">${esc(id)}</button>`)
+      .join("");
+    return `<span class="cite-group">${chips}</span>`;
+  });
+}
+
+/* ── evidence → source linking ──
+   Turn the AI explanation's tags into deep links to EXACTLY where the claim came
+   from: a dish name links to its menu/allergen-chart page (text-fragment anchored),
+   an [E#] cite links to its evidence's source (community review, allergy page). */
+function srcDeepLink(url, snippet) {
+  if (!url) return "";
+  if (url.includes("#")) return url;                       // already anchored
+  const isPdf = /\.pdf($|[?#])/i.test(url);
+  if (isPdf || !snippet) return url;                       // text fragments don't apply to PDFs
+  // A short, exact phrase makes the most reliable :~:text= match.
+  const frag = String(snippet).trim().split(/\s+/).slice(0, 6).join(" ");
+  return frag ? `${url}#:~:text=${encodeURIComponent(frag)}` : url;
+}
+function openSource(url, snippet) {
+  const target = srcDeepLink(url, snippet);
+  if (target) window.open(target, "_blank", "noopener,noreferrer");
+}
+// Map a normalized dish name -> its source URL (first menu item that names it).
+function buildSrcIndex(items) {
+  const idx = new Map();
+  (items || []).forEach(it => {
+    const nm = String(it.item_name || "").trim().toLowerCase();
+    const url = it.menu_source_url || "";
+    if (nm.length > 2 && url && !idx.has(nm)) idx.set(nm, url);
+  });
+  return idx;
+}
+// Best single "where the score came from" source, when a tag names no specific dish.
+function primarySource(m, r) {
+  const items = m.menuItems || [];
+  const matrix = items.find(it => /matrix/i.test(it.extraction_method || "") && it.menu_source_url);
+  if (matrix) return matrix.menu_source_url;
+  const withSrc = items.find(it => it.menu_source_url);
+  if (withSrc) return withSrc.menu_source_url;
+  const sig = (m.allergySignals || []).find(s => s.url);
+  if (sig) return sig.url;
+  return (r && r.website_url) || "";
 }
 
 // "Why this score" -- the scorer's full rationale, as a list. For ai_assisted it IS the LLM's
@@ -1414,7 +1475,7 @@ async function openDetail(r) {
     if (!m) {
       m = await (await fetch("/api/menu",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine})
+        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes})
       })).json();
       if (!m.error) _menuCache.set(key, m);  // don't memoize errors -> allow retry
     }
@@ -1584,17 +1645,55 @@ function renderMenu(m,r) {
     if (hit) flashItem(hit);
   });
 
-  // Tap a "Why this score" claim -> flash the first menu dish it names (the evidence
-  // the LLM/rule cited), so the explanation links straight to what it's about. Claims
-  // that name no listed dish lose the tappable affordance (honest: nothing to jump to).
+  // ── AI explanation → exact source ──
+  // Every tag in "Why this score" opens, in a NEW TAB, exactly where it came from:
+  //  • a claim that names a dish  -> that dish's menu/allergen-chart page (anchored to
+  //    the dish via a text fragment),
+  //  • an [E#] cite              -> its evidence source (community review, allergy page),
+  //  • any other claim           -> the primary source the score was built from.
+  const srcIndex = buildSrcIndex(items);
+  const evMap = new Map((menuRisk?.evidence || []).map(e => [e.id, e]));
+  const allergyUrl = (m.allergySignals || []).find(s => s.url)?.url || "";
+  const primary = primarySource(m, r);
+
+  // Resolve which dish (if any) a claim names -> {url, snippet}.
+  const dishSourceFor = claim => {
+    for (const [nm, url] of srcIndex) {
+      if (claim.includes(nm)) return { url, snippet: nm };
+    }
+    return null;
+  };
+  // Resolve one [E#] cite chip -> {url, snippet} or null when it has no real source.
+  const citeSource = ev => {
+    if (!ev) return null;
+    if (ev.url) return { url: ev.url, snippet: ev.quote || ev.text || "" };
+    if (ev.type === "handling" && allergyUrl) return { url: allergyUrl, snippet: "" };
+    return null;  // cuisine/region inference has no page to point at
+  };
+
+  // Only fall back to the primary page for generic claims when we actually read a
+  // menu/chart -- a pure cuisine/area estimate has no page to point at (stay honest).
+  const haveRealSource = coverage === "menu_backed" && primary;
   document.querySelectorAll("#dBody .why-list li.tappable").forEach(el => {
     const claim = el.dataset.claim || "";
-    const hit = menuItemEls().find(m => {
-      const nm = (m.querySelector(".mi-name")?.textContent || "").trim().toLowerCase();
-      return nm.length > 2 && claim.includes(nm);
-    });
-    if (hit) el.onclick = () => flashItem(hit);
-    else el.classList.remove("tappable");
+    const dish = dishSourceFor(claim);
+    const target = dish || (haveRealSource ? { url: primary, snippet: "" } : null);
+    if (target) {
+      el.classList.add("srclink");
+      el.onclick = () => openSource(target.url, target.snippet);
+    } else {
+      el.classList.remove("tappable");
+    }
+  });
+
+  document.querySelectorAll("#dBody .cite").forEach(el => {
+    const src = citeSource(evMap.get(el.dataset.eid));
+    if (src) {
+      el.classList.add("linked");
+      el.onclick = (e) => { e.stopPropagation(); openSource(src.url, src.snippet); };
+    } else {
+      el.disabled = true;  // honest: nothing to point at (e.g. cuisine inference)
+    }
   });
 }
 
@@ -1634,6 +1733,33 @@ document.querySelectorAll(".allergen-chip.cc").forEach(el => el.onclick = () => 
   paintCC();
   if (state.rows.length) search();
 });
+
+/* ── per-nut picker ──
+   Choose the exact nuts you react to. All-on (the default) == the family behaviour;
+   a strict subset narrows what's flagged (other nuts add only a small cross-contact
+   note, scored server-side). state.nutTypes=[] means "all" (the backend default). */
+const _nutChips = () => [...document.querySelectorAll('.allergen-chip.nut[data-nut]')]
+  .filter(c => c.dataset.nut !== "__all");
+function _setChip(c, on) { c.classList.toggle("on", on); c.setAttribute("aria-pressed", on ? "true" : "false"); }
+function syncNutState() {
+  const on = _nutChips().filter(c => c.classList.contains("on")).map(c => c.dataset.nut);
+  const isAll = on.length === 0 || on.length === _nutChips().length;
+  const allBtn = document.querySelector('.allergen-chip.nut[data-nut="__all"]');
+  if (allBtn) _setChip(allBtn, isAll);
+  state.nutTypes = isAll ? [] : on;   // [] == all nuts (family default)
+}
+document.querySelectorAll(".allergen-chip.nut").forEach(el => el.onclick = () => {
+  if (el.dataset.nut === "__all") {
+    _nutChips().forEach(c => _setChip(c, true));     // "All nuts" re-selects everything
+  } else {
+    _setChip(el, !el.classList.contains("on"));
+    if (!_nutChips().some(c => c.classList.contains("on")))
+      _nutChips().forEach(c => _setChip(c, true));   // never zero -> snap back to all
+  }
+  syncNutState();
+  if (state.rows.length) search();   // re-rank for the new nut profile
+});
+syncNutState();
 paintCC();  // highlight the severity-derived default on load
 $("#scrim").onclick  = closeDrawer;
 document.addEventListener("keydown", e => { if (e.key==="Escape") closeDrawer(); });
@@ -1655,12 +1781,6 @@ document.querySelectorAll(".sort-btn").forEach(b => b.onclick=()=>{
   document.querySelectorAll(".sort-btn").forEach(x=>x.classList.remove("on"));
   b.classList.add("on"); state.sort=b.dataset.sort; renderResults();
 });
-document.querySelectorAll(".modebtn").forEach(b => b.onclick=()=>{
-  document.querySelectorAll(".modebtn").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on"); state.progressive = (b.dataset.mode==="progressive");
-  if (state.rows.length) search();   // re-run so the difference is visible immediately
-});
-
 loadConfig();
 </script>
 </body>

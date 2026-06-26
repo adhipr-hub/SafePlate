@@ -70,15 +70,18 @@ def _cross_contact_from_str(value: Any):
 
 
 def _user_profile_from_payload(payload: dict[str, Any]):
-    """Build a scorer UserProfile from the request. Nuts-only today (matches the
-    prior/UI); severity is honoured so the same risk trips a worse tier for an
-    anaphylactic user than a mild-preference one, and cross-contact sensitivity is
-    honoured INDEPENDENTLY of severity (trace tolerance vs ingestion reaction)."""
+    """Build a scorer UserProfile from the request. Nuts today; severity is honoured
+    so the same risk trips a worse tier for an anaphylactic user than a mild-preference
+    one, and cross-contact sensitivity is honoured INDEPENDENTLY of severity (trace
+    tolerance vs ingestion reaction). ``nutTypes`` (a list of specific nuts the user
+    reacts to) turns on per-nut scoring; absent/empty -> the family-level default."""
+    from safeplate.allergen_prior import normalize_nut_types
     from safeplate.allergen_score import UserProfile
 
     return UserProfile.for_nuts(
         _severity_from_str(payload.get("severity")),
         cross_contact=_cross_contact_from_str(payload.get("crossContact")),
+        nut_types=normalize_nut_types(payload.get("nutTypes")),
     )
 
 

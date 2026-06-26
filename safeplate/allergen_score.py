@@ -39,15 +39,19 @@ from urllib.parse import urlparse
 
 from safeplate.allergen_prior import (
     NUTS,
+    NUT_TYPES,
     PEANUTS,
     TREE_NUTS,
+    TREE_NUT_TYPES,
     absence_inference_factor,
     clamp_risk as _clamp,
+    families_for_nut_types,
     labeling_trust_for_region,
     normalize_cuisine,
     region_from_address,
     restaurant_nut_risk,
     score_restaurant_prior,
+    specific_tree_nuts,
 )
 
 DISCLAIMER = (
@@ -96,6 +100,11 @@ class AllergenPref:
     severity: Severity = Severity.ALLERGY
     # None -> derive a sensible cross-contact level from ``severity`` (back-compat).
     cross_contact: CrossContactSensitivity | None = None
+    # The SPECIFIC nuts this user reacts to (subset of ``allergen_prior.NUT_TYPES``).
+    # None -> the whole family (the calibrated default). A strict subset turns on
+    # per-nut scoring: only dishes/evidence naming a selected nut drive the verdict,
+    # while non-selected nuts add only a small cross-contact allowance.
+    nut_types: frozenset[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -107,10 +116,15 @@ class UserProfile:
         cls,
         severity: Severity = Severity.ALLERGY,
         cross_contact: CrossContactSensitivity | None = None,
+        nut_types: frozenset[str] | None = None,
     ) -> "UserProfile":
-        """Convenience for the nuts-only first build."""
+        """Convenience for the nuts build. ``nut_types`` (a subset of the selectable
+        nuts) turns on per-nut scoring; None keeps the family-level default."""
         return cls(allergens=(
-            AllergenPref(allergen=NUTS, severity=severity, cross_contact=cross_contact),
+            AllergenPref(
+                allergen=NUTS, severity=severity,
+                cross_contact=cross_contact, nut_types=nut_types,
+            ),
         ))
 
 
@@ -234,6 +248,11 @@ class UserAllergenAssessment:
     rationale: list[str]
     community_reported: bool = False
     disclaimer: str = DISCLAIMER
+    # Citable evidence behind the rationale's [E#] markers: each entry is
+    # {id, type, text, url?, quote?}. Populated by the LLM scorer so the UI can link
+    # each cite chip to EXACTLY where the claim came from; empty for the rules scorer
+    # (its rationale carries no [E#] citations).
+    evidence: list[dict[str, Any]] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -314,22 +333,81 @@ def _families(allergen: str) -> set[str] | frozenset[str]:
     return {allergen}
 
 
-def _nut_terms_present(allergen_terms: Sequence[str], families: set[str]) -> list[str]:
-    """Return the allergen_terms that match one of the wanted nut families."""
+_NUT_LABELS = {
+    "almond": "almonds", "cashew": "cashews", "walnut": "walnuts", "pecan": "pecans",
+    "pistachio": "pistachios", "hazelnut": "hazelnuts", "macadamia": "macadamias",
+    "brazil_nut": "Brazil nuts", "pine_nut": "pine nuts", "chestnut": "chestnuts",
+    "peanuts": "peanuts",
+}
+
+
+def _nut_selection_label(allergen: str, wanted_nuts: frozenset[str] | None) -> str:
+    """Human label for the user's nut selection, for the rationale ('almonds' vs the
+    generic 'nuts'). None -> the family word ('nuts')."""
+    if wanted_nuts is None:
+        return allergen
+    names = [_NUT_LABELS.get(k, k.replace("_", " ")) for k in NUT_TYPES if k in wanted_nuts]
+    if not names:
+        return allergen
+    if len(names) == 1:
+        return names[0]
+    if len(names) == 2:
+        return f"{names[0]} & {names[1]}"
+    return f"{', '.join(names[:-1])} & {names[-1]}"
+
+
+def _nut_terms_present(
+    allergen_terms: Sequence[str], families: set[str] | str,
+) -> list[str]:
+    """Family-level grounded nut hits (back-compat wrapper over ``_split_nut_terms``).
+    Accepts a family set or an allergen key string. Equivalent to the pre-per-nut
+    behavior; used by the vocab-consistency and robustness tests."""
+    fams = _families(families) if isinstance(families, str) else families
+    contains, _other = _split_nut_terms(allergen_terms, fams, None)
+    return contains
+
+
+def _split_nut_terms(
+    allergen_terms: Sequence[str], families: set[str], wanted_nuts: frozenset[str] | None,
+) -> tuple[list[str], list[str]]:
+    """Classify grounded allergen terms into (contains, other) for the user's nut
+    selection. ``contains`` = terms naming a nut the user reacts to OR family-level
+    evidence we can't disaggregate (a 'tree nut' chart column, a generic 'nuts'
+    mention); ``other`` = terms naming nuts they did NOT select (a cross-contact
+    signal only). With ``wanted_nuts is None`` every family hit is 'contains' and
+    'other' is empty -- byte-identical to the family-level default."""
     if not families & {PEANUTS, TREE_NUTS}:
-        return []  # non-nut allergens not modelled in the nuts-only build
-    hits: list[str] = []
+        return [], []  # non-nut allergens not modelled in the nuts build
+    contains: list[str] = []
+    other: list[str] = []
     for raw in allergen_terms or []:
         term = str(raw).strip().lower()
         if not term:
             continue
         is_peanut = any(p in term for p in _PEANUT_TERMS)
         is_tree = any(t in term for t in _TREE_NUT_TERMS)
-        if (PEANUTS in families and is_peanut) or (TREE_NUTS in families and is_tree):
-            hits.append(term)
-        elif _is_generic_nut(term):  # generic nut mention ('nuts', 'mixed nuts', 'nut oil')
-            hits.append(term)
-    return hits
+        is_generic = _is_generic_nut(term)
+        if not (is_peanut or is_tree or is_generic):
+            continue
+        if wanted_nuts is None:
+            # Family-level default (unchanged behavior).
+            if (PEANUTS in families and is_peanut) or (TREE_NUTS in families and is_tree) or is_generic:
+                contains.append(term)
+            continue
+        # --- per-nut split ---
+        if is_peanut:
+            (contains if PEANUTS in wanted_nuts else other).append(term)
+        elif is_tree:
+            specifics = specific_tree_nuts(term)
+            if not specifics:  # unspecified tree nut ('tree nut') -> can't disaggregate
+                (contains if TREE_NUTS in families else other).append(term)
+            elif specifics & wanted_nuts:
+                contains.append(term)
+            else:
+                other.append(term)  # a tree nut the user didn't select
+        else:  # generic 'nuts'/'mixed nuts': can't disaggregate -> count as contains
+            contains.append(term)
+    return contains, other
 
 
 def _is_matrix_method(method: str) -> bool:
@@ -432,6 +510,17 @@ _CC_WARNING_FLOOR: dict[CrossContactSensitivity, float] = {
     CrossContactSensitivity.STRICT: 0.45,
 }
 
+# Per-nut cross-contact allowance: when the user selected SPECIFIC nuts and only OTHER
+# nuts are present, add this small bump scaled by cross-contact sensitivity. Kept minor
+# (and capped by _XNUT_CC_CEIL) so it nudges ranking without ever, on its own, escalating
+# a clean place into AVOID -- presence of the user's OWN nut is still required for that.
+_XNUT_CC_BUMP: dict[CrossContactSensitivity, float] = {
+    CrossContactSensitivity.NOT_CONCERNED: 0.0,
+    CrossContactSensitivity.MODERATE: 0.03,
+    CrossContactSensitivity.STRICT: 0.07,
+}
+_XNUT_CC_CEIL = 0.50
+
 
 def _effective_cross_contact(
     severity: Severity, cross_contact: CrossContactSensitivity | None
@@ -514,7 +603,14 @@ def _score_one_allergen(
     community: Sequence[CommunitySignal],
     official_domain: str | None = None,
 ) -> AllergenAssessment:
-    families = _families(pref.allergen)
+    # Per-nut selection: None (or 'all selected') keeps the calibrated family-level
+    # behavior; a strict subset narrows the families in play and turns on the per-nut
+    # term split + cross-contact allowance below.
+    wanted_nuts = pref.nut_types
+    if wanted_nuts is not None and wanted_nuts >= set(NUT_TYPES):
+        wanted_nuts = None
+    families = _families(pref.allergen) if wanted_nuts is None else families_for_nut_types(wanted_nuts)
+    allergen_label = _nut_selection_label(pref.allergen, wanted_nuts)
     severity = pref.severity
     cross_contact = _effective_cross_contact(severity, pref.cross_contact)
     caution_threshold, severity_floor = _SEVERITY_TUNING[severity]
@@ -556,6 +652,7 @@ def _score_one_allergen(
         ],
         allergen=pref.allergen,
         baseline=cuisine_prior,
+        wanted_nuts=wanted_nuts,
     )
     cuisine_floor = cuisine_prior.risk
 
@@ -576,8 +673,10 @@ def _score_one_allergen(
     text_hit_items: list[str] = []
     matrix_source_urls: list[str] = []
     matrix_columns: set[str] = set()
+    other_nut_terms: set[str] = set()  # nuts the user did NOT select (cross-contact signal)
     for _name_raw, name, _desc, method, terms, src_url, mcols in rows:
-        hits = _nut_terms_present(terms, families)
+        hits, other = _split_nut_terms(terms, families, wanted_nuts)
+        other_nut_terms.update(other)
         if _is_matrix_method(method):
             matrix_present = True
             matrix_source_urls.append(src_url)
@@ -679,7 +778,7 @@ def _score_one_allergen(
         shown = sorted(risky_names)[:4]
         more = risky_count - len(shown)
         rationale.append(
-            f"{risky_count} of {parsed_count} dishes involve {pref.allergen} "
+            f"{risky_count} of {parsed_count} dishes involve {allergen_label} "
             f"({', '.join(shown)}{f' +{more} more' if more > 0 else ''}); the other "
             f"{safe_count} don't -- avoid the flagged dishes and you can likely eat safely."
         )
@@ -706,7 +805,7 @@ def _score_one_allergen(
         basis = "suspected_nuts"
         shown = sorted(suspected_names)[:4]
         rationale.append(
-            f"No dish names {pref.allergen}, but {suspected_count} of {parsed_count} dishes "
+            f"No dish names {allergen_label}, but {suspected_count} of {parsed_count} dishes "
             f"are types that often hide nuts ({', '.join(shown)}) -- possible, not confirmed "
             "(low confidence; ask staff)."
         )
@@ -732,7 +831,7 @@ def _score_one_allergen(
         else:
             shown = sorted(risky_names)[:4]
             rationale.append(
-                f"{pref.allergen.capitalize()} runs across the menu ({', '.join(shown)}) "
+                f"{allergen_label.capitalize()} runs across the menu ({', '.join(shown)}) "
                 "-- hard to avoid here."
             )
 
@@ -752,7 +851,7 @@ def _score_one_allergen(
             confidence = max(confidence, 0.8 * matrix_trust)
             basis = "allergen_matrix"
             rationale.append(
-                f"Allergen chart present and does not list {pref.allergen} "
+                f"Allergen chart present and does not list {allergen_label} "
                 "(cross-contact still possible -- verify)."
             )
         elif signals.nut_free_claim and (families & {PEANUTS, TREE_NUTS}):
@@ -774,7 +873,7 @@ def _score_one_allergen(
                 confidence = max(confidence, 0.5 + 0.2 * coverage_fraction)
                 basis = "menu_coverage"
                 rationale.append(
-                    f"Reviewed {parsed_count} menu items; none name {pref.allergen} "
+                    f"Reviewed {parsed_count} menu items; none name {allergen_label} "
                     "-- mild reassurance only (no allergen chart; ask staff)."
                 )
 
@@ -794,6 +893,23 @@ def _score_one_allergen(
             rationale.append("Cross-contact / 'may contain' warning present.")
         if cc_floor and basis == "cuisine_prior":
             basis = "restaurant_signal"
+
+    # PER-NUT cross-contact allowance: the user picked specific nuts, NONE of them are
+    # present, but the kitchen grounds OTHER nuts -- shared-equipment reality. Add a
+    # small bump scaled by the user's cross-contact sensitivity. Deliberately minor
+    # and capped (per the product spec: "a little bump, nothing significant"); it can
+    # never on its own push a clean place into AVOID (presence is required for that).
+    if wanted_nuts is not None and other_nut_terms and not presence:
+        bump = _XNUT_CC_BUMP.get(cross_contact, 0.0)
+        bumped = min(_clamp(risk + bump), _XNUT_CC_CEIL)
+        if bumped > risk:
+            risk = bumped
+            confidence = max(confidence, 0.4)
+            rationale.append(
+                "Kitchen handles other nuts you didn't select "
+                f"({', '.join(sorted(other_nut_terms)[:3])}) -- small cross-contact "
+                "allowance added (verify if you react to traces)."
+            )
 
     # Tier C: community / anecdotal adjustment (asymmetric, bounded, provenance-tagged).
     risk, confidence, community_reported, community_notes = _apply_community(

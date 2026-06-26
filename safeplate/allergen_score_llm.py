@@ -390,12 +390,17 @@ def _build_bundle(
             if val:
                 add("handling", f"Restaurant signal: {label}.")
     for c in community or []:
-        add("community", f"Community {c.type}: \"{(c.quote or '')[:140]}\".", ctype=c.type)
+        add("community", f"Community {c.type}: \"{(c.quote or '')[:140]}\".",
+            ctype=c.type, url=getattr(c, "url", "") or "", quote=(c.quote or ""))
 
     bundle: dict[str, Any] = {
         "scenario": scenario,
         "user": {
             "allergen": pref.allergen,
+            # The SPECIFIC nuts the user reacts to (when they narrowed it): judge only
+            # these as 'contains'; other nuts matter only as cross-contact. "all" means
+            # every nut (the default).
+            "nuts": (sorted(pref.nut_types) if pref.nut_types else "all"),
             "severity": pref.severity.name.lower(),
             "cross_contact": (pref.cross_contact.name.lower() if pref.cross_contact else "default"),
         },
@@ -509,6 +514,9 @@ def _apply_guardrails(
         rationale=rationale,
         community_reported=det.community_reported,
         disclaimer=DISCLAIMER,
+        # Carry the citable evidence (with source URLs where known) so the UI can link
+        # each [E#] chip in the rationale straight to where the claim came from.
+        evidence=list(bundle.get("evidence", [])),
     )
 
 

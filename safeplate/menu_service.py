@@ -178,6 +178,9 @@ def _structured_menu_response(
                 "tier": assessment.tier,
                 "riskiestItems": riskiest_items,
                 "scoringEngine": scoring_engine,
+                # Citable evidence (id -> source url/quote) so the UI can deep-link each
+                # [E#] chip in the rationale to exactly where the claim came from.
+                "evidence": getattr(assessment, "evidence", []) or [],
             },
             "restaurantSignals": {
                 "has_allergy_disclaimer": assessment.handling.allergy_aware,

@@ -35,6 +35,129 @@ TREE_NUTS = "tree_nuts"
 NUTS = "nuts"
 _NUT_FAMILY = {PEANUTS, TREE_NUTS}
 
+# --------------------------------------------------------------------------- #
+# Per-NUT taxonomy (user-selectable specific nuts). The scorer can be told the
+# EXACT nuts a user reacts to; it then flags only dishes/evidence that name one of
+# THOSE nuts (strict per-nut), while family-level evidence we cannot disaggregate
+# (a chart's single "tree nut" column, a generic "nuts" mention) still counts for
+# any tree-nut selection -- we can't prove the user's nut is absent (safety-first).
+#
+# Default (no selection / all nuts selected) is byte-identical to the family-level
+# behavior: the per-nut filters are bypassed entirely. So the calibrated default
+# scores -- and the whole offline+live quality gate -- are unchanged.
+# --------------------------------------------------------------------------- #
+ALMOND = "almond"
+CASHEW = "cashew"
+WALNUT = "walnut"
+PECAN = "pecan"
+PISTACHIO = "pistachio"
+HAZELNUT = "hazelnut"
+MACADAMIA = "macadamia"
+BRAZIL_NUT = "brazil_nut"
+PINE_NUT = "pine_nut"
+CHESTNUT = "chestnut"
+TREE_NUT_TYPES = (
+    ALMOND, CASHEW, WALNUT, PECAN, PISTACHIO,
+    HAZELNUT, MACADAMIA, BRAZIL_NUT, PINE_NUT, CHESTNUT,
+)
+# The full selectable set: ten tree nuts + peanut (a legume, kept separate).
+NUT_TYPES = TREE_NUT_TYPES + (PEANUTS,)
+
+# Specific-nut term variants (lowercased, substring-matched). Mirrors the words the
+# extraction vocabulary and dish-knowledge already recognize, partitioned by which
+# nut they name. Used ONLY to refine an already-detected tree-nut hit into a
+# specific nut; the family-level recognition stays in allergen_score/menu_text.
+NUT_TYPE_TERMS: dict[str, frozenset[str]] = {
+    ALMOND: frozenset({
+        "almond", "amandine", "amande", "almendra", "mandel", "mandorla", "amêndoa",
+        "badem", "hạnh nhân", "アーモンド", "杏仁", "아몬드", "बादाम", "миндаль", "لوز",
+        "marzipan", "frangipane", "financier", "amaretto", "amaretti", "bakewell",
+        "marcona", "turron", "turrón", "torrone", "macaron",
+    }),
+    CASHEW: frozenset({
+        "cashew", "anacardo", "anacardi", "cajou", "cashewkern", "カシューナッツ",
+        "腰果", "hạt điều", "काजू", "كاجو", "кешью",
+    }),
+    WALNUT: frozenset({
+        "walnut", "walnuss", "muhammara", "waldorf", "くるみ", "クルミ", "核桃",
+        "호두", "अखरोट", "ceviz",
+    }),
+    PECAN: frozenset({"pecan"}),
+    PISTACHIO: frozenset({
+        "pistachio", "pistacho", "pistache", "pistazie", "pistacchio", "ピスタチオ",
+        "开心果", "فستق", "фисташки",
+    }),
+    HAZELNUT: frozenset({
+        "hazelnut", "filbert", "nutella", "gianduja", "frangelico", "avellana",
+        "noisette", "haselnuss", "nocciola", "avelã", "fındık", "ヘーゼルナッツ",
+        "بندق", "فندق", "фундук",
+    }),
+    MACADAMIA: frozenset({"macadamia", "macademia"}),
+    BRAZIL_NUT: frozenset({"brazil nut", "brazilnut"}),
+    PINE_NUT: frozenset({
+        "pine nut", "pinenut", "pignoli", "pinoli", "piñón", "松子", "잣",
+    }),
+    CHESTNUT: frozenset({"chestnut"}),
+    PEANUTS: frozenset({
+        "peanut", "groundnut", "cacahuete", "cacahuate", "cacahuète", "arachide",
+        "arachidi", "erdnuss", "amendoim", "đậu phộng", "落花生", "ピーナッツ", "花生",
+        "땅콩", "ถั่วลิสง", "मूंगफली", "арахис", "فول سوداني",
+    }),
+}
+
+
+def normalize_nut_types(values: object) -> frozenset[str] | None:
+    """Map a user's selected-nut list to canonical keys, or None for 'all nuts'.
+
+    None (nothing selected, or every nut selected) means 'use the family-level
+    default' -- the calibrated, gate-covered behavior. A strict subset activates
+    per-nut scoring. Unknown tokens are ignored; ``tree_nuts``/``nuts`` expand."""
+    if not values or not isinstance(values, (list, tuple, set, frozenset)):
+        return None
+    aliases = {
+        "tree nut": TREE_NUTS, "treenut": TREE_NUTS, "tree-nut": TREE_NUTS,
+        "brazil": BRAZIL_NUT, "brazil nut": BRAZIL_NUT, "brazilnut": BRAZIL_NUT,
+        "pine": PINE_NUT, "pine nut": PINE_NUT, "pinenut": PINE_NUT,
+        "peanut": PEANUTS, "peanuts": PEANUTS,
+    }
+    selected: set[str] = set()
+    for raw in values:
+        key = str(raw or "").strip().lower().replace("_", " ")
+        key = {"tree nuts": TREE_NUTS}.get(key, key)
+        key = aliases.get(key, key.replace(" ", "_"))
+        if key == TREE_NUTS:
+            selected.update(TREE_NUT_TYPES)
+        elif key == NUTS:
+            selected.update(NUT_TYPES)
+        elif key in NUT_TYPES:
+            selected.add(key)
+    if not selected or selected >= set(NUT_TYPES):
+        return None  # nothing recognized, or everything -> family-level default
+    return frozenset(selected)
+
+
+def families_for_nut_types(selected: frozenset[str] | None) -> set[str]:
+    """Which nut FAMILIES a specific-nut selection touches (for matrix columns /
+    generic mentions). None -> both (the default)."""
+    if selected is None:
+        return set(_NUT_FAMILY)
+    fams: set[str] = set()
+    if selected & set(TREE_NUT_TYPES):
+        fams.add(TREE_NUTS)
+    if PEANUTS in selected:
+        fams.add(PEANUTS)
+    return fams or set(_NUT_FAMILY)
+
+
+def specific_tree_nuts(term: str) -> frozenset[str]:
+    """The specific tree-nut keys a (lowercased) term names, e.g. 'marzipan' ->
+    {almond}. Empty when it's an unspecified tree-nut word ('tree nut') or names no
+    tree nut -- the caller then treats it as family-level (can't disaggregate)."""
+    return frozenset(
+        k for k in TREE_NUT_TYPES
+        if any(variant in term for variant in NUT_TYPE_TERMS[k])
+    )
+
 
 def _expand_allergen(allergen: str) -> set[str]:
     if allergen == NUTS:
@@ -210,6 +333,66 @@ _MULTILINGUAL_NUT_TERMS: list[tuple[str, set[str], float, str]] = [
 ]
 
 DISH_NUT_KNOWLEDGE.extend(_MULTILINGUAL_NUT_TERMS)
+
+# Per-dish specific-nut tags, for strict per-nut filtering. Dishes whose NAME isn't
+# itself a nut word (so specific_tree_nuts can't infer it) are listed explicitly; an
+# empty set means "unspecified within its family" (counts for any selection in that
+# family -- e.g. baklava/praline could be any tree nut, so we can't rule yours out).
+_DISH_NUT_TYPES_OVERRIDE: dict[str, frozenset[str]] = {
+    # peanut-sauce / peanut-forward dishes
+    "pad thai": frozenset({PEANUTS}), "팟타이": frozenset({PEANUTS}),
+    "パッタイ": frozenset({PEANUTS}), "satay": frozenset({PEANUTS}),
+    "sate": frozenset({PEANUTS}), "サテ": frozenset({PEANUTS}), "사테": frozenset({PEANUTS}),
+    "gado gado": frozenset({PEANUTS}), "gado-gado": frozenset({PEANUTS}),
+    "kung pao": frozenset({PEANUTS}), "gong bao": frozenset({PEANUTS}),
+    "massaman": frozenset({PEANUTS, CASHEW}), "馬薩曼": frozenset({PEANUTS, CASHEW}),
+    "korma": frozenset({CASHEW, ALMOND}), "qorma": frozenset({CASHEW, ALMOND}),
+    "mole": frozenset({PEANUTS, ALMOND}), "rendang": frozenset({MACADAMIA}),
+    # nut-derived preparations whose name doesn't contain the nut word
+    "pesto": frozenset({PINE_NUT}), "muhammara": frozenset({WALNUT}),
+    "waldorf": frozenset({WALNUT}), "romesco": frozenset({ALMOND, HAZELNUT}),
+    "marzipan": frozenset({ALMOND}), "frangipane": frozenset({ALMOND}),
+    "financier": frozenset({ALMOND}), "amaretto": frozenset({ALMOND}),
+    "amaretti": frozenset({ALMOND}), "bakewell": frozenset({ALMOND}),
+    "amandine": frozenset({ALMOND}), "marcona": frozenset({ALMOND}),
+    "turron": frozenset({ALMOND}), "turrón": frozenset({ALMOND}),
+    "torrone": frozenset({ALMOND}), "linzer": frozenset({ALMOND, HAZELNUT}),
+    "macaron": frozenset({ALMOND}), "nutella": frozenset({HAZELNUT}),
+    "gianduja": frozenset({HAZELNUT}), "frangelico": frozenset({HAZELNUT}),
+    "filbert": frozenset({HAZELNUT}), "pignoli": frozenset({PINE_NUT}),
+    "pine nut": frozenset({PINE_NUT}), "brazil nut": frozenset({BRAZIL_NUT}),
+    # unspecified (could be any tree nut) -> empty set
+    "praline": frozenset(), "nougat": frozenset(), "dukkah": frozenset(),
+    "dukka": frozenset(), "baklava": frozenset(), "baklawa": frozenset(),
+    "バクラヴァ": frozenset(), "kataifi": frozenset(), "mixed nut": frozenset(),
+    "tree nut": frozenset(),
+}
+
+
+def _entry_nut_types(pattern: str, allergens: set[str]) -> frozenset[str]:
+    """The specific nut keys a dish-knowledge entry names (incl. peanut). Empty means
+    'unspecified within its family'."""
+    if pattern in _DISH_NUT_TYPES_OVERRIDE:
+        return _DISH_NUT_TYPES_OVERRIDE[pattern]
+    keys = {k for k in NUT_TYPES if any(v in pattern for v in NUT_TYPE_TERMS[k])}
+    return frozenset(keys)
+
+
+# pattern -> specific nut keys, precomputed once (the table is static).
+_DISH_NUT_TYPES: dict[str, frozenset[str]] = {
+    pattern: _entry_nut_types(pattern, allergens)
+    for pattern, allergens, _risk, _note in DISH_NUT_KNOWLEDGE
+}
+
+
+def _entry_in_selection(pattern: str, selected: frozenset[str]) -> bool:
+    """Strict per-nut filter for a dish entry that already passed the FAMILY filter:
+    keep it only if it names one of the user's selected nuts, OR it's unspecified
+    within its family (we can't rule the user's nut out)."""
+    nut_types = _DISH_NUT_TYPES.get(pattern, frozenset())
+    if not nut_types:
+        return True  # unspecified -> the family filter already decided this
+    return bool(nut_types & selected)
 
 # --------------------------------------------------------------------------- #
 # SUSPECTED-nuts layer (RECALL, not precision): dish TYPES that frequently HIDE
@@ -844,6 +1027,7 @@ def score_menu_item_prior(
     allergen: str = NUTS,
     baseline: "AllergenPrior | None" = None,
     wanted: set[str] | None = None,
+    wanted_nuts: frozenset[str] | None = None,
 ) -> AllergenPrior:
     """Prior risk that a specific menu item involves ``allergen``.
 
@@ -851,7 +1035,8 @@ def score_menu_item_prior(
     explicit nut-free claim lowers the prior. ``baseline`` lets a caller scoring
     many items for one restaurant pass the (identical) cuisine/location prior in
     once instead of having it recomputed per item; ``wanted`` similarly lets the
-    caller pass the pre-expanded allergen family.
+    caller pass the pre-expanded allergen family. ``wanted_nuts`` (a specific-nut
+    selection) further restricts dish matches to the user's actual nuts.
     """
     if wanted is None:
         wanted = _expand_allergen(allergen)
@@ -868,7 +1053,7 @@ def score_menu_item_prior(
             labeling_trust=trust,
         )
 
-    dish_match = _best_dish_match(text, wanted)
+    dish_match = _best_dish_match(text, wanted, wanted_nuts)
     if baseline is None:
         baseline = score_restaurant_prior(
             cuisines=cuisines, region=region, allergen=allergen
@@ -965,6 +1150,7 @@ def restaurant_nut_risk(
     allergen: str = NUTS,
     risky_threshold: float = 0.5,
     baseline: "AllergenPrior | None" = None,
+    wanted_nuts: frozenset[str] | None = None,
 ) -> RestaurantNutRisk:
     """Combine the cuisine/location prior with per-item dish priors.
 
@@ -972,14 +1158,19 @@ def restaurant_nut_risk(
     dishes raise it. This is a prior summary, NOT a final safety verdict — the
     menu-evidence stage should still refine it. ``baseline`` lets a caller that has
     already computed the (identical) cuisine/location prior pass it in instead of
-    having it recomputed here.
+    having it recomputed here. ``wanted_nuts`` (a specific-nut selection) restricts
+    the per-dish matches to the user's actual nuts; None keeps the family default.
     """
     base = baseline if baseline is not None else score_restaurant_prior(
         cuisines=cuisines, region=region, allergen=allergen
     )
     # The wanted allergen family is constant across the restaurant's items; expand it
     # once and thread it into the per-item prior instead of rebuilding it per item.
-    wanted = _expand_allergen(allergen)
+    # A specific-nut selection narrows the family to just the families it touches.
+    wanted = (
+        families_for_nut_types(wanted_nuts) if wanted_nuts is not None
+        else _expand_allergen(allergen)
+    )
     item_scores: list[tuple[str, float]] = []
     item_details: list[dict[str, Any]] = []
     for item in menu_items or []:
@@ -991,6 +1182,7 @@ def restaurant_nut_risk(
             allergen=allergen,
             baseline=base,  # reuse the one cuisine/location prior; don't recompute per item
             wanted=wanted,
+            wanted_nuts=wanted_nuts,
         )
         name = (item.get("item_name") or item.get("name") or "").strip()
         if name:
@@ -1046,10 +1238,16 @@ _DISH_FALSE_FRIENDS: dict[str, set[str]] = {
 }
 
 
-def _best_dish_match(text: str, wanted: set[str]) -> tuple[float, str] | None:
+def _best_dish_match(
+    text: str, wanted: set[str], wanted_nuts: frozenset[str] | None = None
+) -> tuple[float, str] | None:
     best: tuple[float, str] | None = None
     for pattern, allergens, risk, note in DISH_NUT_KNOWLEDGE:
         if not (allergens & wanted):
+            continue
+        # Strict per-nut: skip a dish that names ONLY nuts the user didn't select
+        # (unspecified-within-family dishes still pass -- can't rule the user's out).
+        if wanted_nuts is not None and not _entry_in_selection(pattern, wanted_nuts):
             continue
         if _pattern_present(pattern, text):
             if best is None or risk > best[0]:
