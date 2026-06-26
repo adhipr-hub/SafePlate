@@ -49,6 +49,20 @@ _ALLERGEN_COLUMN_ALIASES: list[tuple[tuple[str, ...], str]] = [
     (("celery",), "celery"),
     (("sulphite", "sulfite", "sulphur", "sulfur"), "sulphites"),
     (("lupin", "lupine"), "lupin"),
+    # Per-nut columns. Detailed charts often split nuts into one column per type, and
+    # these names don't contain the substring "nut", so without them the generic
+    # catch-all below misses them: the table can be rejected (needs >=3 distinct
+    # allergen columns) or a dish ticked under "Cashew" records no nut hit -- a
+    # safety-asymmetric false negative. All map to the tree-nut family. Deliberately
+    # NOT "pine" (collides with "pineapple"); walnut/hazelnut/chestnut/brazil/pine nut
+    # already contain "nut" and are caught by the generic entry. Coconut stays guarded
+    # in _header_allergen. They share one canonical token, so several per-nut columns
+    # still count as ONE distinct allergen (a nut nutrition table won't be mis-detected).
+    (("almond",), "tree nut"),
+    (("cashew",), "tree nut"),
+    (("pecan",), "tree nut"),
+    (("pistachio",), "tree nut"),
+    (("macadamia", "macademia"), "tree nut"),
     # Generic "nut(s)" column, checked last so the specific nut types win.
     (("nut",), "tree nut"),
 ]

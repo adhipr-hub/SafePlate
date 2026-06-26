@@ -95,7 +95,16 @@ DISH_NUT_KNOWLEDGE: list[tuple[str, set[str], float, str]] = [
     ("romesco", {TREE_NUTS}, 0.85, "romesco = almond/hazelnut sauce"),
     ("baklava", {TREE_NUTS}, 0.95, "baklava = nut pastry"),
     ("baklawa", {TREE_NUTS}, 0.95, "baklava = nut pastry"),
+    ("kataifi", {TREE_NUTS}, 0.85, "kataifi = shredded-pastry nut dessert"),
     ("waldorf", {TREE_NUTS}, 0.85, "waldorf salad = walnuts"),
+    ("filbert", {TREE_NUTS}, 0.95, "filbert = hazelnut"),
+    ("marcona", {TREE_NUTS}, 0.95, "marcona = almond variety"),
+    ("turron", {TREE_NUTS}, 0.9, "turrón = almond nougat"),
+    ("turrón", {TREE_NUTS}, 0.9, "turrón = almond nougat"),
+    ("torrone", {TREE_NUTS}, 0.9, "torrone = almond nougat"),
+    ("linzer", {TREE_NUTS}, 0.9, "linzer = almond/hazelnut torte"),
+    # 'macaron' (almond-flour meringue) -- guarded against 'macaroon' (coconut) below.
+    ("macaron", {TREE_NUTS}, 0.9, "macaron = almond-flour meringue"),
     # nut-sauce / nut-forward dishes
     ("pad thai", {PEANUTS}, 0.9, "pad thai = peanuts"),
     ("satay", {PEANUTS}, 0.9, "satay = peanut sauce"),
@@ -980,6 +989,9 @@ def restaurant_nut_risk(
 # "mole" (Mexican mole sauce) fires on every "guacamole" / "molecular".
 _DISH_FALSE_FRIENDS: dict[str, set[str]] = {
     "mole": {"guacamole", "guacamoles", "molecular"},
+    # "macaron" (almond) is a substring of "macaroon" (typically coconut); don't let a
+    # coconut macaroon read as an almond dish.
+    "macaron": {"macaroon", "macaroons"},
 }
 
 

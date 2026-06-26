@@ -248,6 +248,7 @@ _PEANUT_TERMS = {
     "amendoim", "落花生", "ピーナッツ", "花生",
     "땅콩", "ถั่วลิสง", "मूंगफली",
     "арахис",
+    "đậu phộng", "فول سوداني", "fıstığı",  # peanut (vi/ar; tr fıstığı = peanut/pistachio)
 }
 _TREE_NUT_TERMS = {
     "tree nut", "treenut", "tree-nut",
@@ -256,6 +257,24 @@ _TREE_NUT_TERMS = {
     "almendra", "amande", "mandel", "mandorla", "anacardo", "cajou", "avellana",
     "noisette", "haselnuss", "nocciola", "pistacho", "pistache", "pistazie",
     "pistacchio", "walnuss",
+    # Non-Latin / accented tree-nut INGREDIENT words that menu_text.ALLERGEN_TERMS
+    # already extracts but the scorer previously dropped (recognized no nut family),
+    # so a foreign-language menu literally naming a nut produced grounded evidence
+    # that was then silently discarded -- a safety-asymmetric false negative. Mirrored
+    # from the extraction vocabulary; a regression test asserts the two cannot drift.
+    "amêndoa", "badem",                                   # almond (pt, tr)
+    "アーモンド", "杏仁", "아몬드", "बादाम", "миндаль", "لوز",        # almond (ja/zh/ko/hi/ru/ar)
+    "カシューナッツ", "腰果", "काजू", "كاجو",                       # cashew (ja/zh/hi/ar)
+    "fındık", "ヘーゼルナッツ", "بندق", "фундук",                   # hazelnut (tr/ja/ar/ru)
+    "ピスタチオ", "开心果", "فستق",                              # pistachio (ja/zh/ar)
+    "くるみ", "核桃", "호두", "अखरोट", "ceviz",                   # walnut (ja/zh/ko/hi/tr)
+    "pinoli", "松子", "잣",                                  # pine nut (it/zh/ko)
+    # Reverse-gap ingredient words newly added to the extraction vocabulary too.
+    "fıstığı", "hạnh nhân", "anacardi", "cashewkern", "hạt điều", "кешью",
+    "avelã", "фисташки", "クルミ", "piñón",
+    # Definitional nut-derived ingredients (the named thing IS a nut), so a literal
+    # listing counts as grounded tree-nut evidence. Mirrors menu_text.ALLERGEN_TERMS.
+    "filbert", "marzipan", "frangipane", "gianduja", "nutella", "pignoli",
 }
 _GENERIC_NUT_TERMS = {"nut", "nuts"}
 # Words that merely CONTAIN "nut" but are not (tree/ground) nuts. Used to keep the

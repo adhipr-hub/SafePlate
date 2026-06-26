@@ -97,6 +97,16 @@ ALLERGEN_TERMS = [
     "chestnut",
     "pine nut",
     "brazil nut",
+    "filbert",
+    # Definitional nut-derived ingredients: the named thing IS (mostly) a nut, so a
+    # literal listing is GROUNDED tree-nut evidence, not merely a dish prior. Kept to
+    # the >=0.95-certain set; merely-'usually'-nut names (pesto, nougat, romesco) stay
+    # priors only. All are mirrored in allergen_score._TREE_NUT_TERMS.
+    "marzipan",
+    "frangipane",
+    "gianduja",
+    "nutella",
+    "pignoli",
     "sesame",
     "soy",
     "shellfish",
@@ -120,6 +130,13 @@ ALLERGEN_TERMS = [
     "nocciola", "fındık", "ヘーゼルナッツ", "بندق", "фундук", "pistacho", "pistache",
     "pistazie", "pistacchio", "ピスタチオ", "开心果", "فستق", "walnuss", "くるみ",
     "核桃", "호두", "अखरोट", "ceviz", "pinoli", "松子", "잣",
+    # Reverse-gap nut INGREDIENT words the prior knows but free-text extraction did
+    # not (ingredient words only, not dish names). Distinctive (accented/non-Latin),
+    # so substring matching won't collide with common menu words.
+    "đậu phộng", "فول سوداني", "fıstığı",            # peanut (vi/ar/tr)
+    "hạnh nhân",                                      # almond (vi)
+    "anacardi", "cashewkern", "hạt điều", "кешью",   # cashew (it/de/vi/ru)
+    "avelã", "фисташки", "クルミ", "piñón",           # hazelnut/pistachio/walnut/pine nut
 ]
 
 ITEM_NAME_CONNECTORS = {"and", "&", "of", "the", "with", "a", "an", "to", "de", "la"}
