@@ -23,9 +23,18 @@ from __future__ import annotations
 from safeplate.allergen_score import CommunitySignal, RestaurantSignals
 
 
+# A real allergen matrix tracks nuts as a column, so a clean chart can vouch for
+# nut-absence. Declare nut columns on matrix-method items so the labeled cases mirror
+# real charts (the scorer only credits a clean chart that actually has a nut column).
+_MATRIX_COLUMNS = ("peanut", "tree nut", "milk", "egg", "soy", "gluten")
+
+
 def _item(name, *, allergen_terms=None, method="gemini_text", description=""):
-    return {"item_name": name, "description": description,
+    item = {"item_name": name, "description": description,
             "allergen_terms": allergen_terms or [], "extraction_method": method}
+    if "matrix" in method:
+        item["matrix_allergen_columns"] = _MATRIX_COLUMNS
+    return item
 
 
 def _sig(**kw):

@@ -534,6 +534,7 @@ def _score_one_allergen(
                 _field(item, "extraction_method") or "",
                 _field(item, "allergen_terms") or [],
                 _field(item, "menu_source_url") or "",
+                _field(item, "matrix_allergen_columns") or (),
             )
         )
 
@@ -551,7 +552,7 @@ def _score_one_allergen(
         region=region,
         menu_items=[
             {"item_name": name_raw, "description": desc}
-            for name_raw, _name, desc, _method, _terms, _src in rows
+            for name_raw, _name, desc, _method, _terms, _src, _cols in rows
         ],
         allergen=pref.allergen,
         baseline=cuisine_prior,
@@ -574,17 +575,29 @@ def _score_one_allergen(
     matrix_hit_items: list[str] = []
     text_hit_items: list[str] = []
     matrix_source_urls: list[str] = []
-    for _name_raw, name, _desc, method, terms, src_url in rows:
+    matrix_columns: set[str] = set()
+    for _name_raw, name, _desc, method, terms, src_url, mcols in rows:
         hits = _nut_terms_present(terms, families)
         if _is_matrix_method(method):
             matrix_present = True
             matrix_source_urls.append(src_url)
+            matrix_columns.update(mcols)
             if name:
                 matrix_dish_total += 1
             if hits and name:
                 matrix_hit_items.append(name)
         elif hits and name:
             text_hit_items.append(name)
+
+    # Did the chart actually have a column for the user's nut family? A matrix only
+    # needs >=3 allergen columns to be recognized, and those can be milk/egg/gluten with
+    # NO peanut/tree-nut column. Without this, a chart that never asked about nuts would
+    # trigger the "chart present, nuts not listed" pull-down and score nut-safe -- a
+    # false negative. Matrix nut columns canonicalize to "peanut" / "tree nut".
+    matrix_covers_nuts = (
+        (PEANUTS in families and "peanut" in matrix_columns)
+        or (TREE_NUTS in families and "tree nut" in matrix_columns)
+    )
 
     # Provenance trust of the allergen chart -- the most conservative (lowest) of
     # its source(s). A stale/off-site chart should not strongly vouch for absence.
@@ -726,11 +739,12 @@ def _score_one_allergen(
     # T3: restaurant-level signals. Presence DOMINATES -- a clean signal cannot
     # erase a confirmed hit; it only applies when nothing was found present.
     if not presence:
-        if matrix_present:
-            # A complete chart exists and marks the allergen NOWHERE -> the clean
+        if matrix_present and matrix_covers_nuts:
+            # A chart that HAS a nut column marks the allergen NOWHERE -> the clean
             # down-signal, gated by labeling trust x severity AND by how much we
             # trust this chart's PROVENANCE (off-site/stale -> weaker pull, lower
-            # confidence). Presence is never discounted this way.
+            # confidence). Presence is never discounted this way. A chart WITHOUT a nut
+            # column proves nothing about nuts, so it falls through to the prior below.
             risk = _pull_down(
                 risk, strength=0.75,
                 labeling_trust=labeling_trust * matrix_trust, floor=severity_floor,
@@ -764,7 +778,7 @@ def _score_one_allergen(
                     "-- mild reassurance only (no allergen chart; ask staff)."
                 )
 
-    if matrix_present and matrix_trust < 0.85:
+    if matrix_present and matrix_covers_nuts and matrix_trust < 0.85:
         rationale.append(
             "Allergen data here is an off-site or older copy -- treat as indicative "
             "and verify directly."

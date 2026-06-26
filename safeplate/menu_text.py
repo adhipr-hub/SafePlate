@@ -290,6 +290,11 @@ class MenuItemRecord:
     confidence: float
     raw_text: str
     fetched_at: str
+    # Allergen-matrix metadata: the canonical allergen tokens that had a COLUMN in the
+    # source chart (e.g. ("peanut", "tree nut", "milk")). Lets the scorer tell "the chart
+    # has a nut column and this dish wasn't marked" from "the chart never covered nuts" --
+    # only the former is evidence of nut-absence. Empty for non-matrix records.
+    matrix_allergen_columns: tuple[str, ...] = ()
 
 
 class MenuTextError(RuntimeError):

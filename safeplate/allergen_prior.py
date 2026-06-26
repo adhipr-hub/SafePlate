@@ -592,6 +592,24 @@ _US_STATE_CODES = {
     "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
 }
 
+# Full US state names, so an address written "..., Oregon" (no 2-letter code, no "USA")
+# still resolves to US instead of 'unknown'. "georgia" is the one name that is ALSO a
+# country (COUNTRY_ALIASES), so it is excluded here and disambiguated separately.
+_US_STATE_NAMES = {
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+    "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho", "illinois",
+    "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine", "maryland",
+    "massachusetts", "michigan", "minnesota", "mississippi", "missouri", "montana",
+    "nebraska", "nevada", "new hampshire", "new jersey", "new mexico", "new york",
+    "north carolina", "north dakota", "ohio", "oklahoma", "oregon", "pennsylvania",
+    "rhode island", "south carolina", "south dakota", "tennessee", "texas", "utah",
+    "vermont", "virginia", "washington", "west virginia", "wisconsin", "wyoming",
+    "district of columbia",
+}
+# Names that are BOTH a US state and a country alias key; need a US signal to call US.
+_US_STATE_COUNTRY_COLLISIONS = _US_STATE_NAMES & set(COUNTRY_ALIASES)  # {"georgia"}
+_US_STATE_NAMES_UNAMBIGUOUS = _US_STATE_NAMES - _US_STATE_COUNTRY_COLLISIONS
+
 
 def normalize_cuisine(categories: list[str] | None) -> list[str]:
     """Map provider category strings to canonical cuisine keys (order-preserving)."""
@@ -747,18 +765,41 @@ def region_from_address(
     lat/lon still resolves a region (region drives allergen-labeling/absence-inference,
     so 'unknown' under-credits clean menus). 'unknown' only if both fail."""
     segments = [seg.strip() for seg in (address or "").split(",") if seg.strip()]
+    seg_lowers = [s.lower() for s in segments]
+    # A segment's leading words with any trailing postcode digits stripped
+    # ("Georgia 30301" -> "georgia"), for full-state-name matching.
+    seg_names = [re.sub(r"\s+\d.*$", "", s).strip() for s in seg_lowers]
 
-    # 1) Trailing segments as a country name ("..., Australia").
-    for seg in reversed(segments):
-        country = COUNTRY_ALIASES.get(seg.lower())
+    # Strong US signals that disambiguate a US locale named like a country (e.g. the
+    # state "Georgia" vs the country): an explicit US country word, a 2-letter US state
+    # code, or a 5-digit US ZIP (NOT a bare numeric postcode alone -- many countries use
+    # those, but a 5-digit ZIP alongside the state name "Georgia" is decisive).
+    has_us_word = any(COUNTRY_ALIASES.get(s) == "US" for s in seg_lowers)
+    last_tokens = re.split(r"\s+", segments[-1].upper()) if segments else []
+    has_state_code = any(token in _US_STATE_CODES for token in last_tokens)
+    has_us_zip = bool(re.search(r"\b\d{5}(?:-\d{4})?\b", address or ""))
+    us_context = has_us_word or has_state_code or has_us_zip
+
+    # 1) Trailing segments as a country name ("..., Australia") -- but a name that is
+    # also a US state ("Georgia") resolves to US when the address has a strong US signal.
+    for seg in reversed(seg_lowers):
+        country = COUNTRY_ALIASES.get(seg)
         if country:
+            if seg in _US_STATE_COUNTRY_COLLISIONS and us_context:
+                return "US"
             return country
     # 2) A US state code in the last segment ("San Jose, CA 95129").
-    if segments:
-        for token in re.split(r"\s+", segments[-1].upper()):
-            if token in _US_STATE_CODES:
-                return "US"
-    # 3) Coordinates fallback (coarse country bbox).
+    if has_state_code:
+        return "US"
+    # 3) A full US state name. Unambiguous names ("Oregon") always imply US; the
+    # collision name ("Georgia 30301") needs a US signal so country "Georgia" isn't
+    # mislabeled.
+    for name in seg_names:
+        if name in _US_STATE_NAMES_UNAMBIGUOUS:
+            return "US"
+        if name in _US_STATE_COUNTRY_COLLISIONS and us_context:
+            return "US"
+    # 4) Coordinates fallback (coarse country bbox).
     return _country_from_coords(latitude, longitude) or "unknown"
 
 

@@ -18,13 +18,23 @@ from safeplate.allergen_score import (
 )
 
 
-def _item(name, *, allergen_terms=None, method="gemini_text", description=""):
-    return {
+# A realistic allergen matrix has a column per tracked allergen, INCLUDING nuts -- the
+# scorer only treats a clean chart as vouching for nut-absence when a nut column exists.
+_DEFAULT_MATRIX_COLUMNS = ("peanut", "tree nut", "milk", "egg", "soy", "gluten")
+
+
+def _item(name, *, allergen_terms=None, method="gemini_text", description="", matrix_columns=None):
+    item = {
         "item_name": name,
         "description": description,
         "allergen_terms": allergen_terms or [],
         "extraction_method": method,
     }
+    if "matrix" in method:
+        item["matrix_allergen_columns"] = tuple(
+            matrix_columns if matrix_columns is not None else _DEFAULT_MATRIX_COLUMNS
+        )
+    return item
 
 
 NUT_ALLERGY = UserProfile.for_nuts(Severity.ALLERGY)
@@ -32,13 +42,16 @@ NUT_ANAPHYLAXIS = UserProfile.for_nuts(Severity.ANAPHYLAXIS)
 NUT_PREF = UserProfile.for_nuts(Severity.AVOID_PREFERENCE)
 
 
-def _matrix_item(name, *, allergen_terms=None, url=""):
+def _matrix_item(name, *, allergen_terms=None, url="", matrix_columns=None):
     return {
         "item_name": name,
         "description": "",
         "allergen_terms": allergen_terms or [],
         "extraction_method": "gemini_allergen_matrix",
         "menu_source_url": url,
+        "matrix_allergen_columns": tuple(
+            matrix_columns if matrix_columns is not None else _DEFAULT_MATRIX_COLUMNS
+        ),
     }
 
 

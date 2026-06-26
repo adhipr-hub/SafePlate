@@ -170,6 +170,7 @@ def _records_from_text_grid(
         (idx for idx in range(len(header)) if idx not in allergen_cols), 0
     )
     needed = max([name_col, *allergen_cols.keys()])
+    columns = tuple(sorted(set(allergen_cols.values())))
 
     records: list[MenuItemRecord] = []
     for row in rows[1:]:
@@ -186,7 +187,7 @@ def _records_from_text_grid(
             }
         )
         seen.add(name.lower())
-        records.append(_matrix_item_record(name, present, ""))
+        records.append(_matrix_item_record(name, present, "", columns))
     return records
 
 
@@ -222,6 +223,7 @@ def _records_from_table(table: Any, seen: set[str]) -> list[MenuItemRecord]:
     if parsed is None:
         return []
     name_col, allergen_cols, category = parsed
+    columns = tuple(sorted(set(allergen_cols.values())))
 
     records: list[MenuItemRecord] = []
     needed = max([name_col, *allergen_cols.keys()])
@@ -243,7 +245,7 @@ def _records_from_table(table: Any, seen: set[str]) -> list[MenuItemRecord]:
             }
         )
         seen.add(key)
-        records.append(_matrix_item_record(name, present, category))
+        records.append(_matrix_item_record(name, present, category, columns))
     return records
 
 
@@ -342,7 +344,7 @@ def _table_caption(table: Any) -> str:
 
 
 def _matrix_item_record(
-    name: str, allergens: list[str], category: str
+    name: str, allergens: list[str], category: str, columns: tuple[str, ...] = ()
 ) -> MenuItemRecord:
     raw_text = (
         f"{name} contains {', '.join(allergens)}" if allergens else name
@@ -363,4 +365,5 @@ def _matrix_item_record(
         confidence=0.9,
         raw_text=raw_text,
         fetched_at="",
+        matrix_allergen_columns=columns,
     )

@@ -46,7 +46,9 @@ def write_dataclass_csv(
     transform: Callable[[dict[str, Any], T], None] | None = None,
 ) -> None:
     with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        # extrasaction="ignore": a dataclass may carry internal-only fields (e.g.
+        # matrix column metadata) that aren't part of the published CSV schema.
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for row in rows:
             record = asdict(row)
