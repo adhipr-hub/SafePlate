@@ -295,6 +295,13 @@ class MenuItemRecord:
     # has a nut column and this dish wasn't marked" from "the chart never covered nuts" --
     # only the former is evidence of nut-absence. Empty for non-matrix records.
     matrix_allergen_columns: tuple[str, ...] = ()
+    # Allergen charts list a dish followed by its component INGREDIENT sub-rows (Burger
+    # Bun, American Cheese, ShackSauce). ``is_component`` marks such a sub-row and
+    # ``parent_item`` names the dish it belongs to, so the pipeline can fold a
+    # component's allergens up into its parent and show only orderable dishes -- without
+    # losing any allergen data. False/"" for ordinary top-level items.
+    is_component: bool = False
+    parent_item: str = ""
 
 
 class MenuTextError(RuntimeError):

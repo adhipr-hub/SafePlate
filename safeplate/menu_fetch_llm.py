@@ -153,6 +153,10 @@ ALLERGEN_MATRIX_SCHEMA: dict[str, Any] = {
                 "properties": {
                     "dish": {"type": "string"},
                     "allergens": {"type": "array", "items": {"type": "string"}},
+                    # Many charts list an orderable dish, then its component ingredient
+                    # sub-rows. Mark those so the pipeline can fold them into the dish.
+                    "is_component": {"type": "boolean"},
+                    "of_dish": {"type": "string"},
                 },
                 "required": ["dish", "allergens"],
             },
@@ -165,10 +169,16 @@ ALLERGEN_MATRIX_SYSTEM = (
     "You read a restaurant ALLERGEN MATRIX image: rows are dishes, columns are "
     "allergens (peanut, tree nut, milk/dairy, egg, soy, wheat/gluten, fish, "
     "shellfish/crustacean, sesame, mustard, celery, sulphites, lupin, molluscs). "
-    "For each dish row, output the dish name and the list of allergens whose cell "
-    "is marked present (X, tick, dot, filled cell, or icon). List ONLY allergens "
-    "actually marked for that dish. Never invent dishes or allergens. If the image "
-    "is not an allergen grid, return an empty rows list."
+    "For each row, output the dish name and the list of allergens whose cell is marked "
+    "present (X, tick, dot, filled cell, or icon). List ONLY allergens actually marked "
+    "for that row. Never invent dishes or allergens.\n"
+    "IMPORTANT -- components vs dishes: many charts list an ORDERABLE menu item (e.g. "
+    "'ShackBurger') immediately followed by its COMPONENT ingredient rows (e.g. 'Burger "
+    "Patty', 'American Cheese', 'ShackSauce', 'Bun'), often indented or grouped under "
+    "it. For each such component row set is_component=true and of_dish to the exact name "
+    "of the orderable dish it belongs to. Top-level orderable items have "
+    "is_component=false. Still report every row's allergens either way. "
+    "If the image is not an allergen grid, return an empty rows list."
 )
 
 
@@ -275,6 +285,8 @@ def _absorb_matrix_rows(rows, records, seen, restaurant_name, restaurant_source_
         if not dish or dish.lower() in seen:
             continue
         seen.add(dish.lower())
+        is_component = bool(row.get("is_component"))
+        parent_item = str(row.get("of_dish", "")).strip() if is_component else ""
         records.append(
             MenuItemRecord(
                 restaurant_name=restaurant_name,
@@ -291,6 +303,8 @@ def _absorb_matrix_rows(rows, records, seen, restaurant_name, restaurant_source_
                 confidence=min(_MAX_CONFIDENCE, 0.6),
                 raw_text=(f"{dish} contains {', '.join(allergens)}" if allergens else dish),
                 fetched_at="",
+                is_component=is_component,
+                parent_item=parent_item,
             )
         )
 

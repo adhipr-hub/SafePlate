@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 
 from safeplate.extraction2 import interpret_llm
@@ -112,12 +113,19 @@ def _interpret_one(
         kept, _dropped = verify(items, payload, require_grounding=True)
         return True, kept, incomplete, calls
 
-    # Allergen-matrix PDFs whose grid pdfplumber can't read (rotated/icon headers,
-    # the norm for big chains): recover the dish x allergen grid with Gemini vision.
-    # High value for a safety app, so it runs before the plain text interpreter.
+    # Allergen-matrix PDFs: ALWAYS recover the dish x allergen grid with Gemini vision.
+    # The deterministic text-grid parser UNDER-reads graphical / rotated / icon-header
+    # grids (the norm for big chains -- e.g. Shake Shack's chart yields 14 mangled rows
+    # vs ~100 by vision), and a partial text-grid parse used to short-circuit the far
+    # better vision read. For a safety app that's the wrong trade: vision is ~half a cent
+    # per chart, cached for weeks and shared across a chain's locations, so we run it on
+    # every allergen PDF and UNION three reads -- vision wins name conflicts
+    # (authoritative for graphical grids), the text LLM fills the catalog (vision
+    # under-extracts TEXT-based PDFs, e.g. Pressed 22/117), and the text-grid rows are
+    # unioned in last so no allergen-bearing dish is ever lost. If vision returns nothing
+    # (no key / failure) we fall through to the text-grid/text-LLM logic below.
     if (
-        not structured
-        and payload.source_type == "pdf"
+        payload.source_type == "pdf"
         and llm_enabled
         and _looks_allergen(payload.text)
     ):
@@ -126,14 +134,10 @@ def _interpret_one(
         except interpret_llm.LLMNotEnabled:
             matrix = []
         if matrix:
-            # The vision matrix read is built for grids and UNDER-extracts a TEXT-based
-            # allergen/ingredient PDF (Pressed: 22 of ~117 products). Also run the text
-            # LLM and UNION: the matrix's allergen-bearing rows win on dedupe, so the
-            # full catalog is recovered WITHOUT losing any allergen data (no tier
-            # regression). On an image-only matrix PDF the text is empty, so run_llm
-            # returns nothing and this collapses to matrix-only at zero extra cost.
             ran, llm_items, incomplete, calls = run_llm()
-            merged = _union(matrix, llm_items)
+            merged = _collapse_components(
+                _union(_union(matrix, llm_items, _dish_key), structured, _dish_key)
+            )
             label = "gemini_pdf_matrix+text" if llm_items else "gemini_pdf_matrix"
             return merged, label, "", (1 + calls), incomplete
 
@@ -175,6 +179,57 @@ def _looks_allergen(text: str) -> bool:
     return "allergen" in low or "allergy" in low
 
 
+_DISH_KEY_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _dish_key(name: str) -> str:
+    """Match key for folding components into dishes: alphanumerics only, lower-cased.
+    So a component's parent 'ShackBurger' folds into the dish 'ShackBurger®' (symbol /
+    punctuation / spacing differences don't block the match). Deliberately NOT used to
+    merge near-duplicate top-level dishes -- those are kept separate."""
+    return _DISH_KEY_RE.sub("", (name or "").lower())
+
+
+def _collapse_components(items: list[MenuItemRecord]) -> list[MenuItemRecord]:
+    """Fold ingredient component sub-rows (marked by the matrix vision read) up into
+    their parent dish and drop them, so the menu lists only ORDERABLE dishes -- without
+    losing allergen data: each parent inherits the UNION of its components' allergens
+    (and chart columns). A component is folded into EVERY top-level dish whose key
+    matches its parent (so near-duplicate dishes both stay allergen-complete). A
+    component whose parent can't be matched is KEPT as its own item (never silently drop
+    allergen evidence). Records are frozen, so parents are rebuilt with replace()."""
+    top_by_key: dict[str, list[int]] = {}
+    for idx, it in enumerate(items):
+        if not it.is_component:
+            key = _dish_key(it.item_name)
+            if key:
+                top_by_key.setdefault(key, []).append(idx)
+    add_terms: dict[int, list[str]] = {}
+    add_cols: dict[int, set[str]] = {}
+    folded: set[int] = set()
+    for idx, it in enumerate(items):
+        if not it.is_component:
+            continue
+        targets = top_by_key.get(_dish_key(it.parent_item))
+        if not targets:
+            continue  # unattributable -> keep it (emitted as-is below)
+        for ti in targets:
+            add_terms.setdefault(ti, []).extend(it.allergen_terms)
+            add_cols.setdefault(ti, set()).update(it.matrix_allergen_columns)
+        folded.add(idx)
+    out: list[MenuItemRecord] = []
+    for idx, it in enumerate(items):
+        if idx in folded:
+            continue  # folded into its parent dish -> drop the component row
+        if idx in add_terms:
+            terms = list(dict.fromkeys(list(it.allergen_terms) + add_terms[idx]))
+            cols = tuple(sorted(set(it.matrix_allergen_columns) | add_cols.get(idx, set())))
+            out.append(replace(it, allergen_terms=terms, matrix_allergen_columns=cols))
+        else:
+            out.append(it)
+    return out
+
+
 _norm = norm_ws
 
 
@@ -190,11 +245,15 @@ def _rank(item: MenuItemRecord) -> tuple[int, int, float, int]:
     return (has_allergen, is_structured, item.confidence, has_price)
 
 
-def _union(primary: list[MenuItemRecord], secondary: list[MenuItemRecord]) -> list[MenuItemRecord]:
-    seen = {_norm(i.item_name) for i in primary}
+def _union(primary, secondary, keyfn=_norm):
+    """Keep all of ``primary``; append only ``secondary`` items whose key is new.
+    ``keyfn`` defaults to the whitespace-normalized name; the allergen-PDF path passes
+    ``_dish_key`` so a vision row ('Creamsicle® Float') and a text-LLM row ('Creamsicle
+    Float') of the SAME dish collapse to one (vision wins, keeping its allergen data)."""
+    seen = {keyfn(i.item_name) for i in primary}
     out = list(primary)
     for item in secondary:
-        key = _norm(item.item_name)
+        key = keyfn(item.item_name)
         if key and key not in seen:
             out.append(item)
             seen.add(key)
