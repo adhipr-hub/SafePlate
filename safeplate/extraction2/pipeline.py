@@ -211,6 +211,7 @@ def _collapse_components(items: list[MenuItemRecord]) -> list[MenuItemRecord]:
                 top_by_key.setdefault(key, []).append(idx)
     add_terms: dict[int, list[str]] = {}
     add_cols: dict[int, set[str]] = {}
+    add_cc: dict[int, list[str]] = {}
     folded: set[int] = set()
     for idx, it in enumerate(items):
         if not it.is_component:
@@ -221,6 +222,7 @@ def _collapse_components(items: list[MenuItemRecord]) -> list[MenuItemRecord]:
         for ti in targets:
             add_terms.setdefault(ti, []).extend(it.allergen_terms)
             add_cols.setdefault(ti, set()).update(it.matrix_allergen_columns)
+            add_cc.setdefault(ti, []).extend(it.cross_contact_terms)
         folded.add(idx)
     out: list[MenuItemRecord] = []
     for idx, it in enumerate(items):
@@ -229,7 +231,9 @@ def _collapse_components(items: list[MenuItemRecord]) -> list[MenuItemRecord]:
         if idx in add_terms:
             terms = list(dict.fromkeys(list(it.allergen_terms) + add_terms[idx]))
             cols = tuple(sorted(set(it.matrix_allergen_columns) | add_cols.get(idx, set())))
-            out.append(replace(it, allergen_terms=terms, matrix_allergen_columns=cols))
+            cc = list(dict.fromkeys(list(it.cross_contact_terms) + add_cc.get(idx, [])))
+            out.append(replace(it, allergen_terms=terms, matrix_allergen_columns=cols,
+                               cross_contact_terms=cc))
         else:
             out.append(it)
     return out

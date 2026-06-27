@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
@@ -302,6 +302,11 @@ class MenuItemRecord:
     # losing any allergen data. False/"" for ordinary top-level items.
     is_component: bool = False
     parent_item: str = ""
+    # Allergens an allergen chart marks as CROSS-CONTACT / "may contain" / shared-facility
+    # for this dish (a separate symbol from "contains"). Kept apart from ``allergen_terms``
+    # (which is presence) so the scorer can treat a nut here as a trace-risk floor for
+    # cross-contact-sensitive users WITHOUT calling the dish a confirmed nut dish.
+    cross_contact_terms: list[str] = field(default_factory=list)
 
 
 class MenuTextError(RuntimeError):

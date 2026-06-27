@@ -631,6 +631,7 @@ def _score_one_allergen(
                 _field(item, "allergen_terms") or [],
                 _field(item, "menu_source_url") or "",
                 _field(item, "matrix_allergen_columns") or (),
+                _field(item, "cross_contact_terms") or [],
             )
         )
 
@@ -648,7 +649,7 @@ def _score_one_allergen(
         region=region,
         menu_items=[
             {"item_name": name_raw, "description": desc}
-            for name_raw, _name, desc, _method, _terms, _src, _cols in rows
+            for name_raw, _name, desc, _method, _terms, _src, _cols, _cc in rows
         ],
         allergen=pref.allergen,
         baseline=cuisine_prior,
@@ -674,9 +675,13 @@ def _score_one_allergen(
     matrix_source_urls: list[str] = []
     matrix_columns: set[str] = set()
     other_nut_terms: set[str] = set()  # nuts the user did NOT select (cross-contact signal)
-    for _name_raw, name, _desc, method, terms, src_url, mcols in rows:
+    chart_cc_items: list[str] = []     # dishes the chart marks for the user's nut as CROSS-CONTACT
+    for _name_raw, name, _desc, method, terms, src_url, mcols, ccterms in rows:
         hits, other = _split_nut_terms(terms, families, wanted_nuts)
         other_nut_terms.update(other)
+        cc_hits, _cc_other = _split_nut_terms(ccterms, families, wanted_nuts)
+        if cc_hits and name:
+            chart_cc_items.append(name)
         if _is_matrix_method(method):
             matrix_present = True
             matrix_source_urls.append(src_url)
@@ -886,11 +891,22 @@ def _score_one_allergen(
     # A 'may contain' / cross-contact warning raises / holds the floor, weighted by
     # the user's cross-contact sensitivity (NOT their ingestion severity): a
     # NOT_CONCERNED user is unaffected, a trace-sensitive one is pushed to caution.
-    if signals.cross_contact_warning:
+    # The allergen chart's OWN per-dish cross-contact marks for the user's nut count
+    # here too -- so a 'shared facility: tree nut' chart isn't read as nut-safe for a
+    # trace-sensitive user just because no dish CONTAINS the nut.
+    chart_nut_cross_contact = bool(chart_cc_items)
+    if signals.cross_contact_warning or chart_nut_cross_contact:
         cc_floor = _CC_WARNING_FLOOR[cross_contact]
         if cc_floor and risk < cc_floor:
             risk = cc_floor
-            rationale.append("Cross-contact / 'may contain' warning present.")
+            if chart_nut_cross_contact:
+                shown = sorted(set(chart_cc_items))[:4]
+                rationale.append(
+                    f"Allergen chart marks shared-facility / cross-contact for "
+                    f"{allergen_label} ({', '.join(shown)}) -- a trace risk here."
+                )
+            else:
+                rationale.append("Cross-contact / 'may contain' warning present.")
         if cc_floor and basis == "cuisine_prior":
             basis = "restaurant_signal"
 

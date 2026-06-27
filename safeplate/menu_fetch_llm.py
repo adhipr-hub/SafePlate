@@ -146,6 +146,10 @@ def extract_items_via_gemini_image(
 ALLERGEN_MATRIX_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
+        # The allergen COLUMN HEADERS the chart tracks (whether or not any dish is marked
+        # for them). Lets the scorer know the chart covers nuts even when no dish is
+        # marked nut-present -- so a clean chart is recognized as authoritative.
+        "columns": {"type": "array", "items": {"type": "string"}},
         "rows": {
             "type": "array",
             "items": {
@@ -153,6 +157,9 @@ ALLERGEN_MATRIX_SCHEMA: dict[str, Any] = {
                 "properties": {
                     "dish": {"type": "string"},
                     "allergens": {"type": "array", "items": {"type": "string"}},
+                    # Allergens marked as CROSS-CONTACT / "may contain" / shared-facility
+                    # for this dish (a DIFFERENT symbol from "contains").
+                    "cross_contact": {"type": "array", "items": {"type": "string"}},
                     # Many charts list an orderable dish, then its component ingredient
                     # sub-rows. Mark those so the pipeline can fold them into the dish.
                     "is_component": {"type": "boolean"},
@@ -160,7 +167,7 @@ ALLERGEN_MATRIX_SCHEMA: dict[str, Any] = {
                 },
                 "required": ["dish", "allergens"],
             },
-        }
+        },
     },
     "required": ["rows"],
 }
@@ -168,10 +175,15 @@ ALLERGEN_MATRIX_SCHEMA: dict[str, Any] = {
 ALLERGEN_MATRIX_SYSTEM = (
     "You read a restaurant ALLERGEN MATRIX image: rows are dishes, columns are "
     "allergens (peanut, tree nut, milk/dairy, egg, soy, wheat/gluten, fish, "
-    "shellfish/crustacean, sesame, mustard, celery, sulphites, lupin, molluscs). "
-    "For each row, output the dish name and the list of allergens whose cell is marked "
-    "present (X, tick, dot, filled cell, or icon). List ONLY allergens actually marked "
-    "for that row. Never invent dishes or allergens.\n"
+    "shellfish/crustacean, sesame, mustard, celery, sulphites, lupin, molluscs).\n"
+    "First, output `columns`: the list of allergen column HEADERS the chart tracks "
+    "(every column, even ones no dish is marked for).\n"
+    "Charts often use TWO different symbols: one for PRESENT/CONTAINS and a separate one "
+    "for CROSS-CONTACT / 'may contain' / 'processed in a facility with' / shared "
+    "equipment (read the chart's key/legend). For each row output: `allergens` = "
+    "allergens whose cell is marked PRESENT (contains), and `cross_contact` = allergens "
+    "marked only with the cross-contact/may-contain symbol. List ONLY allergens actually "
+    "marked, in the correct bucket. Never invent dishes or allergens.\n"
     "IMPORTANT -- components vs dishes: many charts list an ORDERABLE menu item (e.g. "
     "'ShackBurger') immediately followed by its COMPONENT ingredient rows (e.g. 'Burger "
     "Patty', 'American Cheese', 'ShackSauce', 'Bun'), often indented or grouped under "
@@ -248,40 +260,58 @@ def _render_matrix_pages(pdf, max_pages, api_key, model, records, seen,
     # no dishes are ever lost. Single-page PDFs go straight to the one-image path.
     if len(images) > 1:
         try:
-            rows, truncated = _matrix_call(_matrix_images_payload(images), api_key, model)
+            rows, columns, truncated = _matrix_call(_matrix_images_payload(images), api_key, model)
             if rows and not truncated:
-                _absorb_matrix_rows(rows, records, seen, restaurant_name, restaurant_source_id)
+                _absorb_matrix_rows(rows, records, seen, restaurant_name,
+                                    restaurant_source_id, columns)
                 return records
         except Exception:
             pass
 
     for image_bytes in images:
         try:
-            rows, _truncated = _matrix_call(_matrix_image_payload(image_bytes), api_key, model)
+            rows, columns, _truncated = _matrix_call(_matrix_image_payload(image_bytes), api_key, model)
         except Exception:
             continue
-        _absorb_matrix_rows(rows, records, seen, restaurant_name, restaurant_source_id)
+        _absorb_matrix_rows(rows, records, seen, restaurant_name, restaurant_source_id, columns)
     return records
 
 
 def _matrix_call(payload: dict[str, Any], api_key: str, model: str):
-    """Return (rows, truncated). `truncated` flags a MAX_TOKENS cut-off so the
-    caller can fall back to per-page extraction."""
+    """Return (rows, columns, truncated). `columns` is the chart's allergen column
+    headers; `truncated` flags a MAX_TOKENS cut-off so the caller can fall back to
+    per-page extraction."""
     response = _post_gemini_generate_content(payload=payload, api_key=api_key, model=model)
     truncated = any(
         (candidate.get("finishReason") or "") == "MAX_TOKENS"
         for candidate in response.get("candidates", [])
     )
-    rows = _parse_gemini_json_response(response).get("rows", [])
-    return rows, truncated
+    parsed = _parse_gemini_json_response(response)
+    return parsed.get("rows", []), parsed.get("columns", []), truncated
 
 
-def _absorb_matrix_rows(rows, records, seen, restaurant_name, restaurant_source_id) -> None:
+def _canonical_allergens(values) -> list[str]:
+    """Canonicalize chart allergen labels ('Tree Nuts' -> 'tree nut') via the shared
+    header map, dropping ones it can't place (e.g. coconut)."""
+    from safeplate.allergen_matrix import _header_allergen
+
+    out: list[str] = []
+    for raw in values or []:
+        canon = _header_allergen(str(raw))
+        if canon and canon not in out:
+            out.append(canon)
+    return out
+
+
+def _absorb_matrix_rows(rows, records, seen, restaurant_name, restaurant_source_id,
+                        columns=None) -> None:
+    chart_columns = tuple(sorted(_canonical_allergens(columns)))
     for row in rows:
         if not isinstance(row, dict):
             continue
         dish = str(row.get("dish", "")).strip()
         allergens = [str(a).strip() for a in (row.get("allergens") or []) if str(a).strip()]
+        cross_contact = [str(a).strip() for a in (row.get("cross_contact") or []) if str(a).strip()]
         if not dish or dish.lower() in seen:
             continue
         seen.add(dish.lower())
@@ -305,6 +335,8 @@ def _absorb_matrix_rows(rows, records, seen, restaurant_name, restaurant_source_
                 fetched_at="",
                 is_component=is_component,
                 parent_item=parent_item,
+                matrix_allergen_columns=chart_columns,
+                cross_contact_terms=cross_contact,
             )
         )
 
