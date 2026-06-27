@@ -24,6 +24,7 @@ def extract_menu(
     llm_enabled: bool = False,
     gemini_api_key: str | None = None,
     gemini_model: str | None = None,
+    use_cache: bool = True,
 ) -> MenuExtractionResult:
     """Interpret a restaurant's acquired menu payloads into grounded item records.
 
@@ -45,6 +46,7 @@ def extract_menu(
             llm_enabled=llm_enabled,
             api_key=gemini_api_key,
             model=gemini_model,
+            use_cache=use_cache,
         )
         llm_calls += llm_used
         incomplete = incomplete or payload_incomplete
@@ -82,6 +84,7 @@ def _interpret_one(
     llm_enabled: bool,
     api_key: str | None,
     model: str | None,
+    use_cache: bool = True,
 ) -> tuple[list[MenuItemRecord], str, str, int, bool]:
     """Returns (verified_items, interpreter_name, reason_if_empty, llm_calls_used,
     incomplete). ``incomplete`` is True only when an LLM text chunk failed, leaving a
@@ -106,7 +109,7 @@ def _interpret_one(
             return False, [], False, 0
         try:
             items, incomplete, calls = interpret_llm.interpret_text(
-                payload, api_key=api_key, model=model
+                payload, api_key=api_key, model=model, use_cache=use_cache
             )
         except interpret_llm.LLMNotEnabled:
             return False, [], False, 0
@@ -130,7 +133,9 @@ def _interpret_one(
         and _looks_allergen(payload.text)
     ):
         try:
-            matrix = interpret_llm.interpret_pdf_matrix(payload, api_key=api_key, model=model)
+            matrix = interpret_llm.interpret_pdf_matrix(
+                payload, api_key=api_key, model=model, use_cache=use_cache
+            )
         except interpret_llm.LLMNotEnabled:
             matrix = []
         if matrix:

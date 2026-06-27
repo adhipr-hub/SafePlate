@@ -45,21 +45,23 @@ def payload_from_pdf_text(
     )
 
 
-def acquire(url: str, *, source_type: str, user_agent: str | None = None) -> Payload:
+def acquire(url: str, *, source_type: str, user_agent: str | None = None,
+            use_cache: bool = True) -> Payload:
     """Live acquisition: fetch a URL and normalize it to a Payload. Reuses v1's
     pooled HTTP / robots infra. (The offline eval harness builds payloads from
-    snapshots via the helpers above and does not call this.)"""
+    snapshots via the helpers above and does not call this.) ``use_cache=False``
+    forces a live fetch (the 'raw' / no-cache test path)."""
     user_agent = user_agent or get_user_agent()
     from safeplate.config import get_fetch_read_timeout
 
     read_timeout = get_fetch_read_timeout()
     low = url.lower().split("?")[0]  # ignore ?v= cache-busters (Shopify etc.) for type sniffing
     if source_type == "image" or low.endswith(IMAGE_EXTS):
-        resp = http_get(url, user_agent=user_agent, timeout=read_timeout, use_cache=True)
+        resp = http_get(url, user_agent=user_agent, timeout=read_timeout, use_cache=use_cache)
         return Payload(url=url, source_type="image", kind=PayloadKind.VISUAL,
                        content=resp.content, mime="image")
     if source_type == "pdf" or low.endswith(".pdf"):
-        resp = http_get(url, user_agent=user_agent, timeout=read_timeout, use_cache=True)
+        resp = http_get(url, user_agent=user_agent, timeout=read_timeout, use_cache=use_cache)
         # Carry the bytes (for the allergen-matrix table parser) AND the extracted
         # text (for the LLM), routed as TEXT so structured-then-LLM both run.
         try:
@@ -69,5 +71,5 @@ def acquire(url: str, *, source_type: str, user_agent: str | None = None) -> Pay
             text = ""
         return Payload(url=url, source_type="pdf", kind=PayloadKind.TEXT,
                        text=text, content=resp.content, mime="application/pdf")
-    html = fetch_html_page(url, user_agent=user_agent).html
+    html = fetch_html_page(url, user_agent=user_agent, use_cache=use_cache).html
     return payload_from_html(url, html, source_type=source_type)

@@ -62,6 +62,7 @@ def _extract_and_assess_structured(
     cuisines: list[str] | None = None,
     region: str | None = None,
     scoring_engine: str = "rules",
+    no_cache: bool = False,
 ):
     """Run the structured extraction (result-cached) + Layer #5 assessment for one
     restaurant. Shared by the menu drawer and the menu-backed search list so both
@@ -88,7 +89,10 @@ def _extract_and_assess_structured(
                 api_key=api_key,
                 model=get_gemini_model(),
                 brave_api_key=get_brave_search_api_key(),
-                use_result_cache=True,  # repeat opens of a restaurant skip all API calls
+                # repeat opens skip all API calls; the UI "raw / no cache" toggle turns
+                # BOTH the result cache and the per-source caches off for a live fetch.
+                use_result_cache=not no_cache,
+                use_cache=not no_cache,
             )
             menu_items = result.items
             allergy_signals = result.allergy_signals
@@ -207,6 +211,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
 
     profile = _user_profile_from_payload(payload)
     scoring_engine = _scoring_engine_from_payload(payload)
+    no_cache = bool(payload.get("noCache"))  # UI "raw" toggle: bypass every cache, fetch live
     latitude = _optional_float(payload.get("latitude"))
     longitude = _optional_float(payload.get("longitude"))
     # Derive cuisines/region once and reuse for both the extraction-stage score and
@@ -228,6 +233,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         cuisines=cuisines,
         region=region,
         scoring_engine=scoring_engine,
+        no_cache=no_cache,
     )
 
     # Community layer (DRAWER ONLY -- one restaurant, cacheable; the list stays cheap):

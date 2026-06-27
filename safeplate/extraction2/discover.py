@@ -409,12 +409,15 @@ def discover_and_extract(
     brave_api_key: str | None = None,
     policy=None,
     use_result_cache: bool = False,
+    use_cache: bool = True,
 ):
     """End-to-end: find candidates -> acquire -> extract. Returns (candidates, result).
 
     `use_result_cache` (app: on; eval: off) returns a cached full extraction for
     this website within the TTL -- skipping ALL discovery + extraction API calls on
-    a repeat open. Eval/benchmarks leave it OFF so they always measure fresh logic."""
+    a repeat open. Eval/benchmarks leave it OFF so they always measure fresh logic.
+    `use_cache=False` additionally bypasses the per-source caches (HTTP fetch, vision
+    matrix, text-LLM) so the run hits the LIVE website -- the 'raw' / no-cache test."""
     from safeplate.extraction2.acquire import acquire
     from safeplate.extraction2.classify import IMAGE_EXTS
     from safeplate.extraction2.pipeline import extract_menu
@@ -448,7 +451,8 @@ def discover_and_extract(
         source_type = "pdf" if low.endswith(".pdf") else (
             "image" if low.endswith(IMAGE_EXTS) else "website_link")
         try:
-            return cand.url, acquire(cand.url, source_type=source_type, user_agent=user_agent)
+            return cand.url, acquire(cand.url, source_type=source_type,
+                                     user_agent=user_agent, use_cache=use_cache)
         except Exception:
             return cand.url, None
 
@@ -465,7 +469,7 @@ def discover_and_extract(
     def _extract_one(payload: Any):
         return extract_menu(
             [payload], policy=policy or Policy.HYBRID, llm_enabled=bool(api_key),
-            gemini_api_key=api_key, gemini_model=model,
+            gemini_api_key=api_key, gemini_model=model, use_cache=use_cache,
         )
 
     # Extract candidates in priority order (allergen first) with EARLY-STOP and a
@@ -610,14 +614,15 @@ def discover_and_extract(
                 continue
             seen_urls.add(cand.url)
             try:
-                payload = acquire(cand.url, source_type="pdf", user_agent=user_agent)
+                payload = acquire(cand.url, source_type="pdf", user_agent=user_agent,
+                                  use_cache=use_cache)
             except Exception:
                 continue
             if not _pdf_mentions(payload.text, restaurant_name):
                 continue  # wrong-restaurant collision -> skip
             sub = extract_menu(
                 [payload], policy=policy or Policy.HYBRID, llm_enabled=True,
-                gemini_api_key=api_key, gemini_model=model,
+                gemini_api_key=api_key, gemini_model=model, use_cache=use_cache,
             )
             for record in sub.items:
                 if record.item_name.lower() not in seen_names:

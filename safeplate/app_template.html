@@ -246,6 +246,9 @@
       transition: all .15s;
     }
     .sort-btn.on { background: var(--tx); border-color: var(--tx); color: #fff; }
+    /* Cache toggle: a separate control; when OFF it warns you're fetching live (raw). */
+    .cache-toggle { margin-left: 10px; }
+    .cache-toggle.off { background: var(--rh); border-color: var(--rh); color: #fff; }
     .card-upg {
       font-size: 11px; font-weight: 600; color: var(--tx2);
       display: inline-flex; align-items: center; gap: 5px;
@@ -857,6 +860,8 @@
         <button class="sort-btn on" data-sort="risk">Safest first</button>
         <button class="sort-btn" data-sort="distance">Nearest</button>
         <button class="sort-btn" data-sort="rating">Top rated</button>
+        <button class="sort-btn cache-toggle on" id="cacheToggle" type="button" aria-pressed="true"
+          title="Cache on: reuse stored extractions for speed. Turn off to bypass every cache and re-read each restaurant LIVE from its website (slower; for testing extraction).">Cache: on</button>
       </div>
     </div>
     <div class="prog hidden" id="progStrip">
@@ -989,7 +994,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const cap = s => { s = String(s||"").replace(/_/g," "); return s.charAt(0).toUpperCase()+s.slice(1); };
 const asList = v => Array.isArray(v) ? v : v ? String(v).split(";").map(x=>x.trim()).filter(Boolean) : [];
 const isNut  = t => /nut|peanut|almond|cashew|walnut|pecan|pistachio|hazelnut|pine|macadamia|praline|nutella|gianduja/i.test(t);
-const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"", nutTypes:[] };
+const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"", nutTypes:[], noCache:false };
 let _searchSeq = 0;  // guards background progressive upgrades against a newer search
 
 /* Cross-contact defaults to a severity-derived level until the user overrides it
@@ -1091,7 +1096,7 @@ async function search(opts={}) {
       </div>
     </div>`).join("");
   try {
-    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine, nutTypes: state.nutTypes };
+    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine, nutTypes: state.nutTypes, noCache: state.noCache };
     if (hasCoords) { req.location = opts.location||"Current location"; req.latitude=opts.latitude; req.longitude=opts.longitude; }
     else { req.location = loc; }
     req.listMode = "prior";   // progressive is the only mode: instant cuisine-prior cards, upgraded in the background
@@ -1140,13 +1145,13 @@ async function upgradeCardsProgressive(seq) {
       let landed = false;
       try {
         const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(",")].join("|");
-        let m = _menuCache.get(key);
+        let m = state.noCache ? null : _menuCache.get(key);   // raw mode: skip the client memo too
         if (!m) {
           m = await (await fetch("/api/menu",{
             method:"POST",headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes})
+            body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache})
           })).json();
-          if (!m.error) _menuCache.set(key, m);
+          if (!m.error && !state.noCache) _menuCache.set(key, m);
         }
         if (seq !== _searchSeq) return;
         const summary = (m && m.summary) || {};
@@ -1468,16 +1473,17 @@ async function openDetail(r) {
   const seq = ++_menuSeq;
   // Instant path: the search already extracted this restaurant and embedded the full
   // menu in the card -> render with NO /api/menu round-trip (no spinner, no re-read).
-  if (r.menuDetail) { renderMenu(r.menuDetail, r); return; }
-  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine].join("|");
+  // Skipped in raw mode so the drawer re-fetches live instead of using the embed.
+  if (r.menuDetail && !state.noCache) { renderMenu(r.menuDetail, r); return; }
+  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(",")].join("|");
   try {
-    let m = _menuCache.get(key);
+    let m = state.noCache ? null : _menuCache.get(key);   // raw mode: skip the client memo too
     if (!m) {
       m = await (await fetch("/api/menu",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes})
+        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache})
       })).json();
-      if (!m.error) _menuCache.set(key, m);  // don't memoize errors -> allow retry
+      if (!m.error && !state.noCache) _menuCache.set(key, m);  // don't memoize errors / raw mode
     }
     if (seq !== _menuSeq) return;            // a newer open superseded this one
     renderMenu(m,r);
@@ -1777,10 +1783,23 @@ document.querySelectorAll("#navLinks .nav-link").forEach(a => a.addEventListener
   $("#navToggle").setAttribute("aria-expanded","false");
   $("#navToggle").setAttribute("aria-label","Open menu");
 }));
-document.querySelectorAll(".sort-btn").forEach(b => b.onclick=()=>{
-  document.querySelectorAll(".sort-btn").forEach(x=>x.classList.remove("on"));
+document.querySelectorAll(".sort-btn[data-sort]").forEach(b => b.onclick=()=>{
+  document.querySelectorAll(".sort-btn[data-sort]").forEach(x=>x.classList.remove("on"));
   b.classList.add("on"); state.sort=b.dataset.sort; renderResults();
 });
+
+/* Cache toggle (testing): off = bypass EVERY cache (client memo + server result/HTTP/
+   vision/text-LLM) and re-read each restaurant live from its website. */
+$("#cacheToggle").onclick = () => {
+  state.noCache = !state.noCache;
+  const btn = $("#cacheToggle");
+  btn.classList.toggle("on", !state.noCache);
+  btn.classList.toggle("off", state.noCache);
+  btn.setAttribute("aria-pressed", state.noCache ? "false" : "true");
+  btn.textContent = state.noCache ? "Cache: off" : "Cache: on";
+  if (state.noCache) { _menuCache.clear(); state.rows.forEach(r => { delete r.menuDetail; }); }
+  if (state.rows.length) search();   // re-run live so the change takes effect immediately
+};
 loadConfig();
 </script>
 </body>

@@ -23,16 +23,18 @@ def fetch_html_page(
     *,
     user_agent: str,
     fetch_mode: str = "static",
+    use_cache: bool = True,
 ) -> HtmlPage:
     """fetch_mode: 'static' (default), 'dynamic' (render JS), or 'auto'
-    (static first, render only if static fails or looks JS-empty)."""
+    (static first, render only if static fails or looks JS-empty). ``use_cache=False``
+    forces a live fetch (the 'raw' / no-cache test path)."""
     if fetch_mode == "static":
-        return _fetch_static_html(url, user_agent=user_agent)
+        return _fetch_static_html(url, user_agent=user_agent, use_cache=use_cache)
     if fetch_mode == "dynamic":
         return _fetch_dynamic_html(url, user_agent=user_agent)
     if fetch_mode == "auto":
         try:
-            page = _fetch_static_html(url, user_agent=user_agent)
+            page = _fetch_static_html(url, user_agent=user_agent, use_cache=use_cache)
         except PageFetchError:
             return _fetch_dynamic_html(url, user_agent=user_agent)
         if _looks_js_empty(page.html):
@@ -70,7 +72,7 @@ def _fetch_dynamic_html(url: str, *, user_agent: str) -> HtmlPage:
     )
 
 
-def _fetch_static_html(url: str, *, user_agent: str) -> HtmlPage:
+def _fetch_static_html(url: str, *, user_agent: str, use_cache: bool = True) -> HtmlPage:
     robots_decision = can_fetch_url(url, user_agent=user_agent)
     if not robots_decision.allowed:
         raise PageFetchError(f"Blocked by robots.txt: {robots_decision.reason}")
@@ -79,7 +81,7 @@ def _fetch_static_html(url: str, *, user_agent: str) -> HtmlPage:
 
     try:
         response = http_get(
-            url, user_agent=user_agent, timeout=get_fetch_read_timeout(), use_cache=True
+            url, user_agent=user_agent, timeout=get_fetch_read_timeout(), use_cache=use_cache
         )
     except HttpError as exc:
         raise PageFetchError(str(exc)) from exc

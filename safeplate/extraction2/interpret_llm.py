@@ -52,6 +52,7 @@ def interpret_text(
     *,
     api_key: str | None = None,
     model: str | None = None,
+    use_cache: bool = True,
 ) -> tuple[list[MenuItemRecord], bool, int]:
     """Interpret unstructured prose / PDF text with Gemini.
 
@@ -80,12 +81,12 @@ def interpret_text(
     # semaphore in `_post_gemini_generate_content`, so this never 429-storms even
     # when several sources/restaurants are extracting at once.
     if len(chunks) == 1:
-        parsed_chunks = [_cached_or_call(chunks[0], api_key=api_key, model=model)]
+        parsed_chunks = [_cached_or_call(chunks[0], api_key=api_key, model=model, use_cache=use_cache)]
     else:
         from safeplate.concurrency import map_concurrent
 
         parsed_chunks = map_concurrent(
-            lambda c: _cached_or_call(c, api_key=api_key, model=model),
+            lambda c: _cached_or_call(c, api_key=api_key, model=model, use_cache=use_cache),
             chunks,
             max_workers=min(len(chunks), 4),
         )
@@ -127,10 +128,12 @@ def interpret_pdf_matrix(
     *,
     api_key: str | None = None,
     model: str | None = None,
+    use_cache: bool = True,
 ) -> list[MenuItemRecord]:
     """Read a chain's allergen-matrix PDF with Gemini vision (renders the pages),
     recovering the dish x allergen grid when rotated/icon headers defeat the
-    pdfplumber table parser -- the case for most big chains."""
+    pdfplumber table parser -- the case for most big chains. ``use_cache=False``
+    re-runs the vision read live (the 'raw' / no-cache test path)."""
     if not api_key:
         raise LLMNotEnabled("GEMINI_API_KEY not set")
     if not payload.content:
@@ -141,12 +144,13 @@ def interpret_pdf_matrix(
     # pipeline and allergen matrices change rarely, so never re-pay for the same PDF.
     key = hashlib.sha1(b"pdfmatrix:" + model.encode("utf-8") + b":" + payload.content).hexdigest()
     path = get_cache_dir() / "extraction2_pdfmatrix" / f"{key}.json"
-    try:
-        blob = json.loads(path.read_text(encoding="utf-8"))
-        if time.time() - blob.get("at", 0) <= _CACHE_TTL:
-            return [MenuItemRecord(**item) for item in blob["items"]]
-    except (OSError, ValueError, KeyError, TypeError):
-        pass
+    if use_cache:
+        try:
+            blob = json.loads(path.read_text(encoding="utf-8"))
+            if time.time() - blob.get("at", 0) <= _CACHE_TTL:
+                return [MenuItemRecord(**item) for item in blob["items"]]
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
 
     from dataclasses import asdict
 
@@ -202,22 +206,23 @@ def _chunks(text: str) -> list[str]:
 _norm = norm_ws
 
 
-def _cached_or_call(text: str, *, api_key: str, model: str) -> dict[str, Any]:
+def _cached_or_call(text: str, *, api_key: str, model: str, use_cache: bool = True) -> dict[str, Any]:
     from safeplate.timing import span
 
     with span("llm_chunk_call"):
-        return _cached_or_call_inner(text, api_key=api_key, model=model)
+        return _cached_or_call_inner(text, api_key=api_key, model=model, use_cache=use_cache)
 
 
-def _cached_or_call_inner(text: str, *, api_key: str, model: str) -> dict[str, Any]:
+def _cached_or_call_inner(text: str, *, api_key: str, model: str, use_cache: bool = True) -> dict[str, Any]:
     key = hashlib.sha1(f"{model}:{text}".encode("utf-8")).hexdigest()
     path = get_cache_dir() / "extraction2_llm" / f"{key}.json"
-    try:
-        blob = json.loads(path.read_text(encoding="utf-8"))
-        if time.time() - blob.get("at", 0) <= _CACHE_TTL:
-            return blob["parsed"]
-    except (OSError, ValueError, KeyError):
-        pass
+    if use_cache:
+        try:
+            blob = json.loads(path.read_text(encoding="utf-8"))
+            if time.time() - blob.get("at", 0) <= _CACHE_TTL:
+                return blob["parsed"]
+        except (OSError, ValueError, KeyError):
+            pass
 
     request = {
         "system_instruction": {"parts": [{"text": TEXT_SYSTEM_INSTRUCTION}]},
