@@ -120,13 +120,14 @@ def _interpret_one(
     # The deterministic text-grid parser UNDER-reads graphical / rotated / icon-header
     # grids (the norm for big chains -- e.g. Shake Shack's chart yields 14 mangled rows
     # vs ~100 by vision), and a partial text-grid parse used to short-circuit the far
-    # better vision read. For a safety app that's the wrong trade: vision is ~half a cent
-    # per chart, cached for weeks and shared across a chain's locations, so we run it on
-    # every allergen PDF and UNION three reads -- vision wins name conflicts
-    # (authoritative for graphical grids), the text LLM fills the catalog (vision
-    # under-extracts TEXT-based PDFs, e.g. Pressed 22/117), and the text-grid rows are
-    # unioned in last so no allergen-bearing dish is ever lost. If vision returns nothing
-    # (no key / failure) we fall through to the text-grid/text-LLM logic below.
+    # better vision read. So we run vision on every allergen PDF: vision wins name
+    # conflicts (authoritative for graphical grids) and the text-grid rows are unioned in
+    # so no allergen-bearing dish is lost. The text LLM is kept ONLY when vision likely
+    # UNDER-read -- it found materially more dishes than vision (the text-based-PDF case,
+    # e.g. Pressed: vision 22 vs ~117). When vision already has a full chart, the text
+    # LLM mostly adds noise (component / near-duplicate names) that pads the list and
+    # dilutes the chart's coverage, so we drop it and trust vision. Vision empty
+    # (no key / failure) -> fall through to the text-grid/text-LLM logic below.
     if (
         payload.source_type == "pdf"
         and llm_enabled
@@ -140,11 +141,22 @@ def _interpret_one(
             matrix = []
         if matrix:
             ran, llm_items, incomplete, calls = run_llm()
-            merged = _collapse_components(
-                _union(_union(matrix, llm_items, _dish_key), structured, _dish_key)
-            )
-            label = "gemini_pdf_matrix+text" if llm_items else "gemini_pdf_matrix"
-            return merged, label, "", (1 + calls), incomplete
+            # Keep the text LLM ONLY if it found materially more NET-NEW dishes than
+            # vision -- i.e. vision under-read (text-based PDF). Compare NET-NEW (names
+            # vision doesn't already have), not raw counts: a verbose chart's text layer
+            # lists every component, so raw text count can exceed vision while adding only
+            # noise. Pressed: ~95 net-new vs vision 22 -> keep. Shake Shack: net-new is a
+            # minority of vision's items -> drop (don't pad a chart vision already read).
+            vision_keys = {_dish_key(i.item_name) for i in matrix}
+            net_new = sum(1 for i in llm_items if _dish_key(i.item_name) not in vision_keys)
+            if net_new > len(matrix) * _TEXT_OVER_VISION_FACTOR:
+                merged = _collapse_components(
+                    _union(_union(matrix, llm_items, _dish_key), structured, _dish_key)
+                )
+                return merged, "gemini_pdf_matrix+text", "", (1 + calls), incomplete
+            # Vision has the full chart -> trust it; don't let the text LLM pad the list.
+            merged = _collapse_components(_union(matrix, structured, _dish_key))
+            return merged, "gemini_pdf_matrix", "", (1 + calls), False
 
     if policy == Policy.HYBRID:
         if structured:
@@ -177,6 +189,13 @@ def _interpret_one(
         return [], "none", "no items from LLM or schema", used, incomplete
     label = "merge" if (structured and llm_items) else ("structured" if structured else "llm_text")
     return merged, label, "", used, incomplete
+
+
+# Keep the text-LLM's items alongside a vision chart only when its NET-NEW dish count
+# (names vision doesn't already have) exceeds this multiple of vision's item count --
+# i.e. vision clearly under-read (text-based PDF). Otherwise the text LLM is just padding
+# a chart vision already read in full.
+_TEXT_OVER_VISION_FACTOR = 1.0
 
 
 def _looks_allergen(text: str) -> bool:

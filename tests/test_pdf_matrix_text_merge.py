@@ -127,8 +127,29 @@ def test_partial_text_grid_does_not_suppress_vision():
 
     vis.assert_called_once()  # vision ran despite a non-empty text-grid parse
     names = {i.item_name for i in result.items}
-    # Vision's full read + text catalog, and the text-grid fragment is preserved (no loss).
-    assert {"Bacon Breakfast Sandwich", "Hot Dog", "ShackBurger", "Fries"} <= names
+    # Vision's full read present; the text-grid rows are unioned in (no allergen loss).
+    assert {"Bacon Breakfast Sandwich", "Hot Dog", "ShackBurger"} <= names
+    # Vision has the full chart (text LLM found only 1 vs vision's 3) -> the text LLM's
+    # "Fries" is dropped as padding, not unioned in.
+    assert "Fries" not in names
     # Vision wins the conflict on a shared dish (its richer allergen read is kept).
     hotdog = next(i for i in result.items if i.item_name == "Hot Dog")
     assert hotdog.allergen_terms == ["milk", "wheat"]
+
+
+def test_text_llm_kept_when_vision_underreads():
+    """When the text reader finds materially MORE dishes than vision (vision under-read
+    a TEXT-based PDF, e.g. Pressed 22 vs ~117), its catalog IS unioned in -- so we don't
+    regress that recovery."""
+    matrix_items = [_rec("Almond Milk Chocolate", allergens=["tree nut"])]  # vision: 1
+    text_items = [_rec("Almond Milk Chocolate"), _rec("Beauty Tonic"),
+                  _rec("Carrot Juice"), _rec("Greens 3")]                    # text: 4 (>1.5x)
+    with mock.patch.object(pipeline, "interpret_structured", return_value=[]), \
+         mock.patch.object(interpret_llm, "interpret_pdf_matrix", return_value=matrix_items), \
+         mock.patch.object(interpret_llm, "interpret_text", return_value=(text_items, False, 1)), \
+         mock.patch.object(pipeline, "verify", side_effect=lambda items, p, require_grounding: (items, [])):
+        result = pipeline.extract_menu(
+            [_pdf_payload()], policy=Policy.HYBRID, llm_enabled=True, gemini_api_key="k"
+        )
+    names = {i.item_name for i in result.items}
+    assert {"Almond Milk Chocolate", "Beauty Tonic", "Carrot Juice", "Greens 3"} <= names
