@@ -5,6 +5,7 @@ from dataclasses import replace
 
 from safeplate.extraction2 import interpret_llm
 from safeplate.extraction2.interpret_structured import interpret_structured
+from safeplate.extraction2.region import detect_source_region
 from safeplate.extraction2.schema import (
     CoverageReport,
     MenuExtractionResult,
@@ -65,6 +66,12 @@ def extract_menu(
                 interpreter=interpreter if items else "none",
                 confidence=mean_confidence(items),
                 reason=(f"{len(items)} items via {interpreter}" if items else reason),
+                # Content-locale: which region does this source's text/URL belong to?
+                # Stamped per source so the orchestrator can compare it to the diner's
+                # region and surface a from-another-region notice. Only sources that
+                # yielded items can ever surface a banner, so skip the scan otherwise.
+                region=(detect_source_region(payload.text or "", payload.url) or "")
+                if items else "",
             )
         )
         items_all.extend(items)

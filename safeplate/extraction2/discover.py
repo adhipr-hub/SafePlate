@@ -174,10 +174,14 @@ def _brave_allergen_sources(
     """Consolidated allergen web search: a small set of DISTINCT, high-value queries
     (on-domain PDF, off-domain PDF, off-domain page) instead of the prior two
     helpers' ~6 overlapping queries. Queries fire CONCURRENTLY through the shared
-    Brave token bucket (which keeps us under the plan's per-second limit), processed
-    in query order so the highest-value query still ranks first; early-break once we
-    have enough.
-    NOTE: off-domain copies can be stale -- scoring should prefer official+recent."""
+    Brave token bucket (which keeps us under the plan's per-second limit); results
+    from ALL queries are collected, then ranked together by provenance (query order
+    is only a stable tiebreak within a rank).
+    NOTE: off-domain copies can be stale -- scoring should prefer official+recent.
+    Provenance guard: queries are biased to the home region, and foreign-ccTLD
+    results are DEMOTED to a last-resort fallback (not dropped -- they may be the only
+    allergen data; content-locale validation later labels them as from-another-region
+    rather than silently trusting them)."""
     try:
         from safeplate.brave_search import BraveSearchError, brave_web_search
     except Exception:
@@ -187,15 +191,12 @@ def _brave_allergen_sources(
     if domain.startswith("www."):
         domain = domain[4:]
     city = _city_token(address)
-    queries: list[str] = []
-    if domain:
-        queries.append(f"site:{domain} filetype:pdf allergen OR nutrition")
-    queries.append(f'"{restaurant_name}" allergen filetype:pdf')          # off-domain PDF (high value)
-    queries.append(
-        f'"{restaurant_name}" "{city}" allergen menu' if city
-        else f'"{restaurant_name}" allergen menu'                          # off-domain page
+    home_country = _home_country(address, website_url)
+    region = _region_token(home_country)
+    official_regdomain = registrable_domain(domain)
+    queries = _allergen_queries(
+        domain=domain, restaurant_name=restaurant_name, city=city, region=region
     )
-    queries = list(dict.fromkeys(q for q in queries if q.strip()))
 
     def _run(query: str) -> tuple[str, list]:
         try:
@@ -205,7 +206,10 @@ def _brave_allergen_sources(
         except BraveSearchError:
             return query, []
 
-    out: list[Candidate] = []
+    # Collect across all queries first, THEN rank/filter by provenance, so a
+    # foreign result returned by the high-value query can't crowd out the correct
+    # one (ranking, not raw query order, decides the final priority).
+    collected: list[Candidate] = []
     seen: set[str] = set()
     for query, results in map_concurrent(_run, queries, max_workers=len(queries)):
         for result in results:
@@ -215,14 +219,15 @@ def _brave_allergen_sources(
             base = result.url.lower().split("?")[0].split("#")[0]
             haystack = f"{result.url} {result.title or ''}".lower()
             if base.endswith(".pdf"):
-                out.append(Candidate(url=result.url, anchor_text=result.title or "",
-                                     kind="allergen", source="brave_pdf", reason=query))
+                collected.append(Candidate(url=result.url, anchor_text=result.title or "",
+                                           kind="allergen", source="brave_pdf", reason=query))
             elif "allerg" in haystack or "nutrition" in haystack:
-                out.append(Candidate(url=result.url, anchor_text=result.title or "",
-                                     kind="allergen", source="brave", reason=query))
-        if len(out) >= limit:
-            break
-    return out[:limit]
+                collected.append(Candidate(url=result.url, anchor_text=result.title or "",
+                                           kind="allergen", source="brave", reason=query))
+    ranked = _rank_sources(
+        collected, official_regdomain=official_regdomain, home_country=home_country
+    )
+    return ranked[:limit]
 
 
 def _brave_menu_pdf_candidates(
@@ -231,19 +236,24 @@ def _brave_menu_pdf_candidates(
     address: str | None,
     api_key: str,
     user_agent: str,
+    website_url: str = "",
     limit: int = 6,
 ) -> list[Candidate]:
-    """Broad `"<name>" menu filetype:pdf` web search (city-biased when known), kept
-    to real PDFs. The caller verifies each PDF actually names the restaurant."""
+    """Broad `"<name>" menu filetype:pdf` web search (city/region-biased when known
+    -- e.g. 'Din Tai Fung USA menu pdf'), kept to real PDFs. The caller verifies
+    each PDF names the restaurant; foreign-ccTLD results are DEMOTED to a last-resort
+    fallback (not dropped) and the official domain (when known) ranks first."""
     try:
         from safeplate.brave_search import BraveSearchError, brave_web_search
     except Exception:
         return []
-    queries: list[str] = []
     city = _city_token(address)
-    if city:
-        queries.append(f'"{restaurant_name}" "{city}" menu filetype:pdf')
-    queries.append(f'"{restaurant_name}" menu filetype:pdf')
+    # website_url lets home detection use the site ccTLD when the address lacks a
+    # country, and lets the restaurant's own domain rank ahead of off-site copies.
+    home_country = _home_country(address, website_url)
+    region = _region_token(home_country)
+    official_regdomain = registrable_domain(urlparse(website_url or "").netloc)
+    queries = _menu_pdf_queries(restaurant_name=restaurant_name, city=city, region=region)
 
     def _run(query: str) -> tuple[str, list]:
         try:
@@ -253,18 +263,19 @@ def _brave_menu_pdf_candidates(
         except BraveSearchError:
             return query, []
 
-    out: list[Candidate] = []
+    collected: list[Candidate] = []
     seen: set[str] = set()
     for query, results in map_concurrent(_run, queries, max_workers=len(queries)):
         for res in results:
             base = res.url.lower().split("?")[0].split("#")[0]
             if base.endswith(".pdf") and res.url not in seen:
                 seen.add(res.url)
-                out.append(Candidate(url=res.url, anchor_text=res.title or "",
-                                     kind="menu", source="brave_menu_pdf", reason=query))
-        if len(out) >= limit:
-            break
-    return out[:limit]
+                collected.append(Candidate(url=res.url, anchor_text=res.title or "",
+                                           kind="menu", source="brave_menu_pdf", reason=query))
+    ranked = _rank_sources(
+        collected, official_regdomain=official_regdomain, home_country=home_country
+    )
+    return ranked[:limit]
 
 
 def _city_token(address: str | None) -> str | None:
@@ -273,6 +284,82 @@ def _city_token(address: str | None) -> str | None:
     parts = [p.strip() for p in address.split(",") if p.strip()]
     # "<street>, <city>, <state>, <zip>" -> the second segment is usually the city.
     return parts[1] if len(parts) >= 2 else None
+
+
+# --- Home-country / official-source provenance guard --------------------------
+# The global chain benchmark surfaced a safety-critical failure: the Brave
+# fallback would win a wrong-country allergen matrix (US Burger King <- Malta
+# .mt, Starbucks <- Switzerland .ch). A foreign allergen chart is dangerous for
+# an allergy app -- different recipes, suppliers, and labelling laws. So we (a)
+# bias web-search queries toward the home country and (b) RANK home/official
+# sources above foreign ones. Foreign sources are kept as a last-resort fallback
+# (per product intent) -- content-locale validation then labels them in the UI as
+# from-another-region rather than silently trusting them. Region primitives live
+# in region.py (shared, import-cycle-free); re-exported here under the private
+# names existing callers/tests use.
+from safeplate.extraction2.region import (  # noqa: E402
+    home_country as _home_country,
+    host_country as _host_country,
+    is_foreign_source as _is_foreign_source,
+    region_token as _region_token,
+)
+
+
+def _rank_sources(
+    cands: list[Candidate], *, official_regdomain: str, home_country: str | None
+) -> list[Candidate]:
+    """Order web-search candidates by provenance: the restaurant's own domain
+    first, then a home-country ccTLD, then country-neutral hosts, and a foreign
+    ccTLD LAST (kept as a fallback, not dropped -- it may be the only allergen
+    data, and the UI labels it as from-another-region). Stable within a rank, so
+    the original query priority is preserved as a tiebreak."""
+
+    def _key(c: Candidate) -> int:
+        host = urlparse(c.url).netloc.lower()
+        if official_regdomain and registrable_domain(host) == official_regdomain:
+            return 0
+        if home_country and _host_country(host) == home_country:
+            return 1
+        if _is_foreign_source(c.url, home_country):
+            return 3  # wrong country -> last resort, surfaced with a region notice
+        return 2  # country-neutral host (CDN/aggregator); can't tell the country
+
+    return sorted(cands, key=_key)
+
+
+def _allergen_queries(
+    *, domain: str, restaurant_name: str, city: str | None, region: str
+) -> list[str]:
+    """Brave allergen queries: on-domain PDF, off-domain PDF, off-domain page.
+    The off-domain queries are biased toward the home region (city if known, else
+    country) so the search surfaces the correct-country chart, not a foreign one."""
+    queries: list[str] = []
+    if domain:
+        queries.append(f"site:{domain} filetype:pdf allergen OR nutrition")
+    if region:
+        queries.append(f'"{restaurant_name}" {region} allergen filetype:pdf')
+    else:
+        queries.append(f'"{restaurant_name}" allergen filetype:pdf')
+    if city:
+        queries.append(f'"{restaurant_name}" "{city}" allergen menu')
+    elif region:
+        queries.append(f'"{restaurant_name}" {region} allergen menu')
+    else:
+        queries.append(f'"{restaurant_name}" allergen menu')
+    return list(dict.fromkeys(q for q in queries if q.strip()))
+
+
+def _menu_pdf_queries(
+    *, restaurant_name: str, city: str | None, region: str
+) -> list[str]:
+    """Brave menu-PDF queries, region-biased (e.g. 'Din Tai Fung USA menu pdf')."""
+    queries: list[str] = []
+    if city:
+        queries.append(f'"{restaurant_name}" "{city}" menu filetype:pdf')
+    if region:
+        queries.append(f'"{restaurant_name}" {region} menu filetype:pdf')
+    queries.append(f'"{restaurant_name}" menu filetype:pdf')
+    return list(dict.fromkeys(q for q in queries if q.strip()))
 
 
 def _pdf_mentions(text: str, restaurant_name: str) -> bool:
@@ -310,7 +397,9 @@ def _is_structured_matrix(method: str | None) -> bool:
 # before it (e.g. restaurants that wrongly cached as "no menu").
 # v3: nut-free-claim detection (+ scanning nut-free-mentioning pages for signals).
 # v4: matrix early-exit (stop once a menu-covering allergen matrix is found).
-_RESULT_CACHE_VERSION = "4"
+# v5: per-source region stamp on coverage (content-locale provenance) -- old
+# entries lack it and would skip the from-another-region notice.
+_RESULT_CACHE_VERSION = "5"
 _RESULT_CACHE_TTL = 7 * 24 * 60 * 60
 # "Nothing found" (no items + no signals) is cached too -- so a dead/empty site
 # doesn't re-run discovery + the Brave fallback every search -- but with a SHORTER
@@ -583,10 +672,14 @@ def discover_and_extract(
                 break
             if cand.kind not in ("allergen", "nutrition", "menu"):
                 continue
-            for record in capture_allergen_api(cand.url, user_agent=user_agent):
+            captured, cap_coverage = capture_allergen_api(cand.url, user_agent=user_agent)
+            for record in captured:
                 if record.item_name.lower() not in seen:
                     seen.add(record.item_name.lower())
                     result.items.append(record)
+            # Record per-endpoint coverage (carries the region stamp) so captured
+            # backend allergen data can trigger the from-another-region notice.
+            result.coverage.extend(cap_coverage)
             if any(it.allergen_terms for it in result.items):
                 break  # got allergen data; stop probing further candidates
 
@@ -605,7 +698,7 @@ def discover_and_extract(
         seen_names = {it.item_name.lower() for it in result.items}
         for cand in _brave_menu_pdf_candidates(
             restaurant_name=restaurant_name, address=address,
-            api_key=brave_api_key, user_agent=user_agent,
+            api_key=brave_api_key, user_agent=user_agent, website_url=website_url,
         ):
             if time.monotonic() >= overall_deadline:
                 timed_out = True  # budget hit mid-recovery -> partial, don't cache

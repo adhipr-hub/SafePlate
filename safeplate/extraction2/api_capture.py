@@ -20,6 +20,8 @@ from urllib.parse import urljoin, urlparse
 
 from safeplate.concurrency import map_concurrent
 from safeplate.extraction2.embedded_allergens import extract_allergen_items_from_obj
+from safeplate.extraction2.region import detect_source_region
+from safeplate.extraction2.schema import CoverageReport
 from safeplate.fetching import fetch_url_bytes
 from safeplate.menu_text import MenuItemRecord
 from safeplate.page_fetch import PageFetchError, fetch_html_page
@@ -48,25 +50,53 @@ def capture_allergen_api(
     max_bundles: int = 6,
     max_endpoints: int = 14,
     max_workers: int = 4,
-) -> list[MenuItemRecord]:
-    """Return dish x allergen records recovered from the page's backing API, or []."""
+) -> tuple[list[MenuItemRecord], list[CoverageReport]]:
+    """Return (records, coverage) for dish x allergen data recovered from the page's
+    backing API, or ([], []). Each yielding endpoint gets a CoverageReport carrying a
+    content-locale ``region`` stamp -- so backend-captured allergen data participates
+    in the from-another-region banner like any source read through extract_menu
+    (without it, a wrong-country backend feed would show with no notice)."""
     try:
         html = fetch_html_page(page_url, user_agent=user_agent).html
     except PageFetchError:
-        return []
+        return [], []
 
     endpoints = _candidate_endpoints(html, page_url, user_agent, max_bundles)[:max_endpoints]
     if not endpoints:
-        return []
+        return [], []
 
     results = map_concurrent(
-        lambda url: _allergens_from_endpoint(url, user_agent), endpoints, max_workers=max_workers
+        lambda url: (url, *_allergens_from_endpoint(url, user_agent)),
+        endpoints,
+        max_workers=max_workers,
     )
     merged: dict[str, MenuItemRecord] = {}
-    for records in results:
+    coverage: list[CoverageReport] = []
+    for url, records, text in results:
+        if not records:
+            continue
+        coverage.append(_capture_coverage(url, records, text))
         for record in records:
             merged.setdefault(record.item_name.lower(), record)
-    return list(merged.values())
+    return list(merged.values()), coverage
+
+
+def _capture_coverage(url: str, records: list[MenuItemRecord], text: str) -> CoverageReport:
+    """Honest per-endpoint coverage for an api_capture source, with the region read
+    from the captured response text/URL (the endpoint host is often a country-neutral
+    CDN, so the content tell -- a footer ccTLD domain -- is what reveals the locale)."""
+    n = len(records)
+    conf = round(sum(r.confidence for r in records) / n, 3) if n else 0.0
+    return CoverageReport(
+        url=url,
+        found=bool(records),
+        payload_kind="structured",
+        item_count=n,
+        interpreter="api_capture",
+        confidence=conf,
+        reason=f"{n} items via api_capture",
+        region=detect_source_region(text, url) or "",
+    )
 
 
 def _candidate_endpoints(html: str, page_url: str, user_agent: str, max_bundles: int) -> list[str]:
@@ -121,15 +151,17 @@ def _get_text(url: str, user_agent: str) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
-def _allergens_from_endpoint(url: str, user_agent: str) -> list[MenuItemRecord]:
+def _allergens_from_endpoint(url: str, user_agent: str) -> tuple[list[MenuItemRecord], str]:
+    """Return (records, captured_text). The text is handed back so the caller can run
+    content-locale detection over the actual response, not just the endpoint URL."""
     text = _get_text(url, user_agent).strip()
     if not text:
-        return []
+        return [], ""
     if text[0] in "{[":  # JSON API response
         try:
             payload = json.loads(text)
         except (json.JSONDecodeError, ValueError):
-            return []
+            return [], text
         records = extract_allergen_items_from_obj(payload)
     else:  # HTML matrix tool / page: reuse the structured allergen extractors
         from safeplate.allergen_matrix import extract_items_from_allergen_matrix
@@ -141,4 +173,7 @@ def _allergens_from_endpoint(url: str, user_agent: str) -> list[MenuItemRecord]:
             extract_allergen_items_from_embedded_json(text)
             or extract_items_from_allergen_matrix(text)
         )
-    return [replace(r, extraction_method="api_capture", menu_source_url=url) for r in records]
+    stamped = [
+        replace(r, extraction_method="api_capture", menu_source_url=url) for r in records
+    ]
+    return stamped, text

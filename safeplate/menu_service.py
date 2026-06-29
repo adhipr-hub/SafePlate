@@ -129,10 +129,53 @@ def _extract_and_assess_structured(
     return assessment, menu_items, allergy_signals, coverage, errors
 
 
+def _region_notice_for(
+    coverage: list[Any], menu_items: list[Any], *, address: str, website_url: str
+) -> dict[str, Any] | None:
+    """Content-locale notice: does the SHOWN allergen/menu data come from the
+    diner's region? Compares each contributing source's detected region (stamped
+    on coverage) against the home region. Prefers the allergen sources (the
+    safety-critical data) and surfaces a foreign region if any is present, so the
+    drawer can say 'this data is from <region>, not verified for your area'."""
+    from safeplate.extraction2 import region as region_mod
+
+    home = region_mod.home_country(address, website_url)
+    cov_region = {
+        c.url: getattr(c, "region", "")
+        for c in coverage
+        if getattr(c, "url", "") and getattr(c, "region", "")
+    }
+    if not cov_region:
+        return None
+
+    def _regions_of(items: list[Any]) -> list[str]:
+        out = []
+        for it in items:
+            reg = cov_region.get(getattr(it, "menu_source_url", "") or "")
+            if reg:
+                out.append(reg)
+        return out
+
+    # Judge provenance on the ALLERGEN data (the safety-critical part); only when
+    # there are no allergen items at all do we fall back to the menu sources. (Using
+    # `or` here would wrongly borrow a non-allergen page's region when the allergen
+    # sources resolved to no detectable region -- the code review's L1 finding.)
+    allergen_items = [it for it in menu_items if getattr(it, "allergen_terms", None)]
+    regions = _regions_of(allergen_items) if allergen_items else _regions_of(menu_items)
+    if not regions:
+        return None
+    # Surface a foreign region when present (the case worth warning about); with an
+    # unknown home, any detected region is reported so we never silently trust it.
+    foreign = [r for r in regions if r != home] if home else regions
+    source_region = foreign[0] if foreign else regions[0]
+    return region_mod.region_notice(home=home, source_region=source_region)
+
+
 def _structured_menu_response(
     *,
     restaurant_name: str,
     website_url: str,
+    address: str = "",
     assessment: Any,
     menu_items: list[Any],
     allergy_signals: list[Any],
@@ -150,6 +193,9 @@ def _structured_menu_response(
     for per_allergen in assessment.per_allergen:
         riskiest_items.extend(per_allergen.riskiest_items)
     coverage_status = "menu_backed" if menu_items else "cuisine_estimate"
+    region_notice = _region_notice_for(
+        coverage, menu_items, address=address, website_url=website_url
+    )
     return {
         "engine": "structured",
         "restaurantName": restaurant_name,
@@ -159,9 +205,11 @@ def _structured_menu_response(
         "assessment": asdict(assessment),
         "coverage": [asdict(report) for report in coverage],
         "coverageStatus": coverage_status,
+        "regionNotice": region_notice,
         "summary": {
             "engine": "structured",
             "scoringEngine": scoring_engine,
+            "regionNotice": region_notice,
             "itemCount": len(item_payloads),
             "allergenItemCount": sum(
                 1 for item in menu_items if getattr(item, "allergen_terms", None)
@@ -281,6 +329,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     response = _structured_menu_response(
         restaurant_name=restaurant_name,
         website_url=website_url,
+        address=address,
         assessment=assessment,
         menu_items=menu_items,
         allergy_signals=allergy_signals,
@@ -373,7 +422,7 @@ def _write_assessment_into_card(
     payload: dict[str, Any], assessment: Any, *,
     prior: Any, cuisines: list[str], region: str, name: str, website_url: str,
     menu_items: list[Any], allergy_signals: list[Any], coverage: list[Any],
-    errors: list[dict[str, str]], scoring_engine: str = "rules",
+    errors: list[dict[str, str]], scoring_engine: str = "rules", address: str = "",
 ) -> None:
     """Write an assessment (and its menu-backed detail) into a result card. Used for
     both the deterministic build and the ai_assisted batched re-score, so the two stay in
@@ -399,6 +448,7 @@ def _write_assessment_into_card(
         payload["menuDetail"] = _structured_menu_response(
             restaurant_name=name,
             website_url=website_url,
+            address=address,
             assessment=assessment,
             menu_items=menu_items,
             allergy_signals=allergy_signals,
@@ -475,7 +525,7 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
         )
     rebuild = dict(
         prior=prior, cuisines=cuisines, region=region, name=name,
-        website_url=website_url, menu_items=menu_items,
+        website_url=website_url, address=address, menu_items=menu_items,
         allergy_signals=allergy_signals, coverage=coverage, errors=errors,
     )
     _write_assessment_into_card(payload, assessment, scoring_engine="rules", **rebuild)

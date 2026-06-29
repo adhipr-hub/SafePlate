@@ -58,6 +58,11 @@ class CoverageReport:
     interpreter: str                      # structured / llm_text / llm_visual / none
     confidence: float
     reason: str
+    # ISO2 region detected FROM this source's content/URL (content-locale check),
+    # or "" when undetectable. Lets the UI flag an allergen chart pulled from the
+    # wrong country (e.g. a NZ matrix served on a country-neutral CDN). See
+    # extraction2.region.detect_source_region.
+    region: str = ""
 
 
 @dataclass
