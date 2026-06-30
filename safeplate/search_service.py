@@ -440,12 +440,14 @@ def _build_search_cards(
     if _is_ai_engine(scoring_engine) and api_key and contexts:
         from safeplate.allergen_score_llm import score_restaurants_with_llm_batch
 
+        history = payload.get("experienceHistory")
         reqs = [
             {"id": str(i), "profile": ctx["profile"], "cuisines": ctx["cuisines"],
              "region": ctx["region"], "menu_items": ctx["menu_items"],
              "signals": ctx["signals"], "community": ctx.get("community"),
              "official_domain": ctx["official_domain"],
-             "name": ctx.get("rebuild", {}).get("name")}
+             "name": ctx.get("rebuild", {}).get("name"),
+             "experience_history": history}
             for i, ctx in contexts.items()
         ]
         try:

@@ -1,6 +1,17 @@
 from safeplate.allergen_score_llm import _clean_history, _build_bundle
 from safeplate.allergen_score import UserProfile, Severity, score_restaurant_for_user, Tier
 
+
+def test_menu_service_marks_personalized(monkeypatch):
+    import safeplate.menu_service as ms
+    # Force the AI engine + a no-op extraction so we exercise the flag path.
+    monkeypatch.setattr(ms, "get_gemini_api_key", lambda: None)  # AI falls back to det, flag still set
+    payload = {"name": "Burger King", "websiteUrl": "", "address": "San Jose, CA, USA",
+               "scoringEngine": "ai", "nutTypes": [],
+               "experienceHistory": [{"name": "BK", "rating": 9, "note": "fine"}]}
+    resp = ms.run_menu_extraction(payload, demo_mode=False)
+    assert resp["summary"]["personalized"] is True
+
 NUT = UserProfile.for_nuts(Severity.ALLERGY)
 
 def _det(**kw):

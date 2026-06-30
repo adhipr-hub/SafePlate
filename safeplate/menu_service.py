@@ -63,6 +63,7 @@ def _extract_and_assess_structured(
     region: str | None = None,
     scoring_engine: str = "rules",
     no_cache: bool = False,
+    experience_history: list | None = None,
 ):
     """Run the structured extraction (result-cached) + Layer #5 assessment for one
     restaurant. Shared by the menu drawer and the menu-backed search list so both
@@ -119,6 +120,7 @@ def _extract_and_assess_structured(
         from safeplate.allergen_score_llm import assess_restaurant_record_with_llm
         assessment = assess_restaurant_record_with_llm(
             record, profile, menu_items=menu_items, signals=signals,
+            experience_history=experience_history,
             api_key=api_key, model=get_gemini_model(),
         )
     else:
@@ -182,6 +184,7 @@ def _structured_menu_response(
     coverage: list[Any],
     errors: list[dict[str, str]],
     scoring_engine: str = "rules",
+    personalized: bool = False,
 ) -> dict[str, Any]:
     """Build the structured drawer payload (menuItems + allergySignals + assessment + the
     legacy-shaped summary the UI drawer reads). Shared so the SEARCH can embed this exact
@@ -209,6 +212,7 @@ def _structured_menu_response(
         "summary": {
             "engine": "structured",
             "scoringEngine": scoring_engine,
+            "personalized": personalized,
             "regionNotice": region_notice,
             "itemCount": len(item_payloads),
             "allergenItemCount": sum(
@@ -260,6 +264,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     profile = _user_profile_from_payload(payload)
     scoring_engine = _scoring_engine_from_payload(payload)
     no_cache = bool(payload.get("noCache"))  # UI "raw" toggle: bypass every cache, fetch live
+    experience_history = payload.get("experienceHistory") if _is_ai_engine(scoring_engine) else None
     latitude = _optional_float(payload.get("latitude"))
     longitude = _optional_float(payload.get("longitude"))
     # Derive cuisines/region once and reuse for both the extraction-stage score and
@@ -282,6 +287,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         region=region,
         scoring_engine=scoring_engine,
         no_cache=no_cache,
+        experience_history=experience_history,
     )
 
     # Community layer (DRAWER ONLY -- one restaurant, cacheable; the list stays cheap):
@@ -316,6 +322,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
                 assessment = assess_restaurant_record_with_llm(
                     record, profile, menu_items=menu_items, signals=sig,
                     community=cres.signals or None,
+                    experience_history=experience_history,
                     api_key=get_gemini_api_key(), model=get_gemini_model(),
                 )
             else:
@@ -336,6 +343,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         coverage=coverage,
         errors=errors,
         scoring_engine=scoring_engine,
+        personalized=bool(experience_history) and _is_ai_engine(scoring_engine),
     )
     response["communityQuotes"] = community_quotes
     return response
