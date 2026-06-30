@@ -1082,7 +1082,11 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const cap = s => { s = String(s||"").replace(/_/g," "); return s.charAt(0).toUpperCase()+s.slice(1); };
 const asList = v => Array.isArray(v) ? v : v ? String(v).split(";").map(x=>x.trim()).filter(Boolean) : [];
 const isNut  = t => /nut|peanut|almond|cashew|walnut|pecan|pistachio|hazelnut|pine|macadamia|praline|nutella|gianduja/i.test(t);
-const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"", nutTypes:[], noCache:false };
+const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"", nutTypes:[], noCache:false, experienceHistory:[] };
+const _HIST_KEY = "safeplate.experienceHistory";
+function loadHistory(){ try { state.experienceHistory = JSON.parse(localStorage.getItem(_HIST_KEY)||"[]")||[]; } catch { state.experienceHistory = []; } }
+function saveHistory(){ try { localStorage.setItem(_HIST_KEY, JSON.stringify(state.experienceHistory)); } catch {} }
+const _histHash = () => state.experienceHistory.map(e=>`${e.name}:${e.rating}`).join("|");
 let _searchSeq = 0;  // guards background progressive upgrades against a newer search
 
 /* Cross-contact defaults to a severity-derived level until the user overrides it
@@ -1184,7 +1188,7 @@ async function search(opts={}) {
       </div>
     </div>`).join("");
   try {
-    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine, nutTypes: state.nutTypes, noCache: state.noCache };
+    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine, nutTypes: state.nutTypes, noCache: state.noCache, experienceHistory: state.experienceHistory };
     if (hasCoords) { req.location = opts.location||"Current location"; req.latitude=opts.latitude; req.longitude=opts.longitude; }
     else { req.location = loc; }
     req.listMode = "prior";   // progressive is the only mode: instant cuisine-prior cards, upgraded in the background
@@ -1232,12 +1236,12 @@ async function upgradeCardsProgressive(seq) {
       const prevRisk = r.allergenPrior?.risk;   // the estimate, before we overlay the menu-backed score
       let landed = false;
       try {
-        const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(",")].join("|");
+        const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(","), _histHash()].join("|");
         let m = state.noCache ? null : _menuCache.get(key);   // raw mode: skip the client memo too
         if (!m) {
           m = await (await fetch("/api/menu",{
             method:"POST",headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache})
+            body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache,experienceHistory:state.experienceHistory})
           })).json();
           if (!m.error && !state.noCache) _menuCache.set(key, m);
         }
@@ -1571,13 +1575,13 @@ async function openDetail(r) {
   // menu in the card -> render with NO /api/menu round-trip (no spinner, no re-read).
   // Skipped in raw mode so the drawer re-fetches live instead of using the embed.
   if (r.menuDetail && !state.noCache) { renderMenu(r.menuDetail, r); return; }
-  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(",")].join("|");
+  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(","), _histHash()].join("|");
   try {
     let m = state.noCache ? null : _menuCache.get(key);   // raw mode: skip the client memo too
     if (!m) {
       m = await (await fetch("/api/menu",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache})
+        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache,experienceHistory:state.experienceHistory})
       })).json();
       if (!m.error && !state.noCache) _menuCache.set(key, m);  // don't memoize errors / raw mode
     }
@@ -1976,6 +1980,7 @@ $("#cacheToggle").onclick = () => {
 })();
 
 loadConfig();
+loadHistory();
 </script>
 </body>
 </html>
