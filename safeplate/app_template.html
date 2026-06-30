@@ -1146,6 +1146,27 @@ const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact
 const _HIST_KEY = "safeplate.experienceHistory";
 function loadHistory(){ try { state.experienceHistory = JSON.parse(localStorage.getItem(_HIST_KEY)||"[]")||[]; } catch { state.experienceHistory = []; } }
 function saveHistory(){ try { localStorage.setItem(_HIST_KEY, JSON.stringify(state.experienceHistory)); } catch {} }
+const _PROFILE_KEY = "safeplate.profile";
+const _ONBOARDED_KEY = "safeplate.onboarded";
+function loadProfile(){
+  try {
+    const p = JSON.parse(localStorage.getItem(_PROFILE_KEY) || "null");
+    if (p && typeof p === "object") {
+      if (typeof p.severity === "string") state.severity = p.severity;
+      if (typeof p.crossContact === "string") state.crossContact = p.crossContact;
+      if (Array.isArray(p.nutTypes)) state.nutTypes = p.nutTypes.filter(x => typeof x === "string");
+    }
+  } catch {}
+}
+function saveProfile(){
+  try {
+    localStorage.setItem(_PROFILE_KEY, JSON.stringify({
+      severity: state.severity, crossContact: state.crossContact, nutTypes: state.nutTypes
+    }));
+  } catch {}
+}
+const hasOnboarded = () => { try { return !!localStorage.getItem(_ONBOARDED_KEY); } catch { return true; } };
+function markOnboarded(){ try { localStorage.setItem(_ONBOARDED_KEY, "1"); } catch {} }
 const _histHash = () => state.experienceHistory.map(e=>`${e.name}:${e.rating}:${e.note||""}`).join("|");
 let _searchSeq = 0;  // guards background progressive upgrades against a newer search
 
@@ -2120,6 +2141,7 @@ $("#cacheToggle").onclick = () => {
 
 loadConfig();
 loadHistory();
+loadProfile();
 renderHistoryList();
 </script>
 </body>
