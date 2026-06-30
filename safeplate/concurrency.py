@@ -59,5 +59,16 @@ def map_concurrent(
         return [func(item) for item in materialized]
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        # executor.map preserves the order of the input iterable.
-        return list(executor.map(func, materialized))
+        # Submit in input order so results stay aligned. Isolate per-item failures:
+        # one item raising must not discard the whole batch (executor.map would re-raise
+        # the first exception and drop every other result). A failed item becomes None,
+        # which callers already treat as "no result" (best-effort, matching the rest of
+        # the pipeline).
+        futures = [executor.submit(func, item) for item in materialized]
+        results: List[R] = []
+        for fut in futures:
+            try:
+                results.append(fut.result())
+            except Exception:
+                results.append(None)  # type: ignore[arg-type]
+        return results

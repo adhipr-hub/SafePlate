@@ -280,18 +280,49 @@ def _rank(item: MenuItemRecord) -> tuple[int, int, float, int]:
     return (has_allergen, is_structured, item.confidence, has_price)
 
 
+def _fold_allergen_evidence(
+    base: MenuItemRecord, other: MenuItemRecord
+) -> MenuItemRecord:
+    """Union the allergen-bearing fields of ``other`` into ``base`` (which keeps all its
+    own identity/price/text fields). SAFETY (R5): when two records of the SAME dish
+    merge, never keep one view and discard the other's allergen mapping -- a confirmed
+    dish->nut fact from a slower/lower-ranked source must survive. Returns ``base``
+    unchanged when there is nothing new to add (cheap no-op)."""
+    terms = list(dict.fromkeys(list(base.allergen_terms) + list(other.allergen_terms)))
+    cols = tuple(dict.fromkeys(list(base.matrix_allergen_columns) + list(other.matrix_allergen_columns)))
+    cc = list(dict.fromkeys(list(base.cross_contact_terms) + list(other.cross_contact_terms)))
+    diet = list(dict.fromkeys(list(base.dietary_terms) + list(other.dietary_terms)))
+    if (terms == list(base.allergen_terms)
+            and cols == tuple(base.matrix_allergen_columns)
+            and cc == list(base.cross_contact_terms)
+            and diet == list(base.dietary_terms)):
+        return base
+    return replace(base, allergen_terms=terms, matrix_allergen_columns=cols,
+                   cross_contact_terms=cc, dietary_terms=diet)
+
+
 def _union(primary, secondary, keyfn=_norm):
-    """Keep all of ``primary``; append only ``secondary`` items whose key is new.
-    ``keyfn`` defaults to the whitespace-normalized name; the allergen-PDF path passes
-    ``_dish_key`` so a vision row ('Creamsicle® Float') and a text-LLM row ('Creamsicle
-    Float') of the SAME dish collapse to one (vision wins, keeping its allergen data)."""
-    seen = {keyfn(i.item_name) for i in primary}
+    """Keep all of ``primary``; append ``secondary`` items whose key is new. When a
+    ``secondary`` item is the SAME dish as a ``primary`` one, fold its allergen evidence
+    INTO the primary (primary keeps identity) instead of dropping it -- so a vision row
+    ('Creamsicle® Float') and a text-LLM row ('Creamsicle Float') of one dish collapse to
+    a single record carrying the UNION of their allergens (R5)."""
     out = list(primary)
+    index: dict[str, int] = {}
+    for i, item in enumerate(out):
+        key = keyfn(item.item_name)
+        if key:
+            index.setdefault(key, i)
     for item in secondary:
         key = keyfn(item.item_name)
-        if key and key not in seen:
+        if not key:
+            continue
+        if key in index:
+            i = index[key]
+            out[i] = _fold_allergen_evidence(out[i], item)
+        else:
+            index[key] = len(out)
             out.append(item)
-            seen.add(key)
     return out
 
 
@@ -302,6 +333,11 @@ def _dedupe_across_sources(items: list[MenuItemRecord]) -> list[MenuItemRecord]:
         if not key:
             continue
         current = best.get(key)
-        if current is None or _rank(item) > _rank(current):
+        if current is None:
             best[key] = item
+            continue
+        # Keep the higher-ranked record's identity, but UNION the loser's allergen
+        # evidence into it so a duplicate never silently drops a dish->allergen mapping.
+        winner, loser = (item, current) if _rank(item) > _rank(current) else (current, item)
+        best[key] = _fold_allergen_evidence(winner, loser)
     return list(best.values())

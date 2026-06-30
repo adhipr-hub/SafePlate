@@ -509,7 +509,7 @@ def discover_and_extract(
     matrix, text-LLM) so the run hits the LIVE website -- the 'raw' / no-cache test."""
     from safeplate.extraction2.acquire import acquire
     from safeplate.extraction2.classify import IMAGE_EXTS
-    from safeplate.extraction2.pipeline import extract_menu
+    from safeplate.extraction2.pipeline import _fold_allergen_evidence, extract_menu
     from safeplate.extraction2.schema import MenuExtractionResult, Policy
 
     cache_model = model or DEFAULT_MODEL
@@ -582,7 +582,7 @@ def discover_and_extract(
     # matrix triggering an early exit on a thin grid.
     _MATRIX_ENOUGH = 10
     result = MenuExtractionResult(items=[], coverage=[], llm_calls=0)
-    seen_names: set[str] = set()
+    items_by_name: dict[str, int] = {}  # name -> index in result.items (for allergen-union merge)
     allergen_dishes = 0
     matrix_dishes = 0
     processed = 0
@@ -637,13 +637,21 @@ def discover_and_extract(
                     timed_out = True
                 for record in sub.items:
                     key = record.item_name.lower()
-                    if key not in seen_names:
-                        seen_names.add(key)
+                    if key in items_by_name:
+                        # Same dish from another source -> UNION its allergen evidence
+                        # into the kept record instead of dropping it (R5: completion
+                        # order must not decide which allergens survive).
+                        i = items_by_name[key]
+                        result.items[i] = _fold_allergen_evidence(result.items[i], record)
+                    elif key:
+                        items_by_name[key] = len(result.items)
                         result.items.append(record)
-                        if record.allergen_terms:
-                            allergen_dishes += 1
-                        if _is_structured_matrix(record.extraction_method):
-                            matrix_dishes += 1
+                # Recompute coverage counters from the MERGED set so a folded-in matrix
+                # row counts toward the early-stop thresholds.
+                allergen_dishes = sum(1 for it in result.items if it.allergen_terms)
+                matrix_dishes = sum(
+                    1 for it in result.items if _is_structured_matrix(it.extraction_method)
+                )
             if allergen_dishes >= 3:
                 have_allergens = True
             # Matrix early-exit: the dish x allergen grid already covers the menu, so
@@ -665,7 +673,7 @@ def discover_and_extract(
     if not any(it.allergen_terms for it in result.items) and time.monotonic() < overall_deadline:
         from safeplate.extraction2.api_capture import capture_allergen_api
 
-        seen = {it.item_name.lower() for it in result.items}
+        idx = {it.item_name.lower(): i for i, it in enumerate(result.items)}
         for cand in candidates:
             if time.monotonic() >= overall_deadline:
                 timed_out = True  # don't cache: we may have skipped an allergen source
@@ -674,8 +682,11 @@ def discover_and_extract(
                 continue
             captured, cap_coverage = capture_allergen_api(cand.url, user_agent=user_agent)
             for record in captured:
-                if record.item_name.lower() not in seen:
-                    seen.add(record.item_name.lower())
+                k = record.item_name.lower()
+                if k in idx:
+                    result.items[idx[k]] = _fold_allergen_evidence(result.items[idx[k]], record)
+                elif k:
+                    idx[k] = len(result.items)
                     result.items.append(record)
             # Record per-endpoint coverage (carries the region stamp) so captured
             # backend allergen data can trigger the from-another-region notice.
@@ -695,7 +706,7 @@ def discover_and_extract(
         and time.monotonic() < overall_deadline
     ):
         seen_urls = {c.url for c in candidates}
-        seen_names = {it.item_name.lower() for it in result.items}
+        idx = {it.item_name.lower(): i for i, it in enumerate(result.items)}
         for cand in _brave_menu_pdf_candidates(
             restaurant_name=restaurant_name, address=address,
             api_key=brave_api_key, user_agent=user_agent, website_url=website_url,
@@ -718,8 +729,11 @@ def discover_and_extract(
                 gemini_api_key=api_key, gemini_model=model, use_cache=use_cache,
             )
             for record in sub.items:
-                if record.item_name.lower() not in seen_names:
-                    seen_names.add(record.item_name.lower())
+                k = record.item_name.lower()
+                if k in idx:
+                    result.items[idx[k]] = _fold_allergen_evidence(result.items[idx[k]], record)
+                elif k:
+                    idx[k] = len(result.items)
                     result.items.append(record)
             result.coverage.extend(sub.coverage)
             result.llm_calls += sub.llm_calls

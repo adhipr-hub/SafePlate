@@ -78,9 +78,14 @@ def _load_robots_parser(
             parser.parse([])
             _save_to_disk(base_url, _KIND_ALLOW_ALL, "")
             return parser
-        if exc.status in [401, 403] or exc.status >= 500:
+        if exc.status in (401, 403):
             parser.disallow_all = True
             _save_to_disk(base_url, _KIND_DISALLOW_ALL, "")
+            return parser
+        if exc.status >= 500:
+            # Transient server error: block for THIS run but DON'T persist -- a 24h cache
+            # of a momentary 5xx must not lock us out of an otherwise-allowed site.
+            parser.disallow_all = True
             return parser
         parser.parse([])
         _save_to_disk(base_url, _KIND_ALLOW_ALL, "")

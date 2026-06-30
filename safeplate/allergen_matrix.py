@@ -82,12 +82,44 @@ def extract_items_from_allergen_matrix(html: str) -> list[MenuItemRecord]:
     return items_from_allergen_matrix_soup(make_soup(html))
 
 
+def _expand_cells(cells: list[Any]) -> list[Any]:
+    """Expand colspan so positional column indices line up between a grouped header
+    (e.g. a "Nuts" cell spanning two sub-columns) and the data rows beneath it. Without
+    this, one colspan shifts every column right and the parser maps ticks to the wrong
+    allergen (R6a). Capped so a malformed huge colspan can't blow up."""
+    out: list[Any] = []
+    for cell in cells:
+        try:
+            span = int(str(cell.get("colspan") or "1").strip())
+        except (TypeError, ValueError):
+            span = 1
+        out.extend([cell] * max(1, min(span, 30)))
+    return out
+
+
+def _fold_records_by_name(records: list[MenuItemRecord]) -> list[MenuItemRecord]:
+    """Union allergen evidence for the same dish appearing across tables/pages (R5)
+    instead of keeping the first row and dropping later nut-bearing duplicates."""
+    from safeplate.extraction2.pipeline import _fold_allergen_evidence
+
+    by_name: dict[str, int] = {}
+    out: list[MenuItemRecord] = []
+    for rec in records:
+        key = rec.item_name.lower()
+        if key in by_name:
+            out[by_name[key]] = _fold_allergen_evidence(out[by_name[key]], rec)
+        else:
+            by_name[key] = len(out)
+            out.append(rec)
+    return out
+
+
 def items_from_allergen_matrix_soup(soup: Any) -> list[MenuItemRecord]:
     records: list[MenuItemRecord] = []
-    seen: set[str] = set()
     for table in soup.find_all("table")[:_MAX_TABLES]:
-        records.extend(_records_from_table(table, seen))
-    return records
+        # Fresh per-table dedup; cross-table duplicates are unioned below.
+        records.extend(_records_from_table(table, set()))
+    return _fold_records_by_name(records)
 
 
 # Allergen matrices are at most a few pages; cap so a giant nutrition PDF can't make
@@ -141,15 +173,14 @@ def extract_items_from_allergen_pdf(pdf_bytes: bytes) -> list[MenuItemRecord]:
     logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
     records: list[MenuItemRecord] = []
-    seen: set[str] = set()
     try:
         with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
             for page in pdf.pages[:_MATRIX_PDF_MAX_PAGES]:
                 for table in page.extract_tables() or []:
-                    records.extend(_records_from_text_grid(table, seen))
+                    records.extend(_records_from_text_grid(table, set()))
     except Exception:
-        return records
-    return records
+        return _fold_records_by_name(records)
+    return _fold_records_by_name(records)
 
 
 def _records_from_text_grid(
@@ -228,7 +259,7 @@ def _records_from_table(table: Any, seen: set[str]) -> list[MenuItemRecord]:
     records: list[MenuItemRecord] = []
     needed = max([name_col, *allergen_cols.keys()])
     for row in _data_rows(table):
-        cells = row.find_all(["td", "th"])
+        cells = _expand_cells(row.find_all(["td", "th"]))
         if len(cells) <= needed:
             continue
         name = _clean_text(cells[name_col].get_text(" ", strip=True))
@@ -281,11 +312,11 @@ def _header_cells(table: Any) -> list[Any]:
         if header_row is not None:
             cells = header_row.find_all(["th", "td"])
             if cells:
-                return cells
+                return _expand_cells(cells)
     first_row = table.find("tr")
     if first_row is None:
         return []
-    return first_row.find_all(["th", "td"])
+    return _expand_cells(first_row.find_all(["th", "td"]))
 
 
 def _data_rows(table: Any) -> list[Any]:
@@ -301,35 +332,56 @@ def _header_allergen(header_text: str) -> str | None:
     text = header_text.strip().lower()
     if not text:
         return None
-    # "Coconut" contains "nut" but is not treated as a tree nut here (matches the
-    # rest of the pipeline, which deliberately excludes coconut collisions).
-    if "coconut" in text and not any(
-        token in text for token in ("tree nut", "peanut", "walnut", "hazelnut")
-    ):
-        return None
+    # "Coconut" contains "nut" but isn't a tree nut here. Strip the word out FIRST, then
+    # match aliases on what remains -- so a standalone "Coconut" column is ignored, but a
+    # combined header like "Nuts (incl. coconut)" still maps to tree nut instead of being
+    # discarded (which silently dropped the whole nut column -> false negative).
+    probe = text.replace("coconut", " ")
     for aliases, canonical in _ALLERGEN_COLUMN_ALIASES:
-        if any(alias in text for alias in aliases):
+        if any(alias in probe for alias in aliases):
             return canonical
     return None
+
+
+def _style_marks_contains(style: str) -> bool:
+    """A non-blank background colour on an otherwise-empty allergen cell signals
+    'contains' in many visual charts. Treat any real fill as a mark (over-warn-safe);
+    ignore white/transparent/none."""
+    low = (style or "").lower()
+    if "background" not in low:
+        return False
+    return not any(blank in low for blank in (
+        "transparent", "none", "inherit", "#fff", "#ffffff", "white", "rgba(0,0,0,0)",
+    ))
 
 
 def _cell_is_marked(cell: Any) -> bool:
     text = cell.get_text(" ", strip=True).lower()
     norm = text.strip(" .•")
-    if norm in _NEGATIVE_WORDS:
-        return False
+    # 1) Explicit textual verdicts win, in both directions.
     if norm in _POSITIVE_WORDS:
         return True
     if any(symbol in text for symbol in _POSITIVE_SYMBOLS):
         return True
     if "contain" in norm and not any(neg in norm for neg in ("not", "no ", "free")):
         return True
+    if norm and norm in _NEGATIVE_WORDS:  # a NON-empty negative ("no", "-", "✗") -> absent
+        return False
+    # 2) No textual verdict (or an empty cell): look for VISUAL "contains" marks the text
+    # layer can't see (R6b) -- an icon / coloured fill in a recognised allergen column
+    # almost always means "contains". Over-warning here is the safe direction.
     for img in cell.find_all("img"):
         alt = (img.get("alt") or "").lower()
         if any(token in alt for token in ("yes", "contain", "tick", "check", "present")):
             return True
     cls = _classlist_text(cell.get("class")).lower()
-    if any(token in cls for token in ("contains", "present", "allergen-yes")):
+    if any(token in cls for token in (
+        "contains", "present", "allergen-yes", "tick", "yes", "marked", "active", "filled"
+    )):
+        return True
+    if not norm and cell.find(["svg", "i"]) is not None:
+        return True
+    if not norm and _style_marks_contains(cell.get("style") or ""):
         return True
     return False
 
