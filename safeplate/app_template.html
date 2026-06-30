@@ -1021,58 +1021,6 @@
         <p class="hist-privacy">Stays in your browser; sent to the scorer as context when you search.</p>
       </div>
     </div>
-    <div class="ob-scrim" id="onboard" role="dialog" aria-modal="true" aria-label="Set up your nut profile">
-      <div class="ob-modal">
-        <div class="ob-progress" id="obProgress"><span class="ob-dot on"></span><span class="ob-dot"></span></div>
-
-        <div class="ob-pane on" id="obStep1">
-          <div class="ob-q">
-            <h3>How serious is your nut allergy?</h3>
-            <div class="ob-row" id="obSev">
-              <button type="button" class="allergen-chip sev" data-sev="avoid_preference">Preference</button>
-              <button type="button" class="allergen-chip sev" data-sev="intolerance">Intolerance</button>
-              <button type="button" class="allergen-chip sev on" data-sev="allergy" aria-pressed="true">Allergy</button>
-              <button type="button" class="allergen-chip sev" data-sev="anaphylaxis">Anaphylaxis</button>
-            </div>
-          </div>
-          <div class="ob-q">
-            <h3>Do traces, shared fryers, or "may contain" worry you?</h3>
-            <div class="ob-row" id="obCc">
-              <button type="button" class="allergen-chip cc" data-cc="not_concerned">Not a concern</button>
-              <button type="button" class="allergen-chip cc" data-cc="moderate">Somewhat careful</button>
-              <button type="button" class="allergen-chip cc on" data-cc="strict" aria-pressed="true">Very careful</button>
-            </div>
-          </div>
-          <div class="ob-q">
-            <h3>Which nuts?</h3>
-            <div class="ob-row" id="obNuts">
-              <button type="button" class="allergen-chip nut nut-all on" data-nut="__all" aria-pressed="true">All nuts</button>
-              <button type="button" class="allergen-chip nut" data-nut="almond">Almond</button>
-              <button type="button" class="allergen-chip nut" data-nut="cashew">Cashew</button>
-              <button type="button" class="allergen-chip nut" data-nut="walnut">Walnut</button>
-              <button type="button" class="allergen-chip nut" data-nut="pecan">Pecan</button>
-              <button type="button" class="allergen-chip nut" data-nut="pistachio">Pistachio</button>
-              <button type="button" class="allergen-chip nut" data-nut="hazelnut">Hazelnut</button>
-              <button type="button" class="allergen-chip nut" data-nut="macadamia">Macadamia</button>
-              <button type="button" class="allergen-chip nut" data-nut="brazil_nut">Brazil</button>
-              <button type="button" class="allergen-chip nut" data-nut="pine_nut">Pine nut</button>
-              <button type="button" class="allergen-chip nut" data-nut="chestnut">Chestnut</button>
-              <button type="button" class="allergen-chip nut nut-peanut" data-nut="peanuts">Peanut</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="ob-pane" id="obStep2"><!-- Task 4 fills this picker --></div>
-
-        <div class="ob-foot">
-          <button type="button" class="ob-skip" id="obSkip">Skip — I'll add later</button>
-          <div>
-            <button type="button" class="ob-next" id="obToStep2">Next</button>
-            <button type="button" class="ob-next" id="obDone" style="display:none">Done</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <section class="results hidden" id="results">
@@ -1197,6 +1145,60 @@
     <span class="footer-note">SafePlate estimates allergen risk from public information and is not a medical service. Always confirm directly with the restaurant before ordering with a serious allergy.</span>
   </div>
 </footer>
+
+<!-- Onboarding modal -->
+<div class="ob-scrim" id="onboard" role="dialog" aria-modal="true" aria-label="Set up your nut profile">
+  <div class="ob-modal">
+    <div class="ob-progress" id="obProgress"><span class="ob-dot on"></span><span class="ob-dot"></span></div>
+
+    <div class="ob-pane on" id="obStep1">
+      <div class="ob-q">
+        <h3>How serious is your nut allergy?</h3>
+        <div class="ob-row" id="obSev">
+          <button type="button" class="allergen-chip sev" data-sev="avoid_preference">Preference</button>
+          <button type="button" class="allergen-chip sev" data-sev="intolerance">Intolerance</button>
+          <button type="button" class="allergen-chip sev on" data-sev="allergy" aria-pressed="true">Allergy</button>
+          <button type="button" class="allergen-chip sev" data-sev="anaphylaxis">Anaphylaxis</button>
+        </div>
+      </div>
+      <div class="ob-q">
+        <h3>Do traces, shared fryers, or "may contain" worry you?</h3>
+        <div class="ob-row" id="obCc">
+          <button type="button" class="allergen-chip cc" data-cc="not_concerned">Not a concern</button>
+          <button type="button" class="allergen-chip cc" data-cc="moderate">Somewhat careful</button>
+          <button type="button" class="allergen-chip cc on" data-cc="strict" aria-pressed="true">Very careful</button>
+        </div>
+      </div>
+      <div class="ob-q">
+        <h3>Which nuts?</h3>
+        <div class="ob-row" id="obNuts">
+          <button type="button" class="allergen-chip nut nut-all on" data-nut="__all" aria-pressed="true">All nuts</button>
+          <button type="button" class="allergen-chip nut" data-nut="almond">Almond</button>
+          <button type="button" class="allergen-chip nut" data-nut="cashew">Cashew</button>
+          <button type="button" class="allergen-chip nut" data-nut="walnut">Walnut</button>
+          <button type="button" class="allergen-chip nut" data-nut="pecan">Pecan</button>
+          <button type="button" class="allergen-chip nut" data-nut="pistachio">Pistachio</button>
+          <button type="button" class="allergen-chip nut" data-nut="hazelnut">Hazelnut</button>
+          <button type="button" class="allergen-chip nut" data-nut="macadamia">Macadamia</button>
+          <button type="button" class="allergen-chip nut" data-nut="brazil_nut">Brazil</button>
+          <button type="button" class="allergen-chip nut" data-nut="pine_nut">Pine nut</button>
+          <button type="button" class="allergen-chip nut" data-nut="chestnut">Chestnut</button>
+          <button type="button" class="allergen-chip nut nut-peanut" data-nut="peanuts">Peanut</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ob-pane" id="obStep2"><!-- Task 4 fills this picker --></div>
+
+    <div class="ob-foot">
+      <button type="button" class="ob-skip" id="obSkip">Skip — I'll add later</button>
+      <div>
+        <button type="button" class="ob-next" id="obToStep2">Next</button>
+        <button type="button" class="ob-next" id="obDone" style="display:none">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Drawer -->
 <div class="scrim" id="scrim"></div>
@@ -2105,7 +2107,7 @@ function renderMenu(m,r) {
 // While the modal drawer is open, make the rest of the page inert so keyboard/AT
 // focus can't wander behind it (WCAG focus-management for a dialog).
 function _setBgInert(on) {
-  const keep = new Set([$("#drawer"), $("#scrim"), $("#toast")]);
+  const keep = new Set([$("#drawer"), $("#scrim"), $("#toast"), $("#onboard")]);
   for (const el of document.body.children) {
     if (keep.has(el) || el.tagName === "SCRIPT") continue;
     on ? el.setAttribute("inert", "") : el.removeAttribute("inert");
