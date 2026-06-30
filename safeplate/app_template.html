@@ -805,6 +805,29 @@
     }
     .rate-save-btn:hover { transform: translateY(-1px); }
 
+    /* ── Onboarding modal ── */
+    .ob-scrim { position: fixed; inset: 0; background: rgba(20,30,24,.46); backdrop-filter: blur(2px);
+      display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+    .ob-scrim.show { display: flex; }
+    .ob-modal { background: var(--bg); border: 1px solid var(--border); border-radius: 18px;
+      width: min(620px, 100%); max-height: 90vh; overflow-y: auto; padding: 26px 26px 22px;
+      box-shadow: 0 30px 80px -28px rgba(20,40,30,.45); }
+    .ob-progress { display: flex; gap: 6px; margin-bottom: 18px; }
+    .ob-dot { height: 4px; flex: 1; border-radius: 2px; background: var(--border); }
+    .ob-dot.on { background: var(--g1); }
+    .ob-q { margin: 0 0 18px; }
+    .ob-q h3 { font: 600 16px/1.3 var(--sans); color: var(--tx); margin: 0 0 9px; }
+    .ob-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .ob-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+    .ob-skip { background: none; border: none; color: var(--tx3); font: 500 13px var(--sans); cursor: pointer; }
+    .ob-skip:hover { color: var(--tx); }
+    .ob-next { background: var(--g1); color: #fff; border: none; border-radius: 10px;
+      padding: 10px 20px; font: 600 14px var(--sans); cursor: pointer; }
+    .ob-pane { display: none; }
+    .ob-pane.on { display: block; }
+    @media (prefers-reduced-motion: reduce) { .ob-scrim { backdrop-filter: none; } }
+
     /* Reduced motion: neutralize motion safely across the board */
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -998,6 +1021,58 @@
         <p class="hist-privacy">Stays in your browser; sent to the scorer as context when you search.</p>
       </div>
     </div>
+    <div class="ob-scrim" id="onboard" role="dialog" aria-modal="true" aria-label="Set up your nut profile">
+      <div class="ob-modal">
+        <div class="ob-progress" id="obProgress"><span class="ob-dot on"></span><span class="ob-dot"></span></div>
+
+        <div class="ob-pane on" id="obStep1">
+          <div class="ob-q">
+            <h3>How serious is your nut allergy?</h3>
+            <div class="ob-row" id="obSev">
+              <button type="button" class="allergen-chip sev" data-sev="avoid_preference">Preference</button>
+              <button type="button" class="allergen-chip sev" data-sev="intolerance">Intolerance</button>
+              <button type="button" class="allergen-chip sev on" data-sev="allergy" aria-pressed="true">Allergy</button>
+              <button type="button" class="allergen-chip sev" data-sev="anaphylaxis">Anaphylaxis</button>
+            </div>
+          </div>
+          <div class="ob-q">
+            <h3>Do traces, shared fryers, or "may contain" worry you?</h3>
+            <div class="ob-row" id="obCc">
+              <button type="button" class="allergen-chip cc" data-cc="not_concerned">Not a concern</button>
+              <button type="button" class="allergen-chip cc" data-cc="moderate">Somewhat careful</button>
+              <button type="button" class="allergen-chip cc on" data-cc="strict" aria-pressed="true">Very careful</button>
+            </div>
+          </div>
+          <div class="ob-q">
+            <h3>Which nuts?</h3>
+            <div class="ob-row" id="obNuts">
+              <button type="button" class="allergen-chip nut nut-all on" data-nut="__all" aria-pressed="true">All nuts</button>
+              <button type="button" class="allergen-chip nut" data-nut="almond">Almond</button>
+              <button type="button" class="allergen-chip nut" data-nut="cashew">Cashew</button>
+              <button type="button" class="allergen-chip nut" data-nut="walnut">Walnut</button>
+              <button type="button" class="allergen-chip nut" data-nut="pecan">Pecan</button>
+              <button type="button" class="allergen-chip nut" data-nut="pistachio">Pistachio</button>
+              <button type="button" class="allergen-chip nut" data-nut="hazelnut">Hazelnut</button>
+              <button type="button" class="allergen-chip nut" data-nut="macadamia">Macadamia</button>
+              <button type="button" class="allergen-chip nut" data-nut="brazil_nut">Brazil</button>
+              <button type="button" class="allergen-chip nut" data-nut="pine_nut">Pine nut</button>
+              <button type="button" class="allergen-chip nut" data-nut="chestnut">Chestnut</button>
+              <button type="button" class="allergen-chip nut nut-peanut" data-nut="peanuts">Peanut</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ob-pane" id="obStep2"><!-- Task 4 fills this picker --></div>
+
+        <div class="ob-foot">
+          <button type="button" class="ob-skip" id="obSkip">Skip — I'll add later</button>
+          <div>
+            <button type="button" class="ob-next" id="obToStep2">Next</button>
+            <button type="button" class="ob-next" id="obDone" style="display:none">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <section class="results hidden" id="results">
@@ -1167,6 +1242,75 @@ function saveProfile(){
 }
 const hasOnboarded = () => { try { return !!localStorage.getItem(_ONBOARDED_KEY); } catch { return true; } };
 function markOnboarded(){ try { localStorage.setItem(_ONBOARDED_KEY, "1"); } catch {} }
+
+/* ── Onboarding modal JS (Task 3) ── */
+let _obTrigger = null, _obStep = 1;
+function _obSync(group, value){
+  document.querySelectorAll(`#${group} .allergen-chip`).forEach(b => {
+    const on = b.dataset.sev === value || b.dataset.cc === value;
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+function _obRenderNuts(){
+  const all = state.nutTypes.length === 0;
+  document.querySelectorAll("#obNuts .allergen-chip").forEach(b => {
+    const isAll = b.dataset.nut === "__all";
+    const on = isAll ? all : state.nutTypes.includes(b.dataset.nut);
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+function applyQuizToState(){ saveProfile(); }   // chips write to state live (handlers below)
+function goStep(n){
+  _obStep = n;
+  document.getElementById("obStep1").classList.toggle("on", n === 1);
+  document.getElementById("obStep2").classList.toggle("on", n === 2);
+  document.querySelectorAll("#obProgress .ob-dot").forEach((d, i) => d.classList.toggle("on", i < n));
+  document.getElementById("obToStep2").style.display = n === 1 ? "" : "none";
+  document.getElementById("obDone").style.display = n === 2 ? "" : "none";
+}
+function openOnboarding(step = 1){
+  _obTrigger = document.activeElement;
+  state.crossContact = state.crossContact || "strict";
+  _obSync("obSev", state.severity); _obSync("obCc", state.crossContact); _obRenderNuts();
+  if (typeof renderPicker === "function") renderPicker();   // Task 4
+  goStep(step);
+  const m = document.getElementById("onboard");
+  m.classList.add("show"); _setBgInert(true);
+  (m.querySelector(".allergen-chip.on") || m.querySelector("button")).focus();
+}
+function closeOnboarding(){
+  document.getElementById("onboard").classList.remove("show");
+  _setBgInert(false); markOnboarded();
+  if (typeof renderProfileSummary === "function") renderProfileSummary();   // Task 5
+  if (_obTrigger && _obTrigger.focus) _obTrigger.focus();
+}
+// Wire chip handlers (severity + cross-contact: single-select; nuts: all-or-specific)
+document.getElementById("obSev").addEventListener("click", e => {
+  const b = e.target.closest(".allergen-chip"); if (!b) return;
+  state.severity = b.dataset.sev; _obSync("obSev", state.severity); saveProfile();
+});
+document.getElementById("obCc").addEventListener("click", e => {
+  const b = e.target.closest(".allergen-chip"); if (!b) return;
+  state.crossContact = b.dataset.cc; _obSync("obCc", state.crossContact); saveProfile();
+});
+document.getElementById("obNuts").addEventListener("click", e => {
+  const b = e.target.closest(".allergen-chip"); if (!b) return;
+  if (b.dataset.nut === "__all") { state.nutTypes = []; }
+  else {
+    const set = new Set(state.nutTypes);
+    set.has(b.dataset.nut) ? set.delete(b.dataset.nut) : set.add(b.dataset.nut);
+    state.nutTypes = [...set];
+  }
+  _obRenderNuts(); saveProfile();
+});
+document.getElementById("obToStep2").addEventListener("click", () => goStep(2));
+document.getElementById("obDone").addEventListener("click", closeOnboarding);
+document.getElementById("obSkip").addEventListener("click", closeOnboarding);
+document.getElementById("onboard").addEventListener("keydown", e => {
+  if (e.key === "Escape") { e.preventDefault(); closeOnboarding(); }
+});
+/* ── end Task 3 ── */
+
 const _histHash = () => state.experienceHistory.map(e=>`${e.name}:${e.rating}:${e.note||""}`).join("|");
 let _searchSeq = 0;  // guards background progressive upgrades against a newer search
 
@@ -2142,6 +2286,7 @@ $("#cacheToggle").onclick = () => {
 loadConfig();
 loadHistory();
 loadProfile();
+if (!hasOnboarded()) openOnboarding(1);
 renderHistoryList();
 </script>
 </body>
