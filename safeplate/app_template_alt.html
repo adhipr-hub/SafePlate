@@ -1,0 +1,1231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafePlate — Allergen Assay</title>
+<style>
+  /* ======================================================================
+     REAGENT — "The Lab Result"
+     A clinical assay printed on warm lab stock. One substrate, rules not
+     fills, figures in monospace, risk read against a reference range.
+     System fonts only — no external font dependency.
+     ====================================================================== */
+
+  :root{
+    /* Substrate — a single warm paper behind everything */
+    --paper:      #E8E4DA;
+    --recessed:   #F3F0E8;   /* inputs / drawer wells */
+    --ink:        #1A1916;   /* primary ink + masthead rule + selected fill */
+    --ink2:       #57534A;   /* secondary / body floor */
+    --caption:    #5E574B;   /* small units & labels — >=4.5:1 on --paper (AA normal text) */
+    --hair:       #CFC8B8;   /* 0.5pt dividers */
+    --hair-major: #1A1916;   /* major section rules */
+
+    /* The single brand accent — held strictly out of the risk set */
+    --spruce:     #0C5A43;
+
+    /* Risk inks — off-Tailwind; each always rides word + pattern + glyph + position */
+    --clear:      #0C5A43;
+    --caution:    #8A5A00;
+    --high:       #9E2B1C;
+
+    --paper-fade: rgba(26,25,22,0.05);
+  }
+
+  *,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+
+  html,body{ height:100%; }
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Helvetica Neue",Arial,"Segoe UI",system-ui,sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* Every measured value is instrument output — monospace, tabular */
+  .mono{
+    font-family:"Berkeley Mono","Spline Sans Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+    font-variant-numeric:tabular-nums;
+    font-feature-settings:"tnum" 1;
+  }
+
+  a{ color:var(--spruce); text-decoration:underline; text-underline-offset:2px; text-decoration-thickness:1px; }
+  a:hover{ text-decoration-thickness:2px; }
+
+  :focus-visible{ outline:2px solid var(--spruce); outline-offset:2px; }
+
+  .sheet{ max-width:1120px; margin:0 auto; padding:0 28px; }
+
+  /* ---------- crop / registration marks (quiet print authorship) ---------- */
+  .cropmark{ position:fixed; width:14px; height:14px; z-index:1; pointer-events:none; color:var(--hair); }
+  .cropmark::before,.cropmark::after{ content:""; position:absolute; background:currentColor; }
+  .cropmark::before{ width:14px; height:1px; top:0; left:0; }
+  .cropmark::after{ width:1px; height:14px; top:0; left:0; }
+  .cm-tl{ top:10px; left:10px; }
+  .cm-tr{ top:10px; right:10px; transform:scaleX(-1); }
+  .cm-bl{ bottom:10px; left:10px; transform:scaleY(-1); }
+  .cm-br{ bottom:10px; right:10px; transform:scale(-1,-1); }
+  @media (max-width:760px){ .cropmark{ display:none; } }
+
+  /* =====================  MASTHEAD  ===================== */
+  .masthead{ background:var(--paper); border-bottom:2px solid var(--spruce); }
+  .masthead-inner{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:24px; padding:22px 0 14px; flex-wrap:wrap;
+  }
+  .wordmark{ display:flex; align-items:baseline; gap:10px; text-decoration:none; color:var(--ink); }
+  .wordmark .glyph{
+    display:inline-grid; place-items:center; width:30px; height:30px;
+    border:1.5px solid var(--ink); align-self:center; flex:none;
+  }
+  .wordmark .glyph svg{ width:18px; height:18px; }
+  .wordmark .name{ font-size:25px; font-weight:700; letter-spacing:-0.01em; }
+  .wordmark .name b{ color:var(--spruce); font-weight:700; }
+  .wordmark .reg{ font-size:11px; color:var(--ink2); letter-spacing:0.02em; }
+
+  .report-line{ text-align:right; font-size:11.5px; color:var(--ink2); line-height:1.7; }
+  .report-line .k{ color:var(--caption); }
+  .report-line .v{ color:var(--ink); }
+  .status{ display:inline-flex; align-items:center; gap:7px; }
+  .status .sq{ width:8px; height:8px; background:var(--spruce); flex:none; }
+
+  /* secondary nav as a ruled band */
+  .subnav{ border-bottom:1px solid var(--hair); }
+  .subnav-inner{ display:flex; align-items:center; gap:0; flex-wrap:wrap; }
+  .subnav a{
+    font-size:12px; letter-spacing:0.04em; text-transform:uppercase; text-decoration:none;
+    color:var(--ink2); padding:11px 16px 11px 0; margin-right:16px;
+    border-bottom:2px solid transparent;
+  }
+  .subnav a:hover{ color:var(--ink); border-bottom-color:var(--ink); }
+  .subnav a[aria-current]{ color:var(--ink); border-bottom-color:var(--spruce); }
+
+  /* =====================  INTRO / SPECIMEN PANEL  ===================== */
+  .intro{ padding:34px 0 26px; border-bottom:1px solid var(--hair); }
+  .doc-eyebrow{
+    font-size:11.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--caption);
+    margin-bottom:10px;
+  }
+  .doc-title{
+    font-size:34px; line-height:1.08; font-weight:700; letter-spacing:-0.01em;
+    max-width:18ch; margin-bottom:14px;
+  }
+  .doc-lede{ font-size:16px; color:var(--ink2); max-width:60ch; line-height:1.55; }
+
+  /* ---- search / order panel: a recessed requisition form ---- */
+  .requisition{
+    margin-top:24px; background:var(--recessed);
+    border:1px solid var(--hair); border-left:2px solid var(--ink);
+  }
+  .req-head{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:10px 16px; border-bottom:1px solid var(--hair);
+    font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink2);
+  }
+  .req-head .mono{ color:var(--ink); letter-spacing:0; text-transform:none; font-size:12px; }
+  .req-body{ padding:16px; }
+
+  .search-row{ display:flex; gap:10px; align-items:stretch; flex-wrap:wrap; }
+  .field{
+    flex:1 1 260px; display:flex; align-items:center; gap:9px;
+    background:var(--paper); border:1px solid var(--ink2); padding:0 12px; min-height:48px;
+  }
+  .field:focus-within{ outline:2px solid var(--spruce); outline-offset:1px; }
+  .field svg{ width:16px; height:16px; color:var(--ink2); flex:none; }
+  .field input{
+    flex:1; background:none; border:none; outline:none; font:inherit;
+    font-size:15px; color:var(--ink); padding:13px 0; min-width:0;
+  }
+  .field input::placeholder{ color:var(--ink2); }
+
+  .btn{
+    font:inherit; font-size:13.5px; font-weight:700; cursor:pointer;
+    border:1px solid var(--ink); background:var(--paper); color:var(--ink);
+    padding:0 16px; min-height:48px; letter-spacing:0.01em; white-space:nowrap;
+  }
+  .btn:hover{ border-width:2px; }
+  .btn-ink{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .btn-ink:hover{ background:#000; }
+  .btn-ico{ display:inline-flex; align-items:center; gap:8px; }
+  .btn-ico svg{ width:15px; height:15px; }
+  .btn-geo{ flex:none; }
+
+  /* control groups */
+  .ctrl{ margin-top:16px; padding-top:14px; border-top:1px solid var(--hair); }
+  .ctrl-label{
+    font-size:11px; letter-spacing:0.05em; text-transform:uppercase; color:var(--ink2);
+    margin-bottom:9px; display:flex; align-items:center; gap:7px;
+  }
+  .info{
+    width:16px; height:16px; flex:none; border:1px solid var(--ink2); color:var(--ink2);
+    font-size:10px; font-weight:700; line-height:14px; text-align:center; cursor:pointer;
+    background:var(--paper); font-family:inherit; padding:0;
+  }
+  .info:hover{ border-color:var(--ink); color:var(--ink); }
+  .info[aria-expanded="true"]{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  /* keyboard/touch/SR-accessible help — a real disclosure, not a title tooltip */
+  .help-text{
+    margin-top:9px; font-size:12.5px; color:var(--ink2); line-height:1.5; max-width:62ch;
+    background:var(--paper); border-left:2px solid var(--spruce); padding:9px 12px;
+  }
+  .help-text[hidden]{ display:none; }
+  .chips{ display:flex; flex-wrap:wrap; gap:7px; }
+  .chip{
+    font:inherit; font-size:12.5px; cursor:pointer; user-select:none;
+    border:1px solid var(--ink2); background:var(--paper); color:var(--ink);
+    padding:6px 11px; line-height:1.2;
+  }
+  .chip:hover{ border-color:var(--ink); }
+  .chip[aria-pressed="true"]{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .chip.locked{ color:var(--caption); border-style:dashed; cursor:not-allowed; border-color:var(--hair); }
+  .chip.locked:hover{ border-color:var(--hair); }
+  .chip .soon{ font-size:9px; letter-spacing:0.06em; text-transform:uppercase; margin-left:6px; color:var(--caption); }
+  .chip.peanut{ margin-left:14px; position:relative; }
+  .chip.peanut::before{ content:""; position:absolute; left:-8px; top:3px; bottom:3px; width:1px; background:var(--hair); }
+
+  /* =====================  BODY: two-zone document  ===================== */
+  .doc{ display:grid; grid-template-columns:208px 1fr; gap:0; align-items:start; }
+  .margin-col{
+    position:sticky; top:14px; padding:28px 22px 28px 0; border-right:1px solid var(--hair);
+    align-self:start;
+  }
+  .main-col{ padding:28px 0 28px 26px; min-width:0; }
+
+  .margin-h{
+    font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink2);
+    margin-bottom:11px; padding-bottom:6px; border-bottom:1px solid var(--hair);
+  }
+  .margin-block{ margin-bottom:26px; }
+
+  /* legend / key */
+  .legend{ display:flex; flex-direction:column; gap:9px; }
+  .legend-item{ display:flex; align-items:flex-start; gap:9px; font-size:12px; color:var(--ink2); }
+  .legend-item .swatch{ flex:none; margin-top:1px; }
+  .legend-item b{ color:var(--ink); font-weight:700; }
+  .legend-codes{ font-size:11.5px; color:var(--ink2); line-height:1.85; }
+  .legend-codes .code{ color:var(--ink); }
+
+  /* numbered method notes (marginalia footnotes) */
+  .methodnotes{ counter-reset:mnote; }
+  .mnote{ display:flex; gap:8px; font-size:11.5px; color:var(--ink2); line-height:1.45; margin-bottom:12px; }
+  .mnote .num{ color:var(--spruce); font-weight:700; flex:none; }
+  .mnote a{ font-size:11.5px; }
+
+  /* =====================  RESULTS TABLE  ===================== */
+  .results-head{
+    display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+    flex-wrap:wrap; padding-bottom:12px; border-bottom:2px solid var(--ink);
+  }
+  .results-title{ font-size:13px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; }
+  .results-meta{ font-size:12px; color:var(--ink2); }
+  .sortbar{ display:flex; gap:0; flex-wrap:wrap; }
+  .sortbtn{
+    font:inherit; font-size:11.5px; letter-spacing:0.04em; text-transform:uppercase; cursor:pointer;
+    background:none; border:none; color:var(--ink2); padding:4px 0; margin-left:18px;
+    border-bottom:2px solid transparent;
+  }
+  .sortbtn:hover{ color:var(--ink); }
+  .sortbtn[aria-pressed="true"]{ color:var(--ink); border-bottom-color:var(--spruce); }
+
+  /* column header row */
+  .col-head{
+    display:grid; grid-template-columns:34px 1fr 168px 132px 96px; gap:14px; align-items:center;
+    padding:9px 0; border-bottom:1px solid var(--hair);
+    font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--caption);
+  }
+  .col-head .num-h{ text-align:right; }
+
+  /* a result row */
+  .row{
+    display:grid; grid-template-columns:34px 1fr 168px 132px 96px; gap:14px; align-items:center;
+    width:100%; text-align:left; background:none; border:none; cursor:pointer; font:inherit; color:inherit;
+    padding:15px 0; border-bottom:1px solid var(--hair);
+  }
+  .row:hover{ background:var(--paper-fade); }
+  .row[aria-expanded="true"]{ background:var(--ink); color:var(--paper); }
+  .row[aria-expanded="true"] .r-meta,
+  .row[aria-expanded="true"] .col-head{ color:#D8D2C6; }
+  .row[aria-expanded="true"] .r-meta b{ color:var(--paper); }
+
+  .r-rank{ font-size:13px; color:var(--ink2); text-align:right; }
+  .row[aria-expanded="true"] .r-rank{ color:#B9B2A4; }
+  .r-id{ min-width:0; }
+  .r-name{ font-size:16px; font-weight:700; letter-spacing:-0.005em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .r-meta{ font-size:12px; color:var(--ink2); margin-top:3px; display:flex; gap:8px; flex-wrap:wrap; }
+  .r-meta .sep{ color:var(--hair); }
+
+  /* score cell */
+  .r-score{ display:flex; flex-direction:column; gap:5px; }
+  .score-val{ font-size:13px; }
+  .score-val .big{ font-size:20px; font-weight:700; }
+  .score-val .of{ color:var(--caption); }
+  .row[aria-expanded="true"] .score-val .of{ color:#B9B2A4; }
+  /* risk tint for the headline figure — set by class, never inline, so the dark-row
+     rule below can override it without an inline-specificity fight */
+  .score-val .big-clear{ color:var(--clear); }
+  .score-val .big-caution{ color:var(--caution); }
+  .score-val .big-high{ color:var(--high); }
+  /* When a row inverts to the dark substrate the most important figure must stay
+     legible: lightened risk inks (mirroring the flag overrides) all clear 4.5:1 on --ink. */
+  .row[aria-expanded="true"] .score-val .big-clear{ color:#A9D8C6; }
+  .row[aria-expanded="true"] .score-val .big-caution{ color:#E6C079; }
+  .row[aria-expanded="true"] .score-val .big-high{ color:#E8A593; }
+
+  /* reference-range bar */
+  .range{ height:14px; position:relative; border:1px solid var(--ink2); display:flex; }
+  .row[aria-expanded="true"] .range{ border-color:#8C857A; }
+  .band{ flex:1; position:relative; }
+  .band + .band{ border-left:1px solid var(--hair); }
+  .row[aria-expanded="true"] .band + .band{ border-left-color:#5b554c; }
+  .band-clear{ background:rgba(12,90,67,0.16); }
+  .band-caution{
+    background-color:rgba(138,90,0,0.10);
+    background-image:radial-gradient(rgba(138,90,0,0.9) 0.7px, transparent 1px);
+    background-size:4px 4px;
+  }
+  .band-high{
+    background-color:rgba(158,43,28,0.10);
+    background-image:repeating-linear-gradient(45deg, rgba(158,43,28,0.85) 0 1px, transparent 1px 4px);
+  }
+  .tick{
+    position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--ink);
+    transform:translateX(-1px);
+  }
+  .row[aria-expanded="true"] .tick{ background:var(--paper); }
+  .tick::after{
+    content:""; position:absolute; top:-3px; left:50%; transform:translateX(-50%);
+    border-left:4px solid transparent; border-right:4px solid transparent; border-top:5px solid var(--ink);
+  }
+  .row[aria-expanded="true"] .tick::after{ border-top-color:var(--paper); }
+
+  /* risk flag — word + pattern swatch + glyph + (position on bar = 4th channel) */
+  .flag{ display:inline-flex; align-items:center; gap:7px; }
+  .flag .pat{ width:14px; height:14px; flex:none; border:1px solid currentColor; }
+  .flag .glyph{ width:14px; height:14px; flex:none; }
+  .flag .word{ font-size:11.5px; font-weight:700; letter-spacing:0.06em; }
+  .flag-clear{ color:var(--clear); }
+  .flag-clear .pat{ background:var(--clear); }
+  .flag-caution{ color:var(--caution); }
+  .flag-caution .pat{ background-color:rgba(138,90,0,0.12); background-image:radial-gradient(var(--caution) 0.8px, transparent 1.1px); background-size:4px 4px; }
+  .flag-high{ color:var(--high); }
+  .flag-high .pat{ background-color:rgba(158,43,28,0.12); background-image:repeating-linear-gradient(45deg, var(--high) 0 1px, transparent 1px 4px); }
+  .row[aria-expanded="true"] .flag{ color:#F0D9C7; }
+  .row[aria-expanded="true"] .flag-clear{ color:#A9D8C6; }
+  .row[aria-expanded="true"] .flag-caution{ color:#E6C079; }
+  .row[aria-expanded="true"] .flag-high{ color:#E8A593; }
+
+  /* provenance custody code */
+  .custody{ font-size:11.5px; color:var(--ink2); }
+  .custody .code{
+    display:inline-block; border:1px solid var(--ink2); padding:1px 5px; margin-right:6px;
+    font-size:11px; font-weight:700; color:var(--ink);
+  }
+  .row[aria-expanded="true"] .custody{ color:#D8D2C6; }
+  .row[aria-expanded="true"] .custody .code{ border-color:#8C857A; color:var(--paper); }
+
+  /* =====================  SPECIMEN SHEET (expanded detail)  ===================== */
+  .specimen{ border-bottom:1px solid var(--hair); }
+  .specimen[hidden]{ display:none; }
+  .specimen-inner{
+    border-left:2px solid var(--ink); background:var(--recessed);
+    margin:0 0 0 48px; padding:22px 24px 26px;
+  }
+  @media (max-width:760px){ .specimen-inner{ margin-left:0; } }
+
+  .spec-verdict{
+    border-bottom:1px solid var(--hair); padding-bottom:16px; margin-bottom:16px;
+    display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;
+  }
+  .spec-verdict .vflag{ flex:none; }
+  .spec-verdict .vbody{ flex:1; min-width:240px; }
+  .vsentence{ font-size:17px; line-height:1.45; font-weight:600; }
+  .vsentence .em-clear{ color:var(--clear); }
+  .vsentence .em-caution{ color:var(--caution); }
+  .vsentence .em-high{ color:var(--high); }
+  .vsub{ font-size:13.5px; color:var(--ink2); margin-top:7px; line-height:1.5; }
+
+  /* honest coverage readout */
+  .coverage{
+    flex:none; min-width:210px; background:var(--paper); border:1px solid var(--hair);
+    padding:11px 13px;
+  }
+  .coverage .ch{ font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--caption); margin-bottom:6px; }
+  .coverage .cl{ font-size:12px; color:var(--ink2); line-height:1.7; }
+  .coverage .cl b{ color:var(--ink); }
+
+  .spec-sec{ padding-top:18px; }
+  .spec-h{
+    font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink2);
+    margin-bottom:11px; display:flex; align-items:center; gap:8px;
+  }
+  .spec-h .tag-llm{ border:1px solid var(--ink2); color:var(--ink); padding:0 5px; font-size:10px; letter-spacing:0; }
+
+  /* why-this-score evidence list with citation superscripts */
+  .evlist{ list-style:none; display:flex; flex-direction:column; gap:10px; }
+  .evlist li{ font-size:13.5px; color:var(--ink); line-height:1.5; padding-left:20px; position:relative; }
+  .evlist li::before{
+    content:attr(data-code); position:absolute; left:0; top:1px;
+    font-size:10px; font-weight:700; color:var(--ink2); border:1px solid var(--ink2); padding:0 3px;
+    line-height:1.4;
+  }
+  .evlist .src{ color:var(--ink2); }
+  .cite{
+    font-size:10px; font-weight:700; color:var(--spruce); vertical-align:super;
+    border:none; background:none; padding:0 1px; cursor:pointer; font-family:inherit;
+    text-decoration:underline; text-decoration-style:dotted;
+  }
+  .cite:hover{ color:var(--ink); }
+  .ext{ color:var(--spruce); font-weight:700; font-size:11px; }
+
+  /* awareness chips — each carries word + glyph + state */
+  .aware{ display:flex; flex-wrap:wrap; gap:8px; }
+  .achip{
+    display:inline-flex; align-items:center; gap:7px; font-size:12.5px;
+    border:1px solid var(--ink2); background:var(--paper); padding:6px 10px; color:var(--ink);
+  }
+  .achip svg{ width:14px; height:14px; flex:none; }
+  .achip.yes{ border-color:var(--clear); color:var(--clear); }
+  .achip.no{ border-color:var(--high); color:var(--high); }
+  .achip.unknown{ border-color:var(--caution); color:var(--caution); }
+
+  /* riskiest dishes */
+  .risky{ list-style:none; }
+  .risky li{
+    display:flex; align-items:baseline; gap:12px; padding:8px 0; border-bottom:1px solid var(--hair);
+    font-size:13.5px;
+  }
+  .risky li:last-child{ border-bottom:none; }
+  .risky .rn{ flex:1; min-width:0; }
+  .risky .rp{ font-size:12.5px; color:var(--high); font-weight:700; }
+  .risky .bar{ flex:none; width:90px; height:8px; border:1px solid var(--high); }
+  .risky .bar i{ display:block; height:100%; background-color:rgba(158,43,28,0.12); background-image:repeating-linear-gradient(45deg, var(--high) 0 1px, transparent 1px 4px); }
+
+  /* menu specimen */
+  .menucat{ font-size:11px; letter-spacing:0.05em; text-transform:uppercase; color:var(--caption); margin:16px 0 7px; }
+  .menucat:first-child{ margin-top:0; }
+  .mitem{ padding:10px 0; border-bottom:1px solid var(--hair); }
+  .mitem:last-child{ border-bottom:none; }
+  .mi-top{ display:flex; align-items:baseline; gap:10px; }
+  .mi-name{ font-size:14px; font-weight:600; flex:1; }
+  .mi-name.danger{ color:var(--high); }
+  .mi-price{ font-size:13px; color:var(--ink2); }
+  .mi-desc{ font-size:12.5px; color:var(--ink2); margin-top:3px; line-height:1.45; }
+  .mtags{ display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+  .mtag{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:2px 7px; border:1px solid; }
+  .mtag .d{ width:9px; height:9px; flex:none; border:1px solid currentColor; }
+  .mtag-nut{ color:var(--high); border-color:var(--high); }
+  .mtag-nut .d{ background-color:rgba(158,43,28,0.12); background-image:repeating-linear-gradient(45deg, var(--high) 0 1px, transparent 1px 4px); }
+  .mtag-other{ color:var(--caution); border-color:var(--caution); }
+  .mtag-other .d{ background-color:rgba(138,90,0,0.12); background-image:radial-gradient(var(--caution) 0.8px, transparent 1.1px); background-size:3px 3px; }
+  .mtag-diet{ color:var(--clear); border-color:var(--clear); }
+  .mtag-diet .d{ background:var(--clear); }
+
+  /* chain of custody ledger */
+  .ledger{ font-size:12.5px; }
+  .ledger-row{
+    display:grid; grid-template-columns:96px 1fr auto; gap:12px; align-items:baseline;
+    padding:8px 0; border-bottom:1px solid var(--hair);
+  }
+  .ledger-row:last-child{ border-bottom:none; }
+  .ledger .lcode{ color:var(--ink); font-weight:700; }
+  .ledger .lwhat{ color:var(--ink2); }
+  .ledger .lwhen{ color:var(--caption); white-space:nowrap; }
+  .ledger .conf{ color:var(--ink2); }
+
+  /* =====================  METHODS / HOW IT WORKS  ===================== */
+  .methods{ border-top:2px solid var(--ink); padding:40px 0; }
+  .methods-grid{ display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:0; }
+  @media (max-width:760px){ .methods-grid{ grid-template-columns:1fr; } }
+  .method{ padding:0 26px; border-left:1px solid var(--hair); }
+  .method:first-child{ padding-left:0; border-left:none; }
+  .method .mtitle{ font-size:16px; font-weight:700; margin-bottom:9px; }
+  .method .mnum{ font-size:12px; color:var(--spruce); margin-bottom:6px; }
+  .method p{ font-size:13.5px; color:var(--ink2); line-height:1.55; }
+
+  /* =====================  DISCLAIMER + COLOPHON  ===================== */
+  .disclaimer{
+    border-top:1px solid var(--hair); padding:22px 0;
+    font-size:12.5px; color:var(--ink2); line-height:1.6; max-width:78ch;
+  }
+  .disclaimer b{ color:var(--ink); }
+
+  .colophon{
+    border-top:2px solid var(--spruce); padding:16px 0 30px;
+    display:flex; flex-wrap:wrap; gap:6px 18px; align-items:baseline;
+  }
+  .colophon .seg{ font-size:11px; color:var(--ink2); }
+  .colophon .seg b{ color:var(--ink); font-weight:700; }
+  .colophon .links{ margin-left:auto; display:flex; gap:14px; flex-wrap:wrap; }
+  .colophon .links a{ font-size:11px; color:var(--ink2); text-decoration:none; }
+  .colophon .links a:hover{ color:var(--ink); text-decoration:underline; }
+
+  /* =====================  RESPONSIVE  ===================== */
+  @media (max-width:880px){
+    .doc{ grid-template-columns:1fr; }
+    .margin-col{ position:static; border-right:none; border-bottom:1px solid var(--hair); padding:0 0 24px; }
+    .main-col{ padding:24px 0 0; }
+    .margin-inner{ display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  }
+  @media (max-width:680px){
+    .sheet{ padding:0 16px; }
+    .doc-title{ font-size:27px; }
+    .margin-inner{ grid-template-columns:1fr; }
+    /* table → stacked specimen cards: each row reflows, no column of meaning dropped */
+    .col-head{ display:none; }
+    .row{ grid-template-columns:auto 1fr; grid-auto-rows:auto; gap:6px 12px; padding:16px 0; }
+    .r-rank{ grid-row:1; }
+    .r-id{ grid-row:1; grid-column:2; }
+    .r-score{ grid-column:1 / -1; }
+    .row .custody-cell{ grid-column:1 / -1; }
+    .row .flag-cell{ grid-column:1 / -1; }
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{ transition-duration:.001ms !important; animation-duration:.001ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<span class="cropmark cm-tl" aria-hidden="true"></span>
+<span class="cropmark cm-tr" aria-hidden="true"></span>
+<span class="cropmark cm-bl" aria-hidden="true"></span>
+<span class="cropmark cm-br" aria-hidden="true"></span>
+
+<!-- =====================  MASTHEAD  ===================== -->
+<header class="masthead">
+  <div class="sheet masthead-inner">
+    <a class="wordmark" href="/">
+      <span class="glyph" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0C5A43" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 2v6l-3 9a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-3-9V2"/>
+          <path d="M7 2h10"/><path d="M5.5 14h13"/>
+        </svg>
+      </span>
+      <span>
+        <span class="name">Safe<b>Plate</b></span><br/>
+        <span class="reg mono">ALLERGEN ASSAY · METHOD v3.0</span>
+      </span>
+    </a>
+    <div class="report-line mono">
+      <div><span class="k">REPORT&nbsp;</span><span class="v">SP-2026-0628-1147</span></div>
+      <div><span class="k">GENERATED&nbsp;</span><span class="v">2026-06-28 11:47 GMT</span></div>
+      <div><span class="k">PROFILE&nbsp;</span><span class="v">PEANUT · TREE-NUT · ALLERGY</span></div>
+      <div class="status"><span class="sq" aria-hidden="true"></span><span class="v">LIVE · 47 RESTAURANTS · CACHE WARM</span></div>
+    </div>
+  </div>
+</header>
+
+<nav class="subnav" aria-label="Primary">
+  <div class="sheet subnav-inner">
+    <a href="/" aria-current="page">Assay</a>
+    <a href="/how-it-works">Method</a>
+    <a href="/about">About</a>
+    <a href="/faq">FAQ</a>
+    <a href="/contact">Contact</a>
+  </div>
+</nav>
+
+<!-- =====================  INTRO + REQUISITION  ===================== -->
+<section class="intro">
+  <div class="sheet">
+    <p class="doc-eyebrow mono">NEARBY RESTAURANTS — NUT-ALLERGY RISK, READ AGAINST A REFERENCE RANGE</p>
+    <h1 class="doc-title">Your allergy risk, read like a lab result.</h1>
+    <p class="doc-lede">We read each nearby restaurant on its own. We parse its real menu, plot its nut-allergy risk against a published reference range, and print the methods behind every value — so you can trace exactly how we know before you decide.</p>
+
+    <form class="requisition" onsubmit="return false">
+      <div class="req-head">
+        <span>Search — check restaurants near you</span>
+        <span class="mono">FORM 01-A</span>
+      </div>
+      <div class="req-body">
+        <div class="search-row">
+          <label class="field">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            <input id="loc" placeholder="City, neighbourhood, or address" autocomplete="off" aria-label="Location" />
+          </label>
+          <button type="button" class="btn btn-ico btn-geo" id="geoBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+            Use my location
+          </button>
+          <button type="submit" class="btn btn-ink">Search</button>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-label">Allergens — what we screen for</div>
+          <div class="chips">
+            <button type="button" class="chip" aria-pressed="true">Nuts</button>
+            <button type="button" class="chip locked" disabled>Sesame<span class="soon">Soon</span></button>
+            <button type="button" class="chip locked" disabled>Dairy<span class="soon">Soon</span></button>
+            <button type="button" class="chip locked" disabled>Gluten<span class="soon">Soon</span></button>
+          </div>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-label">Which nuts
+            <button type="button" class="info" aria-expanded="false" aria-controls="help-nuts" aria-label="About selecting which nuts">i</button>
+          </div>
+          <p class="help-text" id="help-nuts" hidden>Pick the exact nuts you react to. We flag only dishes with those nuts; other nuts add a small cross-contact note.</p>
+          <div class="chips" id="nutChips">
+            <button type="button" class="chip nut-all" data-nut="__all" aria-pressed="true">All nuts</button>
+            <button type="button" class="chip" data-nut="almond" aria-pressed="true">Almond</button>
+            <button type="button" class="chip" data-nut="cashew" aria-pressed="true">Cashew</button>
+            <button type="button" class="chip" data-nut="walnut" aria-pressed="true">Walnut</button>
+            <button type="button" class="chip" data-nut="pecan" aria-pressed="true">Pecan</button>
+            <button type="button" class="chip" data-nut="pistachio" aria-pressed="true">Pistachio</button>
+            <button type="button" class="chip" data-nut="hazelnut" aria-pressed="true">Hazelnut</button>
+            <button type="button" class="chip" data-nut="macadamia" aria-pressed="true">Macadamia</button>
+            <button type="button" class="chip" data-nut="brazil" aria-pressed="true">Brazil</button>
+            <button type="button" class="chip" data-nut="pine" aria-pressed="true">Pine nut</button>
+            <button type="button" class="chip" data-nut="chestnut" aria-pressed="true">Chestnut</button>
+            <button type="button" class="chip peanut" data-nut="peanut" aria-pressed="true">Peanut</button>
+          </div>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-label">Severity — reaction class</div>
+          <div class="chips" id="sevChips">
+            <button type="button" class="chip" data-sev="preference" aria-pressed="false">Preference</button>
+            <button type="button" class="chip" data-sev="intolerance" aria-pressed="false">Intolerance</button>
+            <button type="button" class="chip" data-sev="allergy" aria-pressed="true">Allergy</button>
+            <button type="button" class="chip" data-sev="anaphylaxis" aria-pressed="false">Anaphylaxis</button>
+          </div>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-label">Cross-contact tolerance
+            <button type="button" class="info" aria-expanded="false" aria-controls="help-cc" aria-label="About cross-contact tolerance">i</button>
+          </div>
+          <p class="help-text" id="help-cc" hidden>How much trace or shared-kitchen exposure matters to you — separate from reaction severity.</p>
+          <div class="chips" id="ccChips">
+            <button type="button" class="chip" data-cc="none" aria-pressed="false">Not a concern</button>
+            <button type="button" class="chip" data-cc="moderate" aria-pressed="false">Somewhat careful</button>
+            <button type="button" class="chip" data-cc="strict" aria-pressed="true">Very careful</button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- =====================  DOCUMENT BODY  ===================== -->
+<div class="sheet">
+  <div class="doc">
+
+    <!-- LEFT MARGIN: key + method notes -->
+    <aside class="margin-col" aria-label="Legend and method notes">
+      <div class="margin-inner">
+        <div class="margin-block">
+          <div class="margin-h">Reference key</div>
+          <div class="legend">
+            <div class="legend-item">
+              <span class="flag flag-clear" aria-hidden="true"><span class="pat"></span></span>
+              <span><b>CLEAR</b> — within safe range. Score 0–33.</span>
+            </div>
+            <div class="legend-item">
+              <span class="flag flag-caution" aria-hidden="true"><span class="pat"></span></span>
+              <span><b>CAUTION</b> — borderline; confirm. 34–66.</span>
+            </div>
+            <div class="legend-item">
+              <span class="flag flag-high" aria-hidden="true"><span class="pat"></span></span>
+              <span><b>HIGH</b> — out of range. 67–100.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="margin-block">
+          <div class="margin-h">Chain of custody</div>
+          <div class="legend-codes mono">
+            <div><span class="code">[C]</span> Confirmed — allergen chart</div>
+            <div><span class="code">[S]</span> Signal — observed source</div>
+            <div><span class="code">[I]</span> Inferred — cuisine prior</div>
+            <div><span class="code">[E]</span> Estimate — sparse data</div>
+            <div><span class="code">[A]</span> AI-assisted read</div>
+          </div>
+        </div>
+
+        <div class="margin-block methodnotes">
+          <div class="margin-h">Method notes</div>
+          <div class="mnote"><span class="num mono">1.</span><span>Allergen matrix confirmed on the venue's published PDF, p.3. <a href="#">View source ↗</a></span></div>
+          <div class="mnote"><span class="num mono">2.</span><span>Pad thai garnished with crushed peanut per three menu listings.</span></div>
+          <div class="mnote"><span class="num mono">3.</span><span>Cuisine prior: SE-Asian kitchens carry elevated peanut base rate.</span></div>
+          <div class="mnote"><span class="num mono">4.</span><span>Shared-wok cross-contact noted in venue allergy statement.</span></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN: results table -->
+    <main class="main-col" aria-label="Assay results">
+      <div class="results-head">
+        <div>
+          <h2 class="results-title">Results — 6 restaurants</h2>
+          <div class="results-meta mono">Soho, London · radius 1.6 km · crawl 11:31 GMT</div>
+        </div>
+        <div class="sortbar" role="group" aria-label="Sort">
+          <button class="sortbtn" aria-pressed="true">Safest first</button>
+          <button class="sortbtn" aria-pressed="false">Nearest</button>
+          <button class="sortbtn" aria-pressed="false">Top rated</button>
+        </div>
+      </div>
+
+      <div class="col-head" aria-hidden="true">
+        <span class="num-h">#</span>
+        <span>Restaurant</span>
+        <span>Reading · reference range</span>
+        <span>Flag</span>
+        <span>Custody</span>
+      </div>
+
+      <!-- ROW 1 -->
+      <button class="row" type="button" aria-expanded="false" aria-controls="spec-1">
+        <span class="r-rank mono">01</span>
+        <span class="r-id"><span class="r-name">Tonda Pizzeria</span>
+          <span class="r-meta"><span>Italian</span><span class="sep">/</span><span class="mono">0.4 km</span><span class="sep">/</span><span><b>4.6</b> rating</span></span></span>
+        <span class="r-score">
+          <span class="score-val mono"><span class="big big-clear">09</span> <span class="of">/100</span></span>
+          <span class="range" role="img" aria-label="Score 9 of 100, plotted in the clear band">
+            <span class="band band-clear"></span><span class="band band-caution"></span><span class="band band-high"></span>
+            <span class="tick" style="left:9%"></span>
+          </span>
+        </span>
+        <span class="flag-cell"><span class="flag flag-clear">
+          <span class="pat" aria-hidden="true"></span>
+          <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/></svg>
+          <span class="word">CLEAR</span></span></span>
+        <span class="custody-cell custody mono"><span class="code">C</span>Confirmed</span>
+      </button>
+
+      <section class="specimen" id="spec-1" aria-label="Tonda Pizzeria — full report" hidden>
+        <div class="specimen-inner">
+          <div class="spec-verdict">
+            <div class="vbody">
+              <p class="vsentence">A <span class="em-clear">CLEAR</span> reading — the venue's published allergen chart shows every savoury dish nut-free, and the only nut-bearing items are two clearly-labelled desserts you can skip.</p>
+              <p class="vsub">A Neapolitan pizza kitchen with a confirmed allergen matrix. Coverage is complete, so this is a confirmed read rather than an inference.</p>
+            </div>
+            <div class="coverage mono">
+              <div class="ch">Coverage</div>
+              <div class="cl"><b>100%</b> menu read<br/><b>0 / 38</b> dishes unread<br/>last crawl <b>2h</b> ago</div>
+            </div>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Why this score <span class="tag-llm mono">CHART-MATCH</span></h3>
+            <ul class="evlist">
+              <li data-code="C">Venue allergen matrix marks every pizza, pasta, and antipasto nut-free. <a class="ext" href="#">View chart ↗</a></li>
+              <li data-code="C">The only nut items are two desserts — pistachio gelato and amaretti — both labelled on the chart.</li>
+              <li data-code="S">Dough, sauce, and topping lists carry no nut ingredients in the read menu.</li>
+            </ul>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Kitchen awareness</h3>
+            <div class="aware">
+              <span class="achip yes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>Allergen chart published</span>
+              <span class="achip yes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>Nut desserts labelled</span>
+              <span class="achip yes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>Staff allergy-trained</span>
+              <span class="achip unknown"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 1.5v9M8 14v.5" stroke-linecap="round"/></svg>Dessert prep separation — unknown</span>
+            </div>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Chain of custody — audit ledger</h3>
+            <div class="ledger mono">
+              <div class="ledger-row"><span class="lcode">CRAWL</span><span class="lwhat">Discovered venue + located allergen chart</span><span class="lwhen">11:29 · conf 0.99</span></div>
+              <div class="ledger-row"><span class="lcode">MENU-PDF</span><span class="lwhat">Parsed allergen chart (38/38 dishes)</span><span class="lwhen">11:30 · conf 0.94</span></div>
+              <div class="ledger-row"><span class="lcode">CHART-MATCH</span><span class="lwhat">Matched every dish to the matrix</span><span class="lwhen">11:30 · conf 0.92</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROW 2 -->
+      <button class="row" type="button" aria-expanded="false" aria-controls="spec-2">
+        <span class="r-rank mono">02</span>
+        <span class="r-id"><span class="r-name">Verde Trattoria</span>
+          <span class="r-meta"><span>Italian</span><span class="sep">/</span><span class="mono">0.9 km</span><span class="sep">/</span><span><b>4.4</b> rating</span></span></span>
+        <span class="r-score">
+          <span class="score-val mono"><span class="big big-clear">18</span> <span class="of">/100</span></span>
+          <span class="range" role="img" aria-label="Score 18 of 100, plotted in the clear band">
+            <span class="band band-clear"></span><span class="band band-caution"></span><span class="band band-high"></span>
+            <span class="tick" style="left:18%"></span>
+          </span>
+        </span>
+        <span class="flag-cell"><span class="flag flag-clear">
+          <span class="pat" aria-hidden="true"></span>
+          <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/></svg>
+          <span class="word">CLEAR</span></span></span>
+        <span class="custody-cell custody mono"><span class="code">S</span>Signal</span>
+      </button>
+
+      <section class="specimen" id="spec-2" aria-label="Verde Trattoria — full report" hidden>
+        <div class="specimen-inner">
+          <div class="spec-verdict">
+            <div class="vbody">
+              <p class="vsentence">A <span class="em-clear">CLEAR</span> reading — no nut ingredients appear in the savoury menu; the only residual risk is a shared dessert station we could not fully confirm.</p>
+              <p class="vsub">A Northern-Italian trattoria. We read most of the menu and found nothing nut-bearing in pasta or secondi; a few dessert items remained unread and are shown as coverage, not assumed safe.</p>
+            </div>
+            <div class="coverage mono">
+              <div class="ch">Coverage</div>
+              <div class="cl"><b>88%</b> menu read<br/><b>5 / 41</b> dishes unread<br/>last crawl <b>3h</b> ago</div>
+            </div>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Why this score <span class="tag-llm mono">LLM-READ</span></h3>
+            <ul class="evlist">
+              <li data-code="S">Menu prose lists no nuts across pasta, pizza, and secondi.</li>
+              <li data-code="I">Northern-Italian cuisine prior is low for nut use.</li>
+              <li data-code="S">Dessert menu references <span class="src">torta della nonna</span> (often pine nut / almond) — flagged to confirm.</li>
+              <li data-code="E">5 of 41 dishes could not be read — scored as unknown, not safe. <a class="ext" href="#">re-crawl ↗</a></li>
+            </ul>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Kitchen awareness</h3>
+            <div class="aware">
+              <span class="achip yes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>Nut-free on request</span>
+              <span class="achip unknown"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 1.5v9M8 14v.5" stroke-linecap="round"/></svg>Allergen chart — not published</span>
+              <span class="achip unknown"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 1.5v9M8 14v.5" stroke-linecap="round"/></svg>Shared dessert prep — unknown</span>
+            </div>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Chain of custody — audit ledger</h3>
+            <div class="ledger mono">
+              <div class="ledger-row"><span class="lcode">CRAWL</span><span class="lwhat">Discovered venue + located menu URL</span><span class="lwhen">11:30 · conf 0.98</span></div>
+              <div class="ledger-row"><span class="lcode">MENU-HTML</span><span class="lwhat">Parsed online menu (36/41 dishes)</span><span class="lwhen">11:32 · conf 0.83</span></div>
+              <div class="ledger-row"><span class="lcode">LLM-READ</span><span class="lwhat">Extracted allergens from dish prose</span><span class="lwhen">11:33 · conf 0.79</span></div>
+              <div class="ledger-row"><span class="lcode">CALL-AHEAD</span><span class="lwhat">Recommended — confirm dessert station</span><span class="lwhen">pending · conf —</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROW 3 — EXPANDED BY DEFAULT (specimen sheet) -->
+      <button class="row" type="button" aria-expanded="true" aria-controls="spec-3">
+        <span class="r-rank mono">03</span>
+        <span class="r-id"><span class="r-name">Saffron House</span>
+          <span class="r-meta"><span>Thai</span><span class="sep">/</span><span class="mono">0.7 km</span><span class="sep">/</span><span><b>4.5</b> rating</span></span></span>
+        <span class="r-score">
+          <span class="score-val mono"><span class="big big-caution">46</span> <span class="of">/100</span></span>
+          <span class="range" role="img" aria-label="Score 46 of 100, plotted in the caution band">
+            <span class="band band-clear"></span><span class="band band-caution"></span><span class="band band-high"></span>
+            <span class="tick" style="left:46%"></span>
+          </span>
+        </span>
+        <span class="flag-cell"><span class="flag flag-caution">
+          <span class="pat" aria-hidden="true"></span>
+          <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5 A5.5 5.5 0 0 1 8 13.5 Z" fill="currentColor" stroke="none"/></svg>
+          <span class="word">CAUTION</span></span></span>
+        <span class="custody-cell custody mono"><span class="code">I</span>Inferred</span>
+      </button>
+
+      <section class="specimen" id="spec-3" aria-label="Saffron House — full report">
+        <div class="specimen-inner">
+
+          <!-- verdict + coverage -->
+          <div class="spec-verdict">
+            <div class="vbody">
+              <p class="vsentence">A <span class="em-caution">CAUTION</span> reading — peanut and tree-nut appear in several dishes, but a nut-free order looks achievable if you confirm with the kitchen.</p>
+              <p class="vsub">This is a Thai kitchen where nuts are common but not unavoidable. We could read most of the menu; what we couldn't read is shown below as unread coverage, not assumed safe.</p>
+            </div>
+            <div class="coverage mono">
+              <div class="ch">Coverage</div>
+              <div class="cl"><b>62%</b> menu read<br/><b>18 / 47</b> dishes unread<br/>last crawl <b>4h</b> ago</div>
+            </div>
+          </div>
+
+          <!-- why this score -->
+          <div class="spec-sec">
+            <h3 class="spec-h">Why this score <span class="tag-llm mono">LLM-READ</span></h3>
+            <ul class="evlist">
+              <li data-code="S">Crushed peanut listed as a garnish on Pad Thai and three other noodle dishes.<button class="cite">2</button></li>
+              <li data-code="I">Cuisine prior raises the peanut base rate for South-East Asian kitchens.<button class="cite">3</button></li>
+              <li data-code="S">Cashew appears in two stir-fry mains; venue allergy statement notes a <span class="src">shared wok</span>.<button class="cite">4</button></li>
+              <li data-code="E">18 of 47 dishes could not be read — scored as unknown, not safe. <a class="ext" href="#">re-crawl ↗</a></li>
+            </ul>
+          </div>
+
+          <!-- awareness -->
+          <div class="spec-sec">
+            <h3 class="spec-h">Kitchen awareness</h3>
+            <div class="aware">
+              <span class="achip yes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>Nut-free dishes flagged</span>
+              <span class="achip unknown"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 1.5v9M8 14v.5" stroke-linecap="round"/></svg>Dedicated fryer — unknown</span>
+              <span class="achip no"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>Shared wok — cross-contact</span>
+              <span class="achip yes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>Staff allergy-trained</span>
+            </div>
+          </div>
+
+          <!-- riskiest dishes -->
+          <div class="spec-sec">
+            <h3 class="spec-h">Riskiest dishes — out-of-range</h3>
+            <ul class="risky">
+              <li><span class="rn">Pad Thai <span class="src" style="color:var(--ink2)">(peanut garnish)</span></span><span class="bar" aria-hidden="true"><i style="width:92%"></i></span><span class="rp mono">92% likely</span></li>
+              <li><span class="rn">Massaman Curry <span class="src" style="color:var(--ink2)">(peanut, cashew)</span></span><span class="bar" aria-hidden="true"><i style="width:88%"></i></span><span class="rp mono">88% likely</span></li>
+              <li><span class="rn">Cashew Chicken</span><span class="bar" aria-hidden="true"><i style="width:99%"></i></span><span class="rp mono">99% likely</span></li>
+            </ul>
+          </div>
+
+          <!-- menu specimen -->
+          <div class="spec-sec">
+            <h3 class="spec-h">Menu — allergen tags</h3>
+            <div class="menucat mono">Starters</div>
+            <div class="mitem">
+              <div class="mi-top"><span class="mi-name">Spring Rolls</span><span class="mi-price mono">£6.50</span></div>
+              <p class="mi-desc">Vegetable rolls, sweet chilli dip.</p>
+              <div class="mtags">
+                <span class="mtag mtag-diet"><span class="d" aria-hidden="true"></span>Vegan</span>
+                <span class="mtag mtag-other"><span class="d" aria-hidden="true"></span>Soy</span>
+              </div>
+            </div>
+            <div class="mitem">
+              <div class="mi-top"><span class="mi-name danger">Chicken Satay</span><span class="mi-price mono">£8.00</span></div>
+              <p class="mi-desc">Grilled skewers served with peanut sauce.</p>
+              <div class="mtags">
+                <span class="mtag mtag-nut"><span class="d" aria-hidden="true"></span>Peanut</span>
+                <span class="mtag mtag-other"><span class="d" aria-hidden="true"></span>Soy</span>
+              </div>
+            </div>
+            <div class="menucat mono">Mains</div>
+            <div class="mitem">
+              <div class="mi-top"><span class="mi-name danger">Pad Thai</span><span class="mi-price mono">£11.50</span></div>
+              <p class="mi-desc">Rice noodles, tamarind, egg, crushed peanut garnish.</p>
+              <div class="mtags">
+                <span class="mtag mtag-nut"><span class="d" aria-hidden="true"></span>Peanut</span>
+                <span class="mtag mtag-other"><span class="d" aria-hidden="true"></span>Egg</span>
+                <span class="mtag mtag-other"><span class="d" aria-hidden="true"></span>Fish</span>
+              </div>
+            </div>
+            <div class="mitem">
+              <div class="mi-top"><span class="mi-name">Green Curry</span><span class="mi-price mono">£12.00</span></div>
+              <p class="mi-desc">Coconut curry, bamboo, Thai basil. Nut-free on request.</p>
+              <div class="mtags">
+                <span class="mtag mtag-diet"><span class="d" aria-hidden="true"></span>Nut-free option</span>
+                <span class="mtag mtag-other"><span class="d" aria-hidden="true"></span>Fish</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- chain of custody ledger -->
+          <div class="spec-sec">
+            <h3 class="spec-h">Chain of custody — audit ledger</h3>
+            <div class="ledger mono">
+              <div class="ledger-row"><span class="lcode">CRAWL</span><span class="lwhat">Discovered venue + located menu URL</span><span class="lwhen">11:31 · conf 0.99</span></div>
+              <div class="ledger-row"><span class="lcode">MENU-PDF</span><span class="lwhat">Parsed online menu (29/47 dishes)</span><span class="lwhen">11:33 · conf 0.81</span></div>
+              <div class="ledger-row"><span class="lcode">LLM-READ</span><span class="lwhat">Extracted allergens from dish prose</span><span class="lwhen">11:34 · conf 0.76</span></div>
+              <div class="ledger-row"><span class="lcode">CALL-AHEAD</span><span class="lwhat">Recommended — confirm fryer + wok</span><span class="lwhen">pending · conf —</span></div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ROW 4 -->
+      <button class="row" type="button" aria-expanded="false" aria-controls="spec-4">
+        <span class="r-rank mono">04</span>
+        <span class="r-id"><span class="r-name">Golden Wok</span>
+          <span class="r-meta"><span>Chinese</span><span class="sep">/</span><span class="mono">1.2 km</span><span class="sep">/</span><span><b>4.2</b> rating</span></span></span>
+        <span class="r-score">
+          <span class="score-val mono"><span class="big big-caution">58</span> <span class="of">/100</span></span>
+          <span class="range" role="img" aria-label="Score 58 of 100, plotted in the caution band">
+            <span class="band band-clear"></span><span class="band band-caution"></span><span class="band band-high"></span>
+            <span class="tick" style="left:58%"></span>
+          </span>
+        </span>
+        <span class="flag-cell"><span class="flag flag-caution">
+          <span class="pat" aria-hidden="true"></span>
+          <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5 A5.5 5.5 0 0 1 8 13.5 Z" fill="currentColor" stroke="none"/></svg>
+          <span class="word">CAUTION</span></span></span>
+        <span class="custody-cell custody mono"><span class="code">S</span>Signal</span>
+      </button>
+
+      <section class="specimen" id="spec-4" aria-label="Golden Wok — full report" hidden>
+        <div class="specimen-inner">
+          <div class="spec-verdict">
+            <div class="vbody">
+              <p class="vsentence">A <span class="em-caution">CAUTION</span> reading — cashew and peanut feature in several mains and a single shared wok is in use; a nut-free order is possible but must be confirmed.</p>
+              <p class="vsub">A Cantonese / Sichuan kitchen. Nuts are common but avoidable on parts of the menu; the shared wok is the main cross-contact concern, and a portion of the menu went unread.</p>
+            </div>
+            <div class="coverage mono">
+              <div class="ch">Coverage</div>
+              <div class="cl"><b>71%</b> menu read<br/><b>12 / 41</b> dishes unread<br/>last crawl <b>5h</b> ago</div>
+            </div>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Why this score <span class="tag-llm mono">LLM-READ</span></h3>
+            <ul class="evlist">
+              <li data-code="S">Cashew listed in four stir-fry mains across the read menu.</li>
+              <li data-code="S">Peanut appears in kung pao and satay dishes.</li>
+              <li data-code="S">Allergy statement notes a <span class="src">single shared wok and shared oil</span>.</li>
+              <li data-code="E">12 of 41 dishes could not be read — scored as unknown, not safe. <a class="ext" href="#">re-crawl ↗</a></li>
+            </ul>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Kitchen awareness</h3>
+            <div class="aware">
+              <span class="achip yes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>Nut dishes flagged on menu</span>
+              <span class="achip no"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>Shared wok — cross-contact</span>
+              <span class="achip no"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>No dedicated nut-free wok</span>
+              <span class="achip unknown"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 1.5v9M8 14v.5" stroke-linecap="round"/></svg>Staff allergy training — unknown</span>
+            </div>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Riskiest dishes — out-of-range</h3>
+            <ul class="risky">
+              <li><span class="rn">Cashew Prawn <span class="src" style="color:var(--ink2)">(cashew)</span></span><span class="bar" aria-hidden="true"><i style="width:99%"></i></span><span class="rp mono">99% likely</span></li>
+              <li><span class="rn">Kung Pao Chicken <span class="src" style="color:var(--ink2)">(peanut)</span></span><span class="bar" aria-hidden="true"><i style="width:96%"></i></span><span class="rp mono">96% likely</span></li>
+              <li><span class="rn">Satay Beef Skewers <span class="src" style="color:var(--ink2)">(peanut)</span></span><span class="bar" aria-hidden="true"><i style="width:90%"></i></span><span class="rp mono">90% likely</span></li>
+            </ul>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Chain of custody — audit ledger</h3>
+            <div class="ledger mono">
+              <div class="ledger-row"><span class="lcode">CRAWL</span><span class="lwhat">Discovered venue + located menu URL</span><span class="lwhen">11:31 · conf 0.97</span></div>
+              <div class="ledger-row"><span class="lcode">MENU-HTML</span><span class="lwhat">Parsed online menu (29/41 dishes)</span><span class="lwhen">11:33 · conf 0.80</span></div>
+              <div class="ledger-row"><span class="lcode">LLM-READ</span><span class="lwhat">Extracted allergens + read allergy note</span><span class="lwhen">11:34 · conf 0.74</span></div>
+              <div class="ledger-row"><span class="lcode">CALL-AHEAD</span><span class="lwhat">Recommended — confirm wok + oil sharing</span><span class="lwhen">pending · conf —</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROW 5 -->
+      <button class="row" type="button" aria-expanded="false" aria-controls="spec-5">
+        <span class="r-rank mono">05</span>
+        <span class="r-id"><span class="r-name">Bombay Spice</span>
+          <span class="r-meta"><span>Indian</span><span class="sep">/</span><span class="mono">1.5 km</span><span class="sep">/</span><span><b>4.3</b> rating</span></span></span>
+        <span class="r-score">
+          <span class="score-val mono"><span class="big big-high">72</span> <span class="of">/100</span></span>
+          <span class="range" role="img" aria-label="Score 72 of 100, plotted in the high band">
+            <span class="band band-clear"></span><span class="band band-caution"></span><span class="band band-high"></span>
+            <span class="tick" style="left:72%"></span>
+          </span>
+        </span>
+        <span class="flag-cell"><span class="flag flag-high">
+          <span class="pat" aria-hidden="true"></span>
+          <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>
+          <span class="word">HIGH</span></span></span>
+        <span class="custody-cell custody mono"><span class="code">I</span>Inferred</span>
+      </button>
+
+      <section class="specimen" id="spec-5" aria-label="Bombay Spice — full report" hidden>
+        <div class="specimen-inner">
+          <div class="spec-verdict">
+            <div class="vbody">
+              <p class="vsentence">A <span class="em-high">HIGH</span> reading — most of the menu could not be read, and North-Indian cooking uses cashew and almond paste in many gravies; treat as high-risk until you confirm directly.</p>
+              <p class="vsub">Coverage here is thin, so this score leans on a cuisine prior rather than a confirmed chart. We read it as HIGH and recommend a call-ahead — we do not assume the unread dishes are safe.</p>
+            </div>
+            <div class="coverage mono">
+              <div class="ch">Coverage</div>
+              <div class="cl"><b>38%</b> menu read<br/><b>26 / 42</b> dishes unread<br/>last crawl <b>6h</b> ago</div>
+            </div>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Why this score <span class="tag-llm mono">CUISINE-PRIOR</span></h3>
+            <ul class="evlist">
+              <li data-code="I">Cuisine prior: cashew and almond paste is a base in korma, makhani, and kurma gravies.</li>
+              <li data-code="S">Two of the read mains list <span class="src">cashew paste</span> explicitly.</li>
+              <li data-code="I">Indian desserts (barfi, halwa) are commonly nut-based.</li>
+              <li data-code="E">26 of 42 dishes could not be read — scored as unknown, not safe. <a class="ext" href="#">re-crawl ↗</a></li>
+            </ul>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Kitchen awareness</h3>
+            <div class="aware">
+              <span class="achip no"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>No allergen chart published</span>
+              <span class="achip no"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>Nut paste used in gravies</span>
+              <span class="achip unknown"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 1.5v9M8 14v.5" stroke-linecap="round"/></svg>Nut-free options — unknown</span>
+              <span class="achip unknown"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 1.5v9M8 14v.5" stroke-linecap="round"/></svg>Staff allergy training — unknown</span>
+            </div>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Riskiest dishes — out-of-range</h3>
+            <ul class="risky">
+              <li><span class="rn">Badam Halwa <span class="src" style="color:var(--ink2)">(almond)</span></span><span class="bar" aria-hidden="true"><i style="width:99%"></i></span><span class="rp mono">99% likely</span></li>
+              <li><span class="rn">Chicken Korma <span class="src" style="color:var(--ink2)">(cashew paste)</span></span><span class="bar" aria-hidden="true"><i style="width:94%"></i></span><span class="rp mono">94% likely</span></li>
+              <li><span class="rn">Navratan Korma <span class="src" style="color:var(--ink2)">(cashew, almond)</span></span><span class="bar" aria-hidden="true"><i style="width:92%"></i></span><span class="rp mono">92% likely</span></li>
+            </ul>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Chain of custody — audit ledger</h3>
+            <div class="ledger mono">
+              <div class="ledger-row"><span class="lcode">CRAWL</span><span class="lwhat">Discovered venue + located menu image</span><span class="lwhen">11:30 · conf 0.96</span></div>
+              <div class="ledger-row"><span class="lcode">MENU-IMG</span><span class="lwhat">Partial OCR of photographed menu (16/42)</span><span class="lwhen">11:33 · conf 0.58</span></div>
+              <div class="ledger-row"><span class="lcode">CUISINE-PRIOR</span><span class="lwhat">Applied North-Indian nut base rate</span><span class="lwhen">11:34 · conf 0.71</span></div>
+              <div class="ledger-row"><span class="lcode">CALL-AHEAD</span><span class="lwhat">Strongly recommended — confirm gravies</span><span class="lwhen">pending · conf —</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROW 6 -->
+      <button class="row" type="button" aria-expanded="false" aria-controls="spec-6">
+        <span class="r-rank mono">06</span>
+        <span class="r-id"><span class="r-name">Le Praliné Patisserie</span>
+          <span class="r-meta"><span>Bakery / Dessert</span><span class="sep">/</span><span class="mono">0.5 km</span><span class="sep">/</span><span><b>4.7</b> rating</span></span></span>
+        <span class="r-score">
+          <span class="score-val mono"><span class="big big-high">86</span> <span class="of">/100</span></span>
+          <span class="range" role="img" aria-label="Score 86 of 100, plotted in the high band">
+            <span class="band band-clear"></span><span class="band band-caution"></span><span class="band band-high"></span>
+            <span class="tick" style="left:86%"></span>
+          </span>
+        </span>
+        <span class="flag-cell"><span class="flag flag-high">
+          <span class="pat" aria-hidden="true"></span>
+          <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>
+          <span class="word">HIGH</span></span></span>
+        <span class="custody-cell custody mono"><span class="code">C</span>Confirmed</span>
+      </button>
+
+      <section class="specimen" id="spec-6" aria-label="Le Praliné Patisserie — full report" hidden>
+        <div class="specimen-inner">
+          <div class="spec-verdict">
+            <div class="vbody">
+              <p class="vsentence">A <span class="em-high">HIGH</span> reading — a nut-forward patisserie. The published allergen chart confirms nuts across most of the range and a shared production bench; not recommended for a strict nut allergy.</p>
+              <p class="vsub">Coverage is complete and the chart is explicit, so this is a confirmed HIGH, not an inference. Praline, frangipane, and marzipan are core to the menu.</p>
+            </div>
+            <div class="coverage mono">
+              <div class="ch">Coverage</div>
+              <div class="cl"><b>100%</b> menu read<br/><b>0 / 28</b> dishes unread<br/>last crawl <b>1h</b> ago</div>
+            </div>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Why this score <span class="tag-llm mono">CHART-MATCH</span></h3>
+            <ul class="evlist">
+              <li data-code="C">Allergen chart marks 23 of 28 items with tree-nut and/or peanut. <a class="ext" href="#">View chart ↗</a></li>
+              <li data-code="C">Praline, frangipane, and marzipan are core ingredients across the range.</li>
+              <li data-code="C">Chart states <span class="src">all items are produced on shared equipment with nuts</span>.</li>
+              <li data-code="S">Even nut-free-looking items carry a may-contain note.</li>
+            </ul>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Kitchen awareness</h3>
+            <div class="aware">
+              <span class="achip yes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>Allergen chart published</span>
+              <span class="achip no"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>Shared equipment — cross-contact</span>
+              <span class="achip no"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>No nut-free production line</span>
+              <span class="achip yes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>Staff allergy-trained</span>
+            </div>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Riskiest dishes — out-of-range</h3>
+            <ul class="risky">
+              <li><span class="rn">Praline Tart <span class="src" style="color:var(--ink2)">(hazelnut, almond)</span></span><span class="bar" aria-hidden="true"><i style="width:99%"></i></span><span class="rp mono">99% likely</span></li>
+              <li><span class="rn">Croissant aux Amandes <span class="src" style="color:var(--ink2)">(almond)</span></span><span class="bar" aria-hidden="true"><i style="width:99%"></i></span><span class="rp mono">99% likely</span></li>
+              <li><span class="rn">Frangipane Slice <span class="src" style="color:var(--ink2)">(almond)</span></span><span class="bar" aria-hidden="true"><i style="width:99%"></i></span><span class="rp mono">99% likely</span></li>
+            </ul>
+          </div>
+          <div class="spec-sec">
+            <h3 class="spec-h">Chain of custody — audit ledger</h3>
+            <div class="ledger mono">
+              <div class="ledger-row"><span class="lcode">CRAWL</span><span class="lwhat">Discovered venue + located allergen chart</span><span class="lwhen">11:32 · conf 0.99</span></div>
+              <div class="ledger-row"><span class="lcode">MENU-PDF</span><span class="lwhat">Parsed allergen chart (28/28 dishes)</span><span class="lwhen">11:33 · conf 0.93</span></div>
+              <div class="ledger-row"><span class="lcode">CHART-MATCH</span><span class="lwhat">Matched every dish to the matrix</span><span class="lwhen">11:34 · conf 0.91</span></div>
+              <div class="ledger-row"><span class="lcode">CALL-AHEAD</span><span class="lwhat">Not recommended for a strict nut allergy</span><span class="lwhen">— · conf —</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- =====================  METHODS  ===================== -->
+<section class="methods">
+  <div class="sheet">
+    <h2 class="doc-eyebrow mono" style="margin-bottom:18px">METHODS — HOW EACH VALUE IS PRODUCED</h2>
+    <div class="methods-grid">
+      <div class="method">
+        <div class="mnum mono">01 — Menu collection</div>
+        <h3 class="mtitle">We read the real menu</h3>
+        <p>For every nearby venue we locate and parse its actual menu, allergen charts, and allergy statements — dish by dish, not by cuisine label alone. What we cannot read is recorded as unread coverage.</p>
+      </div>
+      <div class="method">
+        <div class="mnum mono">02 — Assay</div>
+        <h3 class="mtitle">Read against a range</h3>
+        <p>Each restaurant's nut-allergy risk is plotted on a published reference range against your profile. The flag combines a word, a fill pattern, a glyph, and the score's position — never colour alone.</p>
+      </div>
+      <div class="method">
+        <div class="mnum mono">03 — Chain of custody</div>
+        <h3 class="mtitle">Every value, traceable</h3>
+        <p>Each claim carries a custody code — confirmed, signal, inferred, or estimate — and links to a numbered method note. When evidence is thin we read CAUTION and recommend a call-ahead, never a hollow "safe".</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =====================  DISCLAIMER  ===================== -->
+<div class="sheet">
+  <p class="disclaimer">
+    <b>Not a medical guarantee.</b> SafePlate estimates allergen risk from menu evidence, cuisine, and location, and reports its uncertainty plainly. Readings can be incomplete or out of date. Always confirm directly with the restaurant before ordering with a serious allergy, and carry your prescribed medication. This assay is decision support, not a clinical diagnosis.
+  </p>
+</div>
+
+<!-- =====================  COLOPHON  ===================== -->
+<footer class="sheet">
+  <div class="colophon mono">
+    <span class="seg">METHOD <b>v3.0</b></span>
+    <span class="seg">SOURCES <b>menu · allergen-chart · cuisine-prior · venue-statement</b></span>
+    <span class="seg">GENERATED <b>2026-06-28 11:47 GMT</b></span>
+    <span class="seg">DISCLAIMER <b>§4</b></span>
+    <span class="links">
+      <a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/how-it-works">Method</a><a href="/contact">Contact</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+  // Nicety only — the page is fully legible with JS disabled (Row 03 is open inline).
+  (function(){
+    // chip toggles (allergen / nut / severity / cross-contact)
+    document.querySelectorAll('.chip:not(.locked)').forEach(function(chip){
+      chip.addEventListener('click', function(){
+        var group = chip.closest('#sevChips, #ccChips');
+        if(group){ // single-select groups
+          group.querySelectorAll('.chip').forEach(function(c){ c.setAttribute('aria-pressed','false'); });
+          chip.setAttribute('aria-pressed','true');
+          return;
+        }
+        var pressed = chip.getAttribute('aria-pressed') === 'true';
+        chip.setAttribute('aria-pressed', String(!pressed));
+      });
+    });
+
+    // sort (visual only)
+    document.querySelectorAll('.sortbtn').forEach(function(b){
+      b.addEventListener('click', function(){
+        document.querySelectorAll('.sortbtn').forEach(function(x){ x.setAttribute('aria-pressed','false'); });
+        b.setAttribute('aria-pressed','true');
+      });
+    });
+
+    // help disclosures (keyboard / touch / SR accessible — no title tooltips)
+    document.querySelectorAll('.info[aria-controls]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var panel = document.getElementById(btn.getAttribute('aria-controls'));
+        var open = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', String(!open));
+        if(panel){ panel.hidden = open; }
+      });
+    });
+
+    // expand/collapse result rows. Every row has a real panel, so the visual
+    // dark-row flip never produces a contentless row; guard regardless.
+    document.querySelectorAll('.row').forEach(function(row){
+      row.addEventListener('click', function(){
+        var id = row.getAttribute('aria-controls');
+        var open = row.getAttribute('aria-expanded') === 'true';
+        var panel = id ? document.getElementById(id) : null;
+        // never advertise an expanded state we can't back with content
+        if(!panel){ row.setAttribute('aria-expanded', 'false'); return; }
+        row.setAttribute('aria-expanded', String(!open));
+        panel.hidden = open;
+      });
+    });
+    // ensure every non-default row starts collapsed and its panel hidden
+    document.querySelectorAll('.row[aria-expanded="false"]').forEach(function(row){
+      var p = document.getElementById(row.getAttribute('aria-controls'));
+      if(p){ p.hidden = true; }
+    });
+  })();
+</script>
+</body>
+</html>

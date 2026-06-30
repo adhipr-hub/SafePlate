@@ -815,7 +815,7 @@
     .ob-scrim { position: fixed; inset: 0; background: rgba(20,30,24,.46); backdrop-filter: blur(2px);
       display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
     .ob-scrim.show { display: flex; }
-    .ob-modal { background: var(--bg); border: 1px solid var(--border); border-radius: 18px;
+    .ob-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
       width: min(620px, 100%); max-height: 90vh; overflow-y: auto; padding: 26px 26px 22px;
       box-shadow: 0 30px 80px -28px rgba(20,40,30,.45); }
     .ob-progress { display: flex; gap: 6px; margin-bottom: 18px; }
@@ -832,22 +832,66 @@
       padding: 10px 20px; font: 600 14px var(--sans); cursor: pointer; }
     .ob-pane { display: none; }
     .ob-pane.on { display: block; }
-    .pk-cat { margin-top: 14px; }
-    .pk-cat-h { font: 600 12px/1 var(--sans); letter-spacing: .04em; text-transform: uppercase;
-      color: var(--tx3); margin: 0 0 8px; }
-    .pk-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-    .pk-chain { position: relative; }
-    .pk-chain.rated { border-color: var(--g1); }
-    .pk-chain .pk-val { font: 700 11px/1 var(--mono); color: var(--g0); margin-left: 6px; }
-    .pk-editor { margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 12px;
-      background: var(--bg2, #f6f7f5); display: none; }
-    .pk-editor.show { display: block; }
-    .pk-editor label { display: block; font: 600 13px var(--sans); color: var(--tx); margin-bottom: 8px; }
-    .pk-slide-row { display: flex; align-items: center; gap: 12px; }
-    .pk-slide-row input[type=range] { flex: 1; accent-color: var(--g1); }
-    .pk-slide-val { font: 700 15px var(--mono); color: var(--g0); min-width: 26px; text-align: center; }
-    .pk-intro { font: 400 13.5px/1.5 var(--sans); color: var(--tx2, var(--tx3)); margin: 0 0 4px; }
-    .pk-privacy { font: italic 400 12px/1.5 var(--sans); color: var(--tx3); margin-top: 10px; }
+    /* ── Comfort picker (onboarding step 2): tap-to-rate, colour-coded ── */
+    .pk-intro { font: 400 13.5px/1.55 var(--sans); color: var(--tx2); margin: 0 0 13px; }
+    .pk-intro strong { font-weight: 700; color: var(--tx); }
+    .pk-legend { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 20px; }
+    .pk-legend-item { display: inline-flex; align-items: center; gap: 6px;
+      font: 600 11.5px/1 var(--sans); color: var(--tx3);
+      padding: 5px 10px 5px 7px; border: 1px solid var(--border); border-radius: var(--pill);
+      background: var(--surface); }
+    .pk-legend-dot { width: 9px; height: 9px; border-radius: var(--pill); flex: none; }
+    .pk-cat { margin-top: 18px; }
+    .pk-cat:first-of-type { margin-top: 0; }
+    .pk-cat-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+      font: 600 12px/1 var(--sans); letter-spacing: .04em; text-transform: uppercase;
+      color: var(--tx3); margin: 0 0 9px; }
+    .pk-cat-n { font: 600 11px/1 var(--mono); color: var(--g0); text-transform: none;
+      letter-spacing: 0; opacity: 0; transition: opacity .2s var(--ease-io); }
+    .pk-cat-n.show { opacity: 1; }
+    .pk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 9px; }
+
+    .pk-tile { display: flex; flex-direction: column; gap: 11px;
+      padding: 12px 13px 11px; border-radius: var(--rM); text-align: left; width: 100%;
+      border: 1.5px solid var(--border); background: var(--surface); color: var(--tx);
+      font-family: var(--sans); cursor: pointer;
+      transition: border-color .18s var(--ease-io), background .18s var(--ease-io),
+        box-shadow .2s var(--ease-io), transform .12s var(--ease-io); }
+    .pk-tile:hover { border-color: var(--border2); transform: translateY(-1px); box-shadow: var(--e1); }
+    .pk-tile:active { transform: translateY(0) scale(.992); }
+    .pk-tile-name { font: 600 14px/1.2 var(--sans); }
+    .pk-tile-foot { display: flex; align-items: center; gap: 8px; }
+    .pk-meter { display: flex; gap: 3px; flex: none; }
+    .pk-seg { width: 14px; height: 6px; border-radius: var(--pill); background: var(--border);
+      transition: background .18s var(--ease-io); }
+    .pk-tile-label { margin-left: auto; font: 600 11.5px/1 var(--sans); letter-spacing: .01em;
+      color: var(--tx3); white-space: nowrap; }
+
+    /* Comfort levels — colour-coded, each also labelled + metered (never colour alone) */
+    .pk-tile.lvl-1 { background: var(--th); border-color: var(--bh); }
+    .pk-tile.lvl-1 .pk-tile-label { color: var(--hi); }
+    .pk-tile.lvl-1 .pk-seg.fill { background: var(--rh); }
+    .pk-tile.lvl-2 { background: var(--tm); border-color: var(--bm); }
+    .pk-tile.lvl-2 .pk-tile-label { color: var(--md); }
+    .pk-tile.lvl-2 .pk-seg.fill { background: var(--rm); }
+    .pk-tile.lvl-3 { background: var(--tl); border-color: var(--bl); }
+    .pk-tile.lvl-3 .pk-tile-label { color: var(--lo); }
+    .pk-tile.lvl-3 .pk-seg.fill { background: var(--rl); }
+    .pk-tile.lvl-4 { background: var(--g0); border-color: var(--g0); color: #fff;
+      box-shadow: 0 6px 18px -9px rgba(22,101,52,.6); }
+    .pk-tile.lvl-4:hover { border-color: var(--g0); }
+    .pk-tile.lvl-4 .pk-tile-label { color: rgba(255,255,255,.92); }
+    .pk-tile.lvl-4 .pk-seg { background: rgba(255,255,255,.26); }
+    .pk-tile.lvl-4 .pk-seg.fill { background: #fff; }
+
+    @keyframes pkPop { 0% { transform: scale(1); } 42% { transform: scale(1.4); } 100% { transform: scale(1); } }
+    .pk-seg.pop { animation: pkPop .26s var(--ease-out); }
+
+    .pk-privacy { font: italic 400 12px/1.5 var(--sans); color: var(--tx3); margin-top: 16px; }
+    @media (prefers-reduced-motion: reduce) {
+      .pk-tile, .pk-seg, .pk-cat-n { transition: none; }
+      .pk-seg.pop { animation: none; }
+    }
     @media (prefers-reduced-motion: reduce) { .ob-scrim { backdrop-filter: none; } }
 
     /* Reduced motion: neutralize motion safely across the board */
@@ -1218,62 +1262,81 @@ function _removeHistory(name){
   state.experienceHistory = state.experienceHistory.filter(e => (e.name||"").toLowerCase() !== name.toLowerCase());
   saveHistory();
 }
-let _pkOpenChain = null;
+// Comfort scale: tap a place to cycle level 0→4→0. Stored as a 1–10 rating so the
+// scorer is unchanged; each level is colour-coded AND labelled AND metered (never colour alone).
+const COMFORT_LEVELS = [
+  null,                                            // 0 = unrated
+  { label: "Avoid",       rating: 1,  dot: "var(--rh)" },
+  { label: "Wary",        rating: 4,  dot: "var(--rm)" },
+  { label: "Comfortable", rating: 7,  dot: "var(--rl)" },
+  { label: "Trusted",     rating: 10, dot: "var(--g0)" },
+];
+function _ratingToLevel(r){
+  if (r == null) return 0;
+  if (r <= 2) return 1;
+  if (r <= 5) return 2;
+  if (r <= 8) return 3;
+  return 4;
+}
+function _pkTileInner(name, lvl){
+  let segs = "";
+  for (let i = 1; i <= 4; i++) segs += `<span class="pk-seg${i <= lvl ? " fill" : ""}"></span>`;
+  const label = lvl ? COMFORT_LEVELS[lvl].label : "Tap to rate";
+  return `<span class="pk-tile-name">${esc(name)}</span>
+    <span class="pk-tile-foot"><span class="pk-meter" aria-hidden="true">${segs}</span>
+    <span class="pk-tile-label">${label}</span></span>`;
+}
+function _pkAria(name, lvl){
+  return lvl
+    ? `${name}: comfort level ${lvl} of 4, ${COMFORT_LEVELS[lvl].label}. Tap to change.`
+    : `${name}: not rated. Tap to set how comfortable you are eating here.`;
+}
 function renderPicker(){
   const root = document.getElementById("obStep2");
-  let html = `<p class="pk-intro">Tap places you eat at and rate how comfortable you are there (10 = totally comfortable, 1 = avoid). This stays in your browser.</p>`;
+  let html = `<p class="pk-intro">Tap a place to set how comfortable you are eating there. Tap again to raise it — <strong>red means avoid</strong>, <strong>green means you trust it</strong>. Stays in your browser.</p>
+  <div class="pk-legend">
+    <span class="pk-legend-item"><span class="pk-legend-dot" style="background:var(--rh)"></span>Avoid</span>
+    <span class="pk-legend-item"><span class="pk-legend-dot" style="background:var(--rm)"></span>Wary</span>
+    <span class="pk-legend-item"><span class="pk-legend-dot" style="background:var(--rl)"></span>Comfortable</span>
+    <span class="pk-legend-item"><span class="pk-legend-dot" style="background:var(--g0)"></span>Trusted</span>
+  </div>`;
   for (const cat of CHAIN_CATALOG) {
-    html += `<div class="pk-cat"><p class="pk-cat-h">${esc(cat.category)}</p><div class="pk-grid">`;
+    let catRated = 0, tiles = "";
     for (const name of cat.chains) {
       const e = _findHist(name);
-      const rated = e ? " rated" : "";
-      const val = e ? `<span class="pk-val">${esc(String(e.rating))}</span>` : "";
-      html += `<button type="button" class="allergen-chip pk-chain${rated}" data-chain="${esc(name)}" aria-pressed="${e ? "true" : "false"}">${esc(name)}${val}</button>`;
+      const lvl = e ? _ratingToLevel(e.rating) : 0;
+      if (lvl) catRated++;
+      tiles += `<button type="button" class="pk-tile${lvl ? " lvl-" + lvl : ""}" data-chain="${esc(name)}" data-lvl="${lvl}" aria-label="${esc(_pkAria(name, lvl))}">${_pkTileInner(name, lvl)}</button>`;
     }
-    html += `</div></div>`;
+    html += `<div class="pk-cat"><p class="pk-cat-h">${esc(cat.category)}<span class="pk-cat-n${catRated ? " show" : ""}">${catRated} rated</span></p><div class="pk-grid">${tiles}</div></div>`;
   }
-  html += `<div class="pk-editor" id="pkEditor">
-    <label id="pkEditorLabel"></label>
-    <div class="pk-slide-row">
-      <input type="range" id="pkSlide" min="1" max="10" value="7" aria-label="Comfort, 1 to 10" />
-      <span class="pk-slide-val" id="pkSlideVal">7</span>
-    </div>
-    <input id="pkNote" class="hist-input hist-note-input" type="text" placeholder="Note (optional)" autocomplete="off" aria-label="Optional note" style="margin-top:10px;width:100%" />
-    <div style="margin-top:10px;display:flex;gap:8px">
-      <button type="button" class="ob-next" id="pkSave">Save</button>
-      <button type="button" class="ob-skip" id="pkClear">Remove</button>
-    </div>
-  </div>
-  <p class="pk-privacy">Stays in your browser; sent to the scorer as context when you search.</p>`;
+  html += `<p class="pk-privacy">Stays in your browser; sent to the scorer as context when you search.</p>`;
   root.innerHTML = html;
 }
-// Delegated handlers (the picker DOM is re-rendered, so bind on the stable #obStep2)
+// Delegated tap-to-cycle (the picker DOM is re-rendered, so bind on the stable #obStep2)
 document.getElementById("obStep2").addEventListener("click", e => {
-  const chip = e.target.closest(".pk-chain");
-  if (chip) {
-    _pkOpenChain = chip.dataset.chain;
-    const existing = _findHist(_pkOpenChain);
-    const ed = document.getElementById("pkEditor");
-    document.getElementById("pkEditorLabel").textContent = `How comfortable are you eating at ${_pkOpenChain}?`;
-    const v = existing ? existing.rating : 7;
-    document.getElementById("pkSlide").value = v;
-    document.getElementById("pkSlideVal").textContent = String(v);
-    document.getElementById("pkNote").value = existing ? (existing.note || "") : "";
-    ed.classList.add("show");
-    document.getElementById("pkSlide").focus();
-    return;
+  const tile = e.target.closest(".pk-tile");
+  if (!tile) return;
+  const name = tile.dataset.chain;
+  const cur = parseInt(tile.dataset.lvl, 10) || 0;
+  const next = cur >= 4 ? 0 : cur + 1;
+  if (next === 0) _removeHistory(name);
+  else _upsertHistory(name, COMFORT_LEVELS[next].rating, null);   // null = preserve any note
+  // Repaint this tile in place (keeps focus + scroll position)
+  tile.dataset.lvl = String(next);
+  tile.className = "pk-tile" + (next ? " lvl-" + next : "");
+  tile.innerHTML = _pkTileInner(name, next);
+  tile.setAttribute("aria-label", _pkAria(name, next));
+  if (next > 0) {
+    const top = tile.querySelectorAll(".pk-seg")[next - 1];
+    if (top) { top.classList.add("pop"); setTimeout(() => top.classList.remove("pop"), 280); }
   }
-  if (e.target.id === "pkSave" && _pkOpenChain) {
-    const r = parseInt(document.getElementById("pkSlide").value, 10);
-    _upsertHistory(_pkOpenChain, r, document.getElementById("pkNote").value.trim());
-    _pkOpenChain = null; renderPicker(); return;
-  }
-  if (e.target.id === "pkClear" && _pkOpenChain) {
-    _removeHistory(_pkOpenChain); _pkOpenChain = null; renderPicker(); return;
-  }
-});
-document.getElementById("obStep2").addEventListener("input", e => {
-  if (e.target.id === "pkSlide") document.getElementById("pkSlideVal").textContent = e.target.value;
+  // Update this category's "N rated" counter
+  const cat = tile.closest(".pk-cat");
+  const n = cat.querySelectorAll('.pk-tile:not([data-lvl="0"])').length;
+  const cn = cat.querySelector(".pk-cat-n");
+  cn.textContent = n + " rated";
+  cn.classList.toggle("show", n > 0);
 });
 /* ── end Task 4 ── */
 const _PROFILE_KEY = "safeplate.profile";

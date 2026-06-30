@@ -1,0 +1,1845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafePlate — Know before you order</title>
+<script>document.documentElement.classList.add('js');</script>
+<!-- Premium webfonts: Playfair Display (high-contrast editorial-luxury serif, the Function-Health register)
+     + Hanken Grotesk (warm premium grotesque for UI) + Spline Sans Mono (tabular figures).
+     Deliberately NOT the current app's Newsreader/IBM Plex pairing. display=swap over a system fallback. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ════════════════════════════════════════════════════════════════════════
+   SafePlate — "Editorial Aurora"
+   A warm-paper editorial broadsheet wrapped around one living signature:
+   a slow aurora of green light that breathes in the masthead and re-condenses
+   into the nut-risk score ring. Editorial-luxury webfaces (Playfair Display +
+   Hanken Grotesk + Spline Sans Mono). All motion is choreographed,
+   slow, weighted, and fully neutralized under prefers-reduced-motion.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root{
+  /* —— Warm-paper editorial base —— */
+  --paper:    #F7F3EA;   /* warm bone */
+  --paper2:   #FAF7F0;   /* alternate tonal ground */
+  --surface:  #FDFBF6;   /* lifted near-white cards */
+  --ink:      #211B16;   /* espresso — display/headlines */
+  --body:     #4A4039;   /* body copy (strict AA floor on bone, ~9:1) */
+  --muted:    #5E544B;   /* secondary copy (~6.6:1) */
+  --eyebrow:  #6B5D4F;   /* eyebrows/captions (~5.7:1 — never grey-faint) */
+  --terra:    #9E4E22;   /* reserved editorial accent (eyebrows/kickers only) */
+  --hair:     #E6DECF;   /* hairlines */
+  --hair2:    #CFC4B2;   /* hover border */
+
+  /* —— THE SIGNATURE: the aurora (brand atmosphere only, never a risk signal) —— */
+  --aur-forest: #0F4A2E;
+  --aur-mid:    #16A34A;
+  --aur-mint:   #86EFAC;
+  --aur-gold:   rgba(214,178,120,0.10);
+
+  /* —— The one drenched moment (closing verdict band) —— */
+  --forest-1: #12492D;
+  --forest-2: #0B3A22;
+  --hero-ink: #F3FBF6;
+  --hero-soft:#DCEBE1;
+  --mint:     #86EFAC;
+
+  /* —— Brand green ramp —— */
+  --g-deep: #166534;
+  --g-mid:  #16A34A;
+  --g-vivid:#22C55E;
+  --g-tint: #DCFCE7;
+
+  /* —— Primary-CTA gradient: AA-safe at BOTH stops for white text ——
+     lightest stop #15803D = 5.0:1 on white (clears 4.5:1); deep stop far higher. */
+  --cta-1:  #15803D;
+  --cta-2:  #0F4A2E;
+
+  /* —— SACRED risk palette (held exactly per DESIGN.md) —— */
+  --lo-ink:#15803D; --md-ink:#92400E; --hi-ink:#991B1B;
+  --lo-ring:#22C55E; --md-ring:#FBBF24; --hi-ring:#F87171;
+  --lo-tint:#F0FDF4; --md-tint:#FFFBEB; --hi-tint:#FEF2F2;
+  --lo-bd:#BBF7D0;  --md-bd:#FDE68A;  --hi-bd:#FECACA;
+
+  /* —— Semantic provenance hues (each carries one meaning) —— */
+  --signal:#2563EB; --signal-tint:#EFF4FF;
+  --violet:#6D28D9; --violet-tint:#EDE9FE;
+  --callahead:#7C3AED;
+  --star:#FBBF24;
+  --mchip-nut:#FEE2E2; --mchip-nut-ink:#991B1B;
+  --mchip-other:#FEF9C3; --mchip-other-bd:#FEF08A; --mchip-other-ink:#854D0E;
+
+  /* —— Elevation (warm, diffuse) —— */
+  --e1: 0 1px 3px rgba(40,28,16,0.06), 0 1px 2px rgba(40,28,16,0.04);
+  --e2: 0 6px 22px -6px rgba(40,28,16,0.10), 0 2px 6px rgba(40,28,16,0.05);
+  --e3: 0 16px 44px -10px rgba(40,28,16,0.16), 0 4px 12px rgba(40,28,16,0.07);
+  --e4: 0 30px 80px -16px rgba(20,40,28,0.24), 0 8px 26px rgba(40,28,16,0.10);
+
+  /* —— Type: editorial-luxury webfaces, tight system fallback —— */
+  --serif: "Playfair Display", Georgia, "Times New Roman", serif;
+  --sans:  "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono:  "Spline Sans Mono", ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
+
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --ease-io:  cubic-bezier(.4,0,.2,1);
+}
+
+/* High-contrast / accessibility mode (toggle pinned bottom-right) */
+html.hc{
+  --paper:#FBF8F1; --paper2:#FFFFFF; --surface:#FFFFFF;
+  --ink:#16110C; --body:#33291F; --muted:#473B30; --eyebrow:#473B30;
+  --hair:#9A8C78; --hair2:#6E6253;
+}
+html.hc .aurora,html.hc .grain,html.hc .thread{opacity:.35 !important;}
+/* HC mode: guaranteed-compliant solid CTA fill (white on #0F4A2E ≈ 11:1) */
+html.hc .btn-primary,html.hc .btn-find{background:#0F4A2E;}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto;}}
+body{
+  background:var(--paper);
+  color:var(--body);
+  font-family:var(--sans);
+  font-size:16px; line-height:1.7;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+:focus-visible{outline:2.5px solid var(--g-mid); outline-offset:3px; border-radius:4px;}
+.hc :focus-visible{outline-color:var(--ink);}
+a{color:var(--g-deep); text-decoration:none;}
+a:hover{text-decoration:underline; text-underline-offset:3px;}
+img,svg{display:block;}
+.wrap{max-width:1180px; margin:0 auto; padding:0 28px;}
+.measure{max-width:640px;}
+
+/* —— Type scale —— */
+.eyebrow{
+  font:700 11px/1.2 var(--sans); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--eyebrow);
+}
+.eyebrow.terra{color:var(--terra);}
+.kicker{font:400 13px/1.5 var(--sans); color:var(--muted);}
+.display{
+  font:400 clamp(46px,7.5vw,86px)/1.0 var(--serif);
+  letter-spacing:-.025em; color:var(--ink);
+}
+.display em{font-style:italic;}
+.headline{
+  font:400 clamp(28px,4vw,42px)/1.05 var(--serif);
+  letter-spacing:-.02em; color:var(--ink);
+}
+.headline em{font-style:italic;}
+.lede{font:400 clamp(18px,2.1vw,21px)/1.55 var(--sans); color:var(--muted);}
+.title{font:600 19px/1.25 var(--sans); letter-spacing:-.015em; color:var(--ink);}
+.figure{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em;}
+
+/* ════════════════ Connective thread (scroll-drawn page spine) ════════════════ */
+.thread{
+  position:fixed; top:0; left:max(18px,calc(50vw - 568px)); width:2px; height:100vh;
+  z-index:1; pointer-events:none; opacity:.9;
+}
+@media (max-width:1080px){.thread{display:none;}}
+
+/* ════════════════════════════ Topbar ════════════════════════════ */
+.topbar{
+  position:sticky; top:0; z-index:60;
+  background:color-mix(in srgb, var(--paper) 82%, transparent);
+  backdrop-filter:blur(16px) saturate(1.4);
+  border-bottom:1px solid var(--hair);
+}
+.topbar-inner{display:flex; align-items:center; gap:14px; height:66px;}
+.brand{display:flex; align-items:center; gap:11px; text-decoration:none;}
+.brand:hover{text-decoration:none;}
+.brand-mark{
+  width:34px; height:34px; border-radius:10px; flex:none; display:grid; place-items:center;
+  background:linear-gradient(150deg,#1B7A45,#0F4A2E);
+  box-shadow:0 4px 14px -3px rgba(15,74,46,.55);
+}
+.brand-mark svg{width:18px; height:18px;}
+.brand-name{font:600 18px/1 var(--sans); letter-spacing:-.03em; color:var(--ink);}
+.brand-name b{font-weight:700;}
+.nav{display:flex; align-items:center; gap:2px; margin-left:18px;}
+.nav a{
+  font:600 13.5px/1 var(--sans); color:var(--muted); padding:9px 13px; border-radius:9px;
+  transition:background .18s var(--ease-io), color .18s var(--ease-io);
+}
+.nav a:hover{color:var(--ink); background:rgba(33,27,22,.05); text-decoration:none;}
+.status{
+  margin-left:auto; display:flex; align-items:center; gap:8px;
+  padding:7px 13px; border-radius:999px; border:1px solid var(--hair);
+  background:var(--surface); font:500 12.5px/1 var(--sans); color:var(--muted);
+}
+.status .dot{width:7px; height:7px; border-radius:50%; background:var(--g-vivid); flex:none;
+  box-shadow:0 0 0 0 rgba(34,197,94,.5); animation:pip 2.6s var(--ease-io) infinite;}
+@keyframes pip{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5);}50%{box-shadow:0 0 0 5px rgba(34,197,94,0);}}
+.navtoggle{display:none;}
+@media (max-width:860px){
+  .nav{display:none;}
+  .status .lbl-full{display:none;}
+}
+
+/* ════════════════════════════ Hero ════════════════════════════ */
+.hero{position:relative; overflow:hidden; padding:clamp(64px,9vw,120px) 0 clamp(56px,7vw,96px);}
+/* Outer layer owns ONLY the JS scroll-parallax transform (translateY).
+   The breathing `drift` lives on ::before so the two transforms never collide. */
+.aurora{
+  position:absolute; inset:-20% -10% -10% -10%; z-index:0; pointer-events:none;
+  will-change:transform;
+}
+.aurora::before{
+  content:""; position:absolute; inset:0;
+  background:
+    radial-gradient(42% 46% at 18% 26%, rgba(134,239,172,.34), transparent 70%),
+    radial-gradient(50% 54% at 72% 18%, rgba(22,163,74,.24), transparent 72%),
+    radial-gradient(54% 64% at 46% 82%, rgba(15,74,46,.17), transparent 74%),
+    radial-gradient(64% 74% at 94% 90%, rgba(214,178,120,.16), transparent 70%);
+  filter:saturate(1.12);
+  animation:drift 19s ease-in-out infinite;
+  will-change:transform;
+}
+@keyframes drift{
+  0%,100%{transform:translate3d(0,0,0) scale(1);}
+  33%{transform:translate3d(1.6%,-1.4%,0) scale(1.03);}
+  66%{transform:translate3d(-1.4%,1.2%,0) scale(1.02);}
+}
+/* fine grain film — the single biggest "designed, not default" tell */
+.grain{
+  position:absolute; inset:0; z-index:1; pointer-events:none; opacity:.055; mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.hero-grid{
+  position:relative; z-index:2; display:grid; gap:clamp(36px,5vw,72px);
+  grid-template-columns:1.05fr .95fr; align-items:center;
+}
+@media (max-width:920px){.hero-grid{grid-template-columns:1fr;}}
+.hero-copy .eyebrow{margin-bottom:22px;}
+.hero h1{margin:0 0 22px;}
+/* per-line clip reveal */
+.line{display:block; overflow:hidden; padding-bottom:.04em;}
+.line > span{display:block;}
+.hero .lede{margin-bottom:30px; max-width:30ch;}
+.cta-row{display:flex; align-items:center; gap:18px; flex-wrap:wrap;}
+.btn-primary{
+  display:inline-flex; align-items:center; gap:9px; height:54px; padding:0 26px;
+  border:none; border-radius:14px; cursor:pointer;
+  background:linear-gradient(150deg,var(--cta-1),var(--cta-2));
+  color:#fff; font:700 16px/1 var(--sans); letter-spacing:-.01em;
+  box-shadow:0 8px 22px -6px rgba(21,128,61,.5);
+  transition:transform .2s var(--ease-io), box-shadow .2s var(--ease-io);
+}
+.btn-primary:hover{transform:translateY(-2px); box-shadow:0 14px 32px -8px rgba(21,128,61,.6); text-decoration:none;}
+.btn-primary:active{transform:translateY(0);}
+.btn-primary svg{width:18px; height:18px;}
+.cta-note{font:500 13.5px/1.4 var(--sans); color:var(--muted);}
+
+/* Hero search/decision card — the one crisp object on the soft light */
+.search-card{
+  position:relative; z-index:2; background:var(--surface); border:1px solid var(--hair);
+  border-radius:24px; padding:26px; box-shadow:var(--e4);
+}
+.search-card .sc-eyebrow{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+.sc-live{display:inline-flex; align-items:center; gap:7px; font:600 11px/1 var(--sans);
+  letter-spacing:.12em; text-transform:uppercase; color:var(--g-deep);}
+.sc-live .dot{width:7px;height:7px;border-radius:50%;background:var(--g-vivid);
+  box-shadow:0 0 8px rgba(34,197,94,.7);}
+.field{
+  display:flex; align-items:center; gap:11px; height:56px; padding:0 16px;
+  background:var(--paper); border:1.5px solid var(--hair); border-radius:14px;
+  transition:border-color .18s var(--ease-io), box-shadow .18s var(--ease-io);
+}
+.field:focus-within{border-color:var(--g-mid); box-shadow:0 0 0 3px rgba(22,163,74,.14);}
+.field svg{width:18px; height:18px; color:var(--eyebrow); flex:none;}
+.field input{flex:1; border:none; background:none; font:500 16px/1 var(--sans); color:var(--ink); outline:none;}
+.field input::placeholder{color:var(--eyebrow);}
+.sc-actions{display:flex; gap:12px; margin-top:14px;}
+.btn-ghost{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; height:50px; padding:0 16px;
+  background:var(--paper); border:1.5px solid var(--hair); border-radius:13px;
+  color:var(--muted); font:600 14px/1 var(--sans); cursor:pointer;
+  transition:all .18s var(--ease-io);
+}
+.btn-ghost:hover{background:var(--surface); border-color:var(--hair2); color:var(--ink); transform:translateY(-1px);}
+.btn-ghost svg{width:17px; height:17px;}
+.btn-find{
+  flex:1; height:50px; border:none; border-radius:13px; cursor:pointer;
+  background:linear-gradient(150deg,var(--cta-1),var(--cta-2)); color:#fff;
+  font:700 15px/1 var(--sans); box-shadow:0 6px 18px -5px rgba(21,128,61,.5);
+  transition:transform .2s var(--ease-io), box-shadow .2s var(--ease-io);
+}
+.btn-find:hover{transform:translateY(-1px); box-shadow:0 12px 26px -7px rgba(21,128,61,.6);}
+.sc-foot{margin-top:16px; padding-top:16px; border-top:1px solid var(--hair);
+  display:flex; align-items:center; gap:8px; font:500 12.5px/1.5 var(--sans); color:var(--muted);}
+.sc-foot svg{width:15px;height:15px;color:var(--g-deep);flex:none;}
+
+/* Hero big-stat moment */
+.hero-stats{
+  position:relative; z-index:2; margin-top:clamp(44px,6vw,72px);
+  display:grid; grid-template-columns:repeat(3,1fr); gap:24px;
+  border-top:1px solid var(--hair); padding-top:34px;
+}
+@media (max-width:680px){.hero-stats{grid-template-columns:1fr;}}
+.stat .num{font:600 clamp(38px,5.5vw,60px)/1 var(--mono); font-variant-numeric:tabular-nums;
+  letter-spacing:-.03em; color:var(--ink);}
+.stat .num small{font-size:.5em; color:var(--g-deep); margin-left:2px;}
+.stat .cap{font:400 14px/1.4 var(--serif); font-style:italic; color:var(--muted); margin-top:8px;}
+
+/* ════════════════════════════ Section frame ════════════════════════════ */
+.section{position:relative; padding:clamp(72px,9vw,130px) 0;}
+.section.alt{background:var(--paper2); border-top:1px solid var(--hair); border-bottom:1px solid var(--hair);}
+.section-head{max-width:720px; margin-bottom:clamp(36px,4vw,56px);}
+.section-head .eyebrow{margin-bottom:18px;}
+.section-head h2{margin:0 0 14px;}
+.section-head p{color:var(--muted);}
+
+/* ════════════════════════════ Profile / allergen controls ════════════════════════════ */
+.profile-card{
+  background:var(--surface); border:1px solid var(--hair); border-radius:24px;
+  box-shadow:var(--e2); padding:clamp(24px,3vw,38px);
+  display:grid; grid-template-columns:1.1fr 1fr; gap:clamp(28px,4vw,52px);
+}
+@media (max-width:820px){.profile-card{grid-template-columns:1fr;}}
+.ctl-block + .ctl-block{margin-top:30px;}
+.ctl-label{display:flex; align-items:baseline; gap:10px; margin-bottom:14px;}
+.ctl-label .eyebrow{margin:0;}
+.ctl-label .hint{font:400 13px/1.4 var(--sans); color:var(--muted);}
+.chips{display:flex; flex-wrap:wrap; gap:9px;}
+.chip{
+  display:inline-flex; align-items:center; gap:7px; padding:8px 15px; border-radius:999px;
+  border:1.5px solid var(--hair); background:var(--surface); color:var(--muted);
+  font:600 13.5px/1 var(--sans); cursor:pointer;
+  transition:all .18s var(--ease-io);
+}
+.chip:hover{border-color:var(--hair2); color:var(--ink); transform:translateY(-1px);}
+.chip .tick{width:14px; height:14px; opacity:0; transition:opacity .15s;}
+.chip[aria-pressed="true"]{background:var(--g-tint); border-color:#9DE3B7; color:var(--g-deep);}
+.chip[aria-pressed="true"] .tick{opacity:1;}
+/* segmented control */
+.seg{display:inline-flex; background:var(--paper); border:1.5px solid var(--hair); border-radius:12px; padding:4px; gap:4px;}
+.seg button{
+  border:none; background:none; cursor:pointer; padding:9px 16px; border-radius:9px;
+  font:600 13.5px/1 var(--sans); color:var(--muted); transition:all .18s var(--ease-io);
+}
+.seg button[aria-checked="true"]{background:var(--surface); color:var(--ink); box-shadow:var(--e1);}
+.seg.severe button[aria-checked="true"][data-v="severe"]{color:var(--hi-ink);}
+.ctl-note{margin-top:12px; font:400 13px/1.5 var(--sans); color:var(--muted); display:flex; gap:8px;}
+.ctl-note svg{width:15px;height:15px;color:var(--g-deep);flex:none;margin-top:2px;}
+
+/* ════════════════════════════ Results ════════════════════════════ */
+.results-bar{display:flex; align-items:flex-end; justify-content:space-between; gap:20px;
+  flex-wrap:wrap; margin-bottom:30px;}
+.results-bar .rb-count{font:600 20px/1.2 var(--sans); color:var(--ink); letter-spacing:-.02em;}
+.results-bar .rb-count span{color:var(--muted); font-weight:400;}
+.sortrow{display:flex; gap:6px; align-items:center;}
+.sortrow .lbl{font:600 11px/1 var(--sans); letter-spacing:.12em; text-transform:uppercase; color:var(--eyebrow); margin-right:6px;}
+.sortrow button{
+  border:1px solid var(--hair); background:var(--surface); color:var(--muted);
+  font:600 13px/1 var(--sans); padding:8px 13px; border-radius:9px; cursor:pointer;
+  transition:all .16s var(--ease-io);
+}
+.sortrow button:hover{border-color:var(--hair2); color:var(--ink);}
+.sortrow button[aria-pressed="true"]{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+
+.grid{display:grid; grid-template-columns:1fr 1fr; gap:22px;}
+@media (max-width:820px){.grid{grid-template-columns:1fr;}}
+.rcard{
+  position:relative; background:var(--surface); border:1.5px solid var(--hair);
+  border-radius:20px; overflow:hidden; box-shadow:var(--e1);
+  transition:transform .22s var(--ease-io), box-shadow .22s var(--ease-io), border-color .22s var(--ease-io);
+}
+.rcard:hover{transform:translateY(-3px); box-shadow:var(--e3); border-color:var(--hair2);}
+.rcard.span2{grid-column:1/-1;}
+/* Full-width cards: lay the header + how-we-know side by side so the extra
+   width is used instead of leaving an empty right half. Foot + detail span both.
+   Only where the results grid is actually 2-up (>=821px); below that, normal stack. */
+@media (min-width:821px){
+  .rcard.span2{display:grid; grid-template-columns:1fr 1fr; column-gap:clamp(28px,4vw,56px); align-items:start;}
+  .rcard.span2 > .card-top{grid-column:1;}
+  .rcard.span2 > .card-howline{grid-column:2; align-self:center; padding:22px 26px 22px 0;}
+  .rcard.span2 > .card-foot{grid-column:1/-1;}
+  .rcard.span2 > .detail{grid-column:1/-1;}
+}
+.card-stripe{position:absolute; left:0; top:0; bottom:0; width:5px;}
+.card-stripe.lo{background:var(--lo-ring);} .card-stripe.md{background:var(--md-ring);} .card-stripe.hi{background:var(--hi-ring);}
+.card-top{display:flex; gap:18px; padding:22px 22px 18px 26px;}
+.card-info{flex:1; min-width:0;}
+.card-info h3{font:600 20px/1.2 var(--sans); letter-spacing:-.02em; color:var(--ink); margin:0 0 7px;}
+.card-meta{display:flex; align-items:center; gap:9px; flex-wrap:wrap; font:500 13.5px/1 var(--sans); color:var(--muted); margin-bottom:11px;}
+.card-meta .star{color:var(--star);}
+.card-meta .figure{color:var(--body);}
+.sep{width:3px;height:3px;border-radius:50%;background:var(--hair2);}
+.tags{display:flex; gap:7px; flex-wrap:wrap; margin-bottom:12px;}
+.tag{font:600 11.5px/1 var(--sans); letter-spacing:.02em; color:var(--muted);
+  background:var(--paper); border:1px solid var(--hair); padding:5px 10px; border-radius:7px;}
+.card-badges{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+
+/* risk cluster: ring + word + shape glyph (three non-color channels) */
+.risk-cluster{display:flex; flex-direction:column; align-items:center; gap:6px; flex:none; width:88px;}
+.ring{position:relative; display:grid; place-items:center;}
+.ring svg{transform:rotate(-90deg);}
+.ring .ring-track{stroke:var(--hair);}
+.ring-arc.lo{stroke:var(--lo-ring);} .ring-arc.md{stroke:var(--md-ring);} .ring-arc.hi{stroke:var(--hi-ring);}
+.ring-mid{position:absolute; inset:0; display:grid; place-items:center;}
+.ring-num{font:500 22px/1 var(--mono); font-variant-numeric:tabular-nums;}
+.ring-num.lo{color:var(--lo-ink);} .ring-num.md{color:var(--md-ink);} .ring-num.hi{color:var(--hi-ink);}
+.risk-word{display:flex; align-items:center; gap:5px; font:700 12px/1.1 var(--sans); letter-spacing:-.01em; text-align:center;}
+.risk-word.lo{color:var(--lo-ink);} .risk-word.md{color:var(--md-ink);} .risk-word.hi{color:var(--hi-ink);}
+.risk-word svg{width:14px; height:14px; flex:none;}
+.risk-conf{font:500 11px/1 var(--mono); color:var(--muted);}
+
+/* badges + provenance chips */
+.cbadge{font:700 11px/1 var(--sans); letter-spacing:.02em; padding:5px 9px; border-radius:6px; border:1.5px solid currentColor;}
+.cbadge.lo{color:var(--lo-ink);} .cbadge.md{color:var(--md-ink);} .cbadge.hi{color:var(--hi-ink);}
+.pvchip{display:inline-flex; align-items:center; gap:6px; font:600 11px/1 var(--sans); padding:5px 10px; border-radius:6px; border:1px solid;}
+.pvchip::before{content:""; width:6px; height:6px; border-radius:50%; background:currentColor;}
+.pv-confirmed{color:var(--g-deep); background:var(--lo-tint); border-color:var(--lo-bd);}
+.pv-signal{color:var(--signal); background:var(--signal-tint); border-color:#CFE0FF;}
+.pv-inferred{color:var(--md-ink); background:var(--md-tint); border-color:var(--md-bd);}
+.pv-estimate{color:var(--muted); background:var(--paper); border-color:var(--hair);}
+.pv-callahead{color:var(--callahead); background:var(--violet-tint); border-color:#DDD0F7;}
+
+.card-howline{padding:0 22px 18px 26px; font:400 13.5px/1.5 var(--sans); color:var(--muted);}
+.card-howline b{color:var(--body); font-weight:600;}
+.card-foot{display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 22px 18px 26px; border-top:1px solid var(--hair);}
+.expand-btn{
+  display:inline-flex; align-items:center; gap:8px; background:none; border:none; cursor:pointer;
+  font:600 13.5px/1 var(--sans); color:var(--g-deep); padding:6px 0;
+}
+.expand-btn .chev{width:16px; height:16px; transition:transform .25s var(--ease-io);}
+.expand-btn[aria-expanded="true"] .chev{transform:rotate(180deg);}
+.cov{display:flex; align-items:center; gap:7px; font:500 12.5px/1.3 var(--sans); color:var(--muted);}
+.cov svg{width:14px;height:14px;color:var(--eyebrow);}
+
+/* ════════════════ Detail panel (baked-open; JS collapses extras) ════════════════ */
+.detail{border-top:1px solid var(--hair); background:var(--paper2);}
+/* Collapse via grid-template-rows (0fr/1fr): GPU-friendly, no layout-property animation */
+html.js .detail{
+  display:grid; grid-template-rows:1fr;
+  transition:grid-template-rows .5s var(--ease-out), opacity .4s var(--ease-out);
+}
+html.js .detail > .detail-inner{overflow:hidden; min-height:0;}
+html.js .detail.collapsed{grid-template-rows:0fr; opacity:0; border-top-color:transparent;}
+.detail-inner{padding:clamp(22px,3vw,34px) 26px;}
+.detail-grid{display:grid; grid-template-columns:1fr 1fr; gap:clamp(22px,3vw,38px);}
+@media (max-width:760px){.detail-grid{grid-template-columns:1fr;}}
+.dsec + .dsec{margin-top:26px;}
+.dsec h4{font:700 11px/1.2 var(--sans); letter-spacing:.14em; text-transform:uppercase; color:var(--eyebrow); margin-bottom:14px;}
+
+/* verdict */
+.verdict{display:flex; gap:20px; align-items:flex-start; padding-bottom:24px; border-bottom:1px solid var(--hair); margin-bottom:24px;}
+.verdict .ring-wrap{flex:none; position:relative;}
+.verdict-glow{position:absolute; inset:-14px; border-radius:50%; z-index:-1; opacity:0;
+  background:radial-gradient(closest-side, rgba(134,239,172,.5), transparent);}
+.verdict-glow.bloom{animation:bloom 1.1s var(--ease-out) .35s;}
+@keyframes bloom{0%{opacity:0;transform:scale(.6);}40%{opacity:.9;}100%{opacity:0;transform:scale(1.25);}}
+.verdict-body{flex:1; min-width:0;}
+.verdict-label{font:400 clamp(24px,3vw,32px)/1.05 var(--serif); letter-spacing:-.015em; margin-bottom:10px;}
+.verdict-label.lo{color:var(--lo-ink);} .verdict-label.md{color:var(--md-ink);} .verdict-label.hi{color:var(--hi-ink);}
+.verdict-prov{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+.pv-blurb{font:400 13.5px/1.4 var(--sans); color:var(--muted);}
+.verdict-badges{display:flex; gap:8px; flex-wrap:wrap;}
+.rationale{font:400 15.5px/1.6 var(--sans); color:var(--body); margin-bottom:0;}
+
+/* why-this-score list */
+.why-list{list-style:none; display:flex; flex-direction:column; gap:0;}
+.why-list li{padding:11px 0; border-bottom:1px solid var(--hair); font:400 14.5px/1.55 var(--sans); color:var(--body);
+  display:flex; gap:10px;}
+.why-list li:last-child{border-bottom:none;}
+.why-list li::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--g-mid); flex:none; margin-top:8px;}
+.cite{display:inline-flex; align-items:center; font:600 11px/1 var(--mono); color:var(--violet);
+  background:var(--violet-tint); border:1px solid #DDD0F7; border-radius:5px; padding:2px 6px; margin-left:4px;
+  cursor:pointer; text-decoration:none; vertical-align:baseline;}
+.cite:hover{background:#E2D8FB; text-decoration:none;}
+.why-trust{margin-top:12px; font:400 13px/1.4 var(--sans); color:var(--muted); font-style:italic;}
+.ai-badge{display:inline-flex; align-items:center; gap:5px; font:700 10px/1 var(--sans); letter-spacing:.06em;
+  text-transform:uppercase; color:var(--violet); background:var(--violet-tint); border:1px solid #DDD0F7;
+  border-radius:5px; padding:4px 7px; margin-left:9px; vertical-align:middle;}
+
+/* range-track (Function-style risk rail) */
+.rangetrack{margin:6px 0 18px;}
+.rt-name{display:flex; justify-content:space-between; font:500 13.5px/1 var(--sans); color:var(--body); margin-bottom:9px;}
+.rt-name .figure{font-size:13px;}
+.rt-rail{position:relative; height:10px; border-radius:999px; overflow:hidden;
+  background:linear-gradient(90deg,var(--lo-tint) 0 33%,var(--md-tint) 33% 66%,var(--hi-tint) 66% 100%);
+  border:1px solid var(--hair);}
+.rt-bands{display:flex; justify-content:space-between; margin-top:6px; font:600 10px/1 var(--sans);
+  letter-spacing:.04em; text-transform:uppercase;}
+.rt-bands span:nth-child(1){color:var(--lo-ink);}
+.rt-bands span:nth-child(2){color:var(--md-ink);}
+.rt-bands span:nth-child(3){color:var(--hi-ink);}
+.rt-dot{position:absolute; top:50%; width:16px; height:16px; border-radius:50%; background:var(--surface);
+  border:3px solid var(--ink); transform:translate(-50%,-50%); box-shadow:var(--e2); left:6%;
+  transition:left 1s var(--ease-out);}
+
+/* meters */
+.meter + .meter{margin-top:16px;}
+.meter-top{display:flex; justify-content:space-between; font:500 13px/1 var(--sans); color:var(--body); margin-bottom:7px;}
+.meter-top .figure{color:var(--ink);}
+.meter-track{height:8px; border-radius:999px; background:var(--hair); overflow:hidden;}
+.meter-fill{height:100%; border-radius:999px; width:100%; transform:scaleX(0); transform-origin:left center; transition:transform 1.1s var(--ease-out);}
+.meter-fill.green{background:linear-gradient(90deg,var(--g-mid),var(--g-deep));}
+.meter-fill.amber{background:var(--md-ring);}
+
+/* awareness chips */
+.sig-row{display:flex; flex-wrap:wrap; gap:9px;}
+.sig-chip{display:inline-flex; align-items:center; gap:8px; font:600 13px/1 var(--sans); color:var(--muted);
+  background:var(--surface); border:1px solid var(--hair); border-radius:999px; padding:8px 14px;}
+.sig-chip .pip{width:8px;height:8px;border-radius:50%;background:var(--hair2);flex:none;}
+.sig-chip.yes{color:var(--g-deep); background:var(--lo-tint); border-color:var(--lo-bd);}
+.sig-chip.yes .pip{background:var(--g-vivid);}
+.sig-chip.no{color:var(--hi-ink); background:var(--hi-tint); border-color:var(--hi-bd);}
+.sig-chip.no .pip{background:var(--hi-ring);}
+.sig-chip .x{font-weight:700;}
+
+/* warning box / riskiest */
+.warning-box{background:var(--hi-tint); border:1px solid var(--hi-bd); border-radius:14px; padding:16px 18px;}
+.warning-head{display:flex; align-items:center; gap:9px; font:700 13.5px/1.3 var(--sans); color:var(--hi-ink); margin-bottom:12px;}
+.warning-head svg{width:16px;height:16px;flex:none;}
+.warning-head .note{font-weight:400; color:var(--md-ink); opacity:.85;}
+.risky-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-top:1px dashed var(--hi-bd);}
+.risky-row .nm{font:500 14px/1.3 var(--sans); color:var(--body);}
+.risky-row .pct{font:600 13px/1 var(--mono); font-variant-numeric:tabular-nums;}
+.risky-row .pct.hi{color:var(--hi-ink);} .risky-row .pct.md{color:var(--md-ink);}
+
+/* menu list */
+.menu-list{display:flex; flex-direction:column;}
+.mi{padding:13px 0; border-bottom:1px solid var(--hair);}
+.mi:last-child{border-bottom:none;}
+.mi-top{display:flex; justify-content:space-between; gap:14px; align-items:baseline;}
+.mi-name{font:600 14.5px/1.3 var(--sans); color:var(--ink);}
+.mi-price{font:500 13.5px/1 var(--mono); color:var(--muted); flex:none;}
+.mi-desc{font:400 13px/1.5 var(--sans); color:var(--muted); margin-top:4px;}
+.mi-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+.mchip{font:600 11px/1 var(--sans); padding:4px 9px; border-radius:6px; border:1px solid transparent;}
+.mchip.nut{background:var(--mchip-nut); color:var(--mchip-nut-ink); border-color:#FBC4C4;}
+.mchip.other{background:var(--mchip-other); color:var(--mchip-other-ink); border-color:var(--mchip-other-bd);}
+.mchip.diet{background:var(--g-tint); color:var(--g-deep); border-color:#9DE3B7;}
+
+/* quotes */
+.quote{font:400 14.5px/1.55 var(--serif); font-style:italic; color:var(--body);
+  padding:10px 0 10px 16px; border-left:2px solid var(--hair); margin-top:10px;}
+.quote .src{display:block; font:500 12px/1.3 var(--sans); font-style:normal; color:var(--muted); margin-top:6px;}
+
+/* sources ledger */
+.ledger{display:flex; flex-direction:column; gap:0;}
+.led-row{display:flex; gap:13px; padding:13px 0; border-bottom:1px solid var(--hair);}
+.led-row:last-child{border-bottom:none;}
+.led-id{font:600 12px/1 var(--mono); color:var(--violet); background:var(--violet-tint); border:1px solid #DDD0F7;
+  border-radius:5px; padding:5px 7px; flex:none; height:fit-content;}
+.led-body{flex:1; min-width:0;}
+.led-title{font:600 13.5px/1.35 var(--sans); color:var(--ink);}
+.led-meta{display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-top:6px;}
+.led-link{font:500 12.5px/1 var(--sans); color:var(--g-deep); display:inline-flex; align-items:center; gap:5px;}
+.led-link svg{width:13px;height:13px;}
+
+/* ════════════════════════════ How we know (sticky scroll) ════════════════════════════ */
+.hwk{display:grid; grid-template-columns:1fr 1fr; gap:clamp(30px,5vw,80px); align-items:start;}
+@media (max-width:900px){.hwk{grid-template-columns:1fr;}}
+.hwk-sticky{position:sticky; top:96px;}
+@media (max-width:900px){.hwk-sticky{position:static;}}
+.hwk-visual{background:var(--surface); border:1px solid var(--hair); border-radius:24px; padding:34px; box-shadow:var(--e2);
+  position:relative; overflow:hidden;}
+.hwk-visual .v-aurora{position:absolute; inset:0; opacity:.5; pointer-events:none;
+  background:radial-gradient(60% 60% at 70% 20%, rgba(134,239,172,.2), transparent 70%);}
+.hwk-visual .vlabel{position:relative; font:700 11px/1.2 var(--sans); letter-spacing:.14em; text-transform:uppercase; color:var(--eyebrow); margin-bottom:20px;}
+.tierstrip{position:relative; display:flex; flex-direction:column; gap:11px;}
+.tier{display:flex; align-items:center; gap:13px; padding:14px 16px; border-radius:13px; border:1px solid var(--hair);
+  background:var(--paper); transition:transform .3s var(--ease-out), box-shadow .3s var(--ease-out), border-color .3s;}
+.tier.active{background:var(--surface); box-shadow:var(--e2); transform:translateX(4px);}
+.tier .pvchip{flex:none;}
+.tier .t-desc{font:400 13px/1.4 var(--sans); color:var(--muted);}
+.hwk-steps{display:flex; flex-direction:column; gap:clamp(40px,7vh,90px); padding:20px 0 40px;}
+.step{}
+.step .s-num{font:700 11px/1.2 var(--sans); letter-spacing:.16em; text-transform:uppercase; color:var(--terra); margin-bottom:14px;}
+.step h3{font:400 clamp(24px,3vw,32px)/1.1 var(--serif); letter-spacing:-.015em; color:var(--ink); margin-bottom:12px;}
+.step h3 em{font-style:italic;}
+.step p{color:var(--muted); max-width:46ch;}
+
+/* ════════════════════════════ How it works / trust tiles ════════════════════════════ */
+.tiles{display:grid; grid-template-columns:repeat(3,1fr); gap:22px;}
+@media (max-width:820px){.tiles{grid-template-columns:1fr;}}
+.tile{background:var(--surface); border:1px solid var(--hair); border-radius:20px; padding:30px; box-shadow:var(--e1);
+  transition:transform .22s var(--ease-io), box-shadow .22s var(--ease-io), border-color .22s;}
+.tile:hover{transform:translateY(-3px); box-shadow:var(--e3); border-color:var(--hair2);}
+.tile-ico{width:46px; height:46px; border-radius:13px; display:grid; place-items:center; margin-bottom:18px;
+  background:var(--g-tint); color:var(--g-deep);}
+.tile-ico svg{width:22px; height:22px;}
+.tile h3{font:600 18px/1.25 var(--sans); letter-spacing:-.015em; color:var(--ink); margin-bottom:9px;}
+.tile p{font:400 14.5px/1.6 var(--sans); color:var(--muted);}
+
+/* ════════════════════════════ Closing drenched verdict band ════════════════════════════ */
+.closer{position:relative; overflow:hidden; color:var(--hero-ink);
+  background:linear-gradient(160deg,var(--forest-1),var(--forest-2));}
+.closer .c-aurora{position:absolute; inset:0; pointer-events:none; opacity:.9;
+  background:
+    radial-gradient(40% 50% at 18% 24%, rgba(134,239,172,.22), transparent 70%),
+    radial-gradient(46% 56% at 84% 80%, rgba(34,197,94,.16), transparent 72%);
+  animation:drift 22s ease-in-out infinite;}
+.closer .grain{opacity:.06;}
+.closer-inner{position:relative; z-index:2; padding:clamp(80px,11vw,150px) 0; text-align:center;}
+.closer .eyebrow{color:var(--mint); margin-bottom:20px;}
+.closer h2{font:400 clamp(34px,5.5vw,64px)/1.04 var(--serif); letter-spacing:-.02em; color:var(--hero-ink);
+  margin:0 auto 22px; max-width:18ch;}
+.closer h2 em{font-style:italic; color:var(--mint);}
+.closer p{color:var(--hero-soft); max-width:52ch; margin:0 auto 34px; font-size:18px;}
+.btn-light{display:inline-flex; align-items:center; gap:9px; height:54px; padding:0 28px; border:none; border-radius:14px;
+  background:var(--hero-ink); color:var(--forest-2); font:700 16px/1 var(--sans); cursor:pointer;
+  box-shadow:0 14px 40px -10px rgba(0,0,0,.5); transition:transform .2s var(--ease-io), box-shadow .2s var(--ease-io);}
+.btn-light:hover{transform:translateY(-2px); box-shadow:0 20px 50px -12px rgba(0,0,0,.6); text-decoration:none;}
+.btn-light svg{width:18px;height:18px;}
+
+/* ════════════════════════════ Disclaimer + Footer ════════════════════════════ */
+.disclaimer{background:var(--paper2); border-top:1px solid var(--hair);}
+.disclaimer-inner{display:flex; gap:16px; align-items:flex-start; padding:30px 0; max-width:860px;}
+.disclaimer svg{width:22px; height:22px; color:var(--md-ink); flex:none; margin-top:2px;}
+.disclaimer p{font:400 14px/1.6 var(--sans); color:var(--body);}
+.disclaimer b{color:var(--ink); font-weight:600;}
+
+.footer{background:var(--paper); border-top:1px solid var(--hair); padding:clamp(48px,6vw,80px) 0 40px;}
+.footer-grid{display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:32px; margin-bottom:48px;}
+@media (max-width:760px){.footer-grid{grid-template-columns:1fr 1fr;}}
+.footer-brand .brand{margin-bottom:14px;}
+.footer-brand p{font:400 14px/1.6 var(--sans); color:var(--muted); max-width:34ch;}
+.fcol h5{font:700 11px/1.2 var(--sans); letter-spacing:.14em; text-transform:uppercase; color:var(--eyebrow); margin-bottom:16px;}
+.fcol a{display:block; font:500 14px/1 var(--sans); color:var(--muted); padding:7px 0; transition:color .15s;}
+.fcol a:hover{color:var(--ink); text-decoration:none;}
+.footer-bottom{display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;
+  padding-top:28px; border-top:1px solid var(--hair); font:400 13px/1.5 var(--sans); color:var(--muted);}
+
+/* ════════════════════════════ Accessibility toggle (pinned) ════════════════════════════ */
+.hc-toggle{position:fixed; right:20px; bottom:20px; z-index:80; display:inline-flex; align-items:center; gap:9px;
+  height:46px; padding:0 17px; border-radius:999px; border:1.5px solid var(--hair2); background:var(--surface);
+  color:var(--ink); font:600 13px/1 var(--sans); cursor:pointer; box-shadow:var(--e3);
+  transition:transform .18s var(--ease-io), box-shadow .18s var(--ease-io);}
+.hc-toggle:hover{transform:translateY(-2px); box-shadow:var(--e4);}
+.hc-toggle svg{width:18px; height:18px;}
+.hc-toggle[aria-pressed="true"]{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+
+/* ════════════════════════════ Reveal animation ════════════════════════════ */
+@media (prefers-reduced-motion: no-preference){
+  html.js .reveal{opacity:0; transform:translateY(22px);
+    transition:opacity .7s var(--ease-out), transform .7s var(--ease-out);
+    transition-delay:calc(var(--i,0) * 70ms);}
+  html.js .reveal.in-view{opacity:1; transform:none;}
+  html.js .hero .line > span{transform:translateY(110%); transition:transform .9s var(--ease-out);}
+  html.js .hero.in-view .line > span{transform:translateY(0);}
+  html.js .hero .line:nth-child(2) > span{transition-delay:.09s;}
+  html.js .hero .line:nth-child(3) > span{transition-delay:.18s;}
+}
+
+/* ════════════════════════════ Reduced motion: hard neutralize ════════════════════════════ */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none !important; transition:none !important;}
+  .reveal{opacity:1 !important; transform:none !important;}
+  .hero .line > span{transform:none !important;}
+  .aurora,.aurora::before,.c-aurora{animation:none !important; transform:none !important;}
+  html.js .detail.collapsed{grid-template-rows:0fr !important; opacity:0;}
+}
+</style>
+</head>
+<body>
+
+<!-- Connective thread: scroll-drawn page spine -->
+<svg class="thread" aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 2 1000">
+  <line x1="1" y1="0" x2="1" y2="1000" stroke="#CFC4B2" stroke-width="2" stroke-dasharray="1000" stroke-dashoffset="1000" id="threadLine"/>
+</svg>
+
+<!-- ════════════════ Topbar ════════════════ -->
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#top" aria-label="SafePlate home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 21c4.97-2.5 8-6.2 8-10.5A5.5 5.5 0 0012 6a5.5 5.5 0 00-8 4.5C4 14.8 7.03 18.5 12 21z" fill="#fff" opacity=".95"/><path d="M9.5 12.2l1.8 1.8 3.6-3.8" stroke="#0F4A2E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span class="brand-name">Safe<b>Plate</b></span>
+    </a>
+    <nav class="nav" aria-label="Primary">
+      <a href="#results">Find places</a>
+      <a href="#howweknow">How we know</a>
+      <a href="#trust">Why trust it</a>
+      <a href="#about">About</a>
+    </nav>
+    <span class="status" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="lbl-full">Live data ·&nbsp;</span><span class="figure">1,240</span>&nbsp;menus indexed
+    </span>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ════════════════ Hero ════════════════ -->
+<section class="hero reveal" aria-labelledby="heroTitle">
+  <div class="aurora" id="aurora" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">Nut-allergy dining · Evidence-first</p>
+        <h1 id="heroTitle" class="display">
+          <span class="line"><span>Know before</span></span>
+          <span class="line"><span>you <em>order</em>.</span></span>
+        </h1>
+        <p class="lede">SafePlate reads the real menus near you, grades nut-allergy risk against your profile, and shows the evidence behind every call.</p>
+        <div class="cta-row">
+          <a href="#results" class="btn-primary">
+            See nearby places
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <span class="cta-note">No account needed to look.</span>
+        </div>
+      </div>
+
+      <!-- Hero search/decision card -->
+      <div class="search-card">
+        <div class="sc-eyebrow">
+          <span class="eyebrow">Your decision starts here</span>
+          <span class="sc-live"><span class="dot" aria-hidden="true"></span>Live</span>
+        </div>
+        <label class="field" for="loc">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+          <input id="loc" type="text" placeholder="City, neighbourhood, or address" autocomplete="off" value="Hayes Valley, San Francisco" />
+        </label>
+        <div class="sc-actions">
+          <button class="btn-ghost" type="button" id="geoBtn">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            Use my location
+          </button>
+          <button class="btn-find" type="button" onclick="document.getElementById('results').scrollIntoView({behavior:'smooth'})">Find safe places</button>
+        </div>
+        <div class="sc-foot">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z" stroke="currentColor" stroke-width="1.6"/><path d="M9.3 12l1.9 1.9L15 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Every score carries its evidence, so you can always check how we know.
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero big-stat moment -->
+    <div class="hero-stats">
+      <div class="stat reveal" style="--i:0">
+        <div class="num figure" data-count="1240" data-suffix="">1,240</div>
+        <div class="cap">menus read this week</div>
+      </div>
+      <div class="stat reveal" style="--i:1">
+        <div class="num figure" data-count="38" data-suffix="">38</div>
+        <div class="cap">sources cited per decision, on average</div>
+      </div>
+      <div class="stat reveal" style="--i:2">
+        <div class="num figure" data-count="9" data-suffix="">9</div>
+        <div class="cap">in <em>10</em> verdicts trace to a real menu</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ Profile / allergen controls ════════════════ -->
+<section class="section alt" aria-labelledby="profTitle">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow terra">Your allergy profile</p>
+      <h2 class="headline" id="profTitle">Tell us what you react to, and <em>how</em> seriously.</h2>
+      <p>Scores are graded against this profile. Stricter profiles surface more risk. Safety is asymmetric, so we err toward flagging it.</p>
+    </div>
+
+    <div class="profile-card reveal">
+      <div>
+        <div class="ctl-block">
+          <div class="ctl-label">
+            <span class="eyebrow">Which nuts</span>
+            <span class="hint">Tap the ones you react to</span>
+          </div>
+          <div class="chips" role="group" aria-label="Nut selection">
+            <button class="chip" type="button" aria-pressed="true"><svg class="tick" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Peanut</button>
+            <button class="chip" type="button" aria-pressed="true"><svg class="tick" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Cashew</button>
+            <button class="chip" type="button" aria-pressed="true"><svg class="tick" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Almond</button>
+            <button class="chip" type="button" aria-pressed="false"><svg class="tick" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Walnut</button>
+            <button class="chip" type="button" aria-pressed="false"><svg class="tick" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Hazelnut</button>
+            <button class="chip" type="button" aria-pressed="false"><svg class="tick" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Pistachio</button>
+            <button class="chip" type="button" aria-pressed="false"><svg class="tick" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Pecan</button>
+            <button class="chip" type="button" aria-pressed="false"><svg class="tick" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Pine nut</button>
+          </div>
+        </div>
+        <div class="ctl-block">
+          <div class="ctl-label"><span class="eyebrow">How serious</span></div>
+          <div class="seg severe" role="radiogroup" aria-label="Severity">
+            <button type="button" role="radio" aria-checked="false" data-v="mild">Mild</button>
+            <button type="button" role="radio" aria-checked="false" data-v="moderate">Moderate</button>
+            <button type="button" role="radio" aria-checked="true" data-v="severe">Severe / anaphylaxis</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="ctl-block">
+          <div class="ctl-label">
+            <span class="eyebrow">Cross-contact</span>
+            <span class="hint">How careful about shared kitchens?</span>
+          </div>
+          <div class="seg" role="radiogroup" aria-label="Cross-contact sensitivity">
+            <button type="button" role="radio" aria-checked="true" data-v="strict">Avoid strictly</button>
+            <button type="button" role="radio" aria-checked="false" data-v="some">Some tolerance</button>
+            <button type="button" role="radio" aria-checked="false" data-v="ok">Not concerned</button>
+          </div>
+          <div class="ctl-note">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            With <b>strict</b> cross-contact, a kitchen that uses nuts elsewhere still raises a dish's risk, even if that dish has none.
+          </div>
+        </div>
+        <div class="ctl-block">
+          <div class="ctl-label"><span class="eyebrow">Profile summary</span></div>
+          <div class="ctl-note" style="margin-top:0">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z" stroke="currentColor" stroke-width="1.6"/></svg>
+            Grading for <b>peanut, cashew &amp; almond</b> · <b>severe</b> · strict cross-contact. 6 places ranked below.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ Results ════════════════ -->
+<section class="section" id="results" aria-labelledby="resTitle">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Ranked by nut-risk · safest first</p>
+      <h2 class="headline" id="resTitle">6 places near <em>Hayes Valley</em>, read &amp; graded.</h2>
+    </div>
+
+    <div class="results-bar reveal">
+      <div class="rb-count" role="status"><span class="figure">6</span> places <span>· within 1.2&nbsp;km · for severe peanut, cashew &amp; almond</span></div>
+      <div class="sortrow" role="group" aria-label="Sort results">
+        <span class="lbl">Sort</span>
+        <button type="button" aria-pressed="true">Lowest risk</button>
+        <button type="button" aria-pressed="false">Distance</button>
+        <button type="button" aria-pressed="false">Rating</button>
+      </div>
+    </div>
+
+    <div class="grid">
+
+      <!-- ───── CARD 1 — The Olive Counter (Lower / Confirmed) ───── -->
+      <article class="rcard reveal" style="--i:0">
+        <div class="card-stripe lo" aria-hidden="true"></div>
+        <div class="card-top">
+          <div class="card-info">
+            <h3>The Olive Counter</h3>
+            <div class="card-meta">
+              <span class="rating"><span class="star" aria-hidden="true">★</span> <span class="figure">4.6</span></span>
+              <span class="sep" aria-hidden="true"></span><span class="figure">320 m</span>
+              <span class="sep" aria-hidden="true"></span>Mediterranean
+            </div>
+            <div class="tags"><span class="tag">Mezze</span><span class="tag">Vegetarian-friendly</span></div>
+            <div class="card-badges">
+              <span class="cbadge lo">Likely OK</span>
+              <span class="pvchip pv-confirmed">Confirmed</span>
+            </div>
+          </div>
+          <div class="risk-cluster">
+            <div class="ring" data-score="18" style="width:64px;height:64px">
+              <svg width="64" height="64" viewBox="0 0 64 64"><circle class="ring-track" cx="32" cy="32" r="25" fill="none" stroke-width="6"/><circle class="ring-arc lo" cx="32" cy="32" r="25" fill="none" stroke-width="6" stroke-linecap="round"/></svg>
+              <div class="ring-mid"><span class="ring-num lo figure">18</span></div>
+            </div>
+            <div class="risk-word lo">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8"/><path d="M9.3 12l1.9 1.9L15 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Lower risk
+            </div>
+            <div class="risk-conf">88% conf.</div>
+          </div>
+        </div>
+        <div class="card-howline"><b>How we know:</b> graded from the restaurant's published allergen chart, where every dish lists nut status directly.</div>
+        <div class="card-foot">
+          <button class="expand-btn" type="button" aria-expanded="false" aria-controls="d1">
+            See the evidence
+            <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span class="cov"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Menu-backed · 42 items read</span>
+        </div>
+        <div class="detail" id="d1">
+          <div class="detail-inner">
+            <div class="verdict">
+              <div class="ring-wrap">
+                <div class="verdict-glow" aria-hidden="true"></div>
+                <div class="ring" data-score="18" style="width:80px;height:80px">
+                  <svg width="80" height="80" viewBox="0 0 80 80"><circle class="ring-track" cx="40" cy="40" r="31" fill="none" stroke-width="7"/><circle class="ring-arc lo" cx="40" cy="40" r="31" fill="none" stroke-width="7" stroke-linecap="round"/></svg>
+                  <div class="ring-mid"><span class="ring-num lo figure" style="font-size:28px">18</span></div>
+                </div>
+              </div>
+              <div class="verdict-body">
+                <div class="verdict-label lo">Lower risk for nuts</div>
+                <div class="verdict-prov"><span class="pvchip pv-confirmed">Confirmed</span><span class="pv-blurb">From the restaurant's published allergen chart.</span></div>
+                <div class="verdict-badges"><span class="cbadge lo">Likely OK</span><span class="cbadge" style="color:var(--muted)">88% confidence</span></div>
+              </div>
+            </div>
+            <p class="rationale">The Olive Counter publishes a full allergen matrix. Of 42 dishes, only 3 list tree nuts (all garnishes that can be omitted) and the kitchen states a dedicated nut prep area. A strong, current allergen chart is the most reliable evidence we use.</p>
+            <div class="detail-grid" style="margin-top:24px">
+              <div>
+                <div class="dsec">
+                  <h4>Why this score</h4>
+                  <ul class="why-list">
+                    <li>Published allergen chart covers all 42 menu items <a class="cite" href="#" onclick="return false">E1</a></li>
+                    <li>Only 3 dishes flag tree nuts; all are removable garnishes <a class="cite" href="#" onclick="return false">E1</a><a class="cite" href="#" onclick="return false">E2</a></li>
+                    <li>Kitchen states a separate nut-free prep station <a class="cite" href="#" onclick="return false">E3</a></li>
+                  </ul>
+                  <div class="why-trust">Strong allergen labeling in this area.</div>
+                </div>
+                <div class="dsec">
+                  <h4>Kitchen awareness</h4>
+                  <div class="sig-row">
+                    <span class="sig-chip yes"><span class="pip" aria-hidden="true"></span>Allergy disclaimer</span>
+                    <span class="sig-chip yes"><span class="pip" aria-hidden="true"></span>Cross-contact noted</span>
+                    <span class="sig-chip yes"><span class="pip" aria-hidden="true"></span>Staff protocol</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="dsec">
+                  <h4>Coverage &amp; confidence</h4>
+                  <div class="meter"><div class="meter-top"><span>Menu coverage</span><span class="figure">42/42</span></div><div class="meter-track"><div class="meter-fill green" data-w="100"></div></div></div>
+                  <div class="meter"><div class="meter-top"><span>Confidence</span><span class="figure">88%</span></div><div class="meter-track"><div class="meter-fill green" data-w="88"></div></div></div>
+                </div>
+                <div class="dsec">
+                  <h4>Sources</h4>
+                  <div class="ledger">
+                    <div class="led-row"><span class="led-id">E1</span><div class="led-body"><div class="led-title">Allergen matrix (PDF)</div><div class="led-meta"><span class="pvchip pv-confirmed">Confirmed</span><a class="led-link" href="#" onclick="return false">olivecounter.com/allergens <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                    <div class="led-row"><span class="led-id">E2</span><div class="led-body"><div class="led-title">Main menu page</div><div class="led-meta"><span class="pvchip pv-confirmed">Confirmed</span><a class="led-link" href="#" onclick="return false">olivecounter.com/menu <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                    <div class="led-row"><span class="led-id">E3</span><div class="led-body"><div class="led-title">Allergy info page</div><div class="led-meta"><span class="pvchip pv-signal">Restaurant info</span><a class="led-link" href="#" onclick="return false">olivecounter.com/allergy <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ───── CARD 2 — Kinto Ramen (Lower / Menu reviewed) ───── -->
+      <article class="rcard reveal" style="--i:1">
+        <div class="card-stripe lo" aria-hidden="true"></div>
+        <div class="card-top">
+          <div class="card-info">
+            <h3>Kinto Ramen Bar</h3>
+            <div class="card-meta">
+              <span class="rating"><span class="star" aria-hidden="true">★</span> <span class="figure">4.4</span></span>
+              <span class="sep" aria-hidden="true"></span><span class="figure">540 m</span>
+              <span class="sep" aria-hidden="true"></span>Japanese
+            </div>
+            <div class="tags"><span class="tag">Ramen</span><span class="tag">Noodles</span></div>
+            <div class="card-badges">
+              <span class="cbadge lo">Likely OK</span>
+              <span class="pvchip pv-inferred">Menu reviewed</span>
+            </div>
+          </div>
+          <div class="risk-cluster">
+            <div class="ring" data-score="24" style="width:64px;height:64px">
+              <svg width="64" height="64" viewBox="0 0 64 64"><circle class="ring-track" cx="32" cy="32" r="25" fill="none" stroke-width="6"/><circle class="ring-arc lo" cx="32" cy="32" r="25" fill="none" stroke-width="6" stroke-linecap="round"/></svg>
+              <div class="ring-mid"><span class="ring-num lo figure">24</span></div>
+            </div>
+            <div class="risk-word lo">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8"/><path d="M9.3 12l1.9 1.9L15 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Lower risk
+            </div>
+            <div class="risk-conf">71% conf.</div>
+          </div>
+        </div>
+        <div class="card-howline"><b>How we know:</b> we read the full menu and found no nut dishes. This is informal text, not a certified allergen chart, so confidence is moderate.</div>
+        <div class="card-foot">
+          <button class="expand-btn" type="button" aria-expanded="false" aria-controls="d2">
+            See the evidence
+            <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span class="cov"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Menu-backed · 28 items read</span>
+        </div>
+        <div class="detail" id="d2">
+          <div class="detail-inner">
+            <div class="verdict">
+              <div class="ring-wrap">
+                <div class="verdict-glow" aria-hidden="true"></div>
+                <div class="ring" data-score="24" style="width:80px;height:80px">
+                  <svg width="80" height="80" viewBox="0 0 80 80"><circle class="ring-track" cx="40" cy="40" r="31" fill="none" stroke-width="7"/><circle class="ring-arc lo" cx="40" cy="40" r="31" fill="none" stroke-width="7" stroke-linecap="round"/></svg>
+                  <div class="ring-mid"><span class="ring-num lo figure" style="font-size:28px">24</span></div>
+                </div>
+              </div>
+              <div class="verdict-body">
+                <div class="verdict-label lo">Lower risk for nuts</div>
+                <div class="verdict-prov"><span class="pvchip pv-inferred">Menu reviewed</span><span class="pv-blurb">We read the menu and found no nut dishes (informal, not an allergen chart).</span></div>
+                <div class="verdict-badges"><span class="cbadge lo">Likely OK</span><span class="cbadge" style="color:var(--muted)">71% confidence</span></div>
+              </div>
+            </div>
+            <p class="rationale">No menu item names peanuts or tree nuts across 28 dishes. Ramen and rice bowls rarely use nuts, but the menu has no allergen statement and some broths use sesame, so it's worth a quick word with staff if you're severe.</p>
+            <div class="detail-grid" style="margin-top:24px">
+              <div>
+                <div class="dsec">
+                  <h4>Why this score</h4>
+                  <ul class="why-list">
+                    <li>0 of 28 menu items mention peanuts or tree nuts <a class="cite" href="#" onclick="return false">E1</a></li>
+                    <li>Cuisine prior for ramen is low-risk for nuts <a class="cite" href="#" onclick="return false">E2</a></li>
+                    <li>No published allergen chart, so confidence is capped <a class="cite" href="#" onclick="return false">E1</a></li>
+                  </ul>
+                  <div class="why-trust">Limited allergen labeling in this area.</div>
+                </div>
+                <div class="dsec">
+                  <h4>Kitchen awareness</h4>
+                  <div class="sig-row">
+                    <span class="sig-chip no"><span class="pip" aria-hidden="true"></span><span class="x" aria-hidden="true">✕</span> No allergy disclaimer</span>
+                    <span class="sig-chip yes"><span class="pip" aria-hidden="true"></span>Staff protocol</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="dsec">
+                  <h4>Coverage &amp; confidence</h4>
+                  <div class="meter"><div class="meter-top"><span>Menu coverage</span><span class="figure">28/28</span></div><div class="meter-track"><div class="meter-fill green" data-w="100"></div></div></div>
+                  <div class="meter"><div class="meter-top"><span>Confidence</span><span class="figure">71%</span></div><div class="meter-track"><div class="meter-fill amber" data-w="71"></div></div></div>
+                </div>
+                <div class="dsec">
+                  <h4>Sources</h4>
+                  <div class="ledger">
+                    <div class="led-row"><span class="led-id">E1</span><div class="led-body"><div class="led-title">Online menu (read)</div><div class="led-meta"><span class="pvchip pv-inferred">Menu reviewed</span><a class="led-link" href="#" onclick="return false">kintoramen.com/menu <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                    <div class="led-row"><span class="led-id">E2</span><div class="led-body"><div class="led-title">Cuisine risk prior · Japanese / ramen</div><div class="led-meta"><span class="pvchip pv-estimate">Estimate</span></div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ───── CARD 3 — Marlowe's Chophouse (Estimate / Call ahead) ───── -->
+      <article class="rcard reveal" style="--i:0">
+        <div class="card-stripe md" aria-hidden="true"></div>
+        <div class="card-top">
+          <div class="card-info">
+            <h3>Marlowe's Chophouse</h3>
+            <div class="card-meta">
+              <span class="rating"><span class="star" aria-hidden="true">★</span> <span class="figure">4.7</span></span>
+              <span class="sep" aria-hidden="true"></span><span class="figure">610 m</span>
+              <span class="sep" aria-hidden="true"></span>Steakhouse
+            </div>
+            <div class="tags"><span class="tag">American</span><span class="tag">Grill</span></div>
+            <div class="card-badges">
+              <span class="cbadge md">Caution</span>
+              <span class="pvchip pv-callahead">Call ahead</span>
+            </div>
+          </div>
+          <div class="risk-cluster">
+            <div class="ring" data-score="33" style="width:64px;height:64px">
+              <svg width="64" height="64" viewBox="0 0 64 64"><circle class="ring-track" cx="32" cy="32" r="25" fill="none" stroke-width="6"/><circle class="ring-arc md" cx="32" cy="32" r="25" fill="none" stroke-width="6" stroke-linecap="round"/></svg>
+              <div class="ring-mid"><span class="ring-num md figure">33</span></div>
+            </div>
+            <div class="risk-word md">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              Moderate risk
+            </div>
+            <div class="risk-conf">31% conf.</div>
+          </div>
+        </div>
+        <div class="card-howline"><b>How we know:</b> no machine-readable menu online. This is an estimate from cuisine &amp; area only. Please confirm directly with the restaurant.</div>
+        <div class="card-foot">
+          <button class="expand-btn" type="button" aria-expanded="false" aria-controls="d3">
+            See the evidence
+            <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span class="cov"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>No online menu</span>
+        </div>
+        <div class="detail" id="d3">
+          <div class="detail-inner">
+            <div class="verdict">
+              <div class="ring-wrap">
+                <div class="verdict-glow" aria-hidden="true"></div>
+                <div class="ring" data-score="33" style="width:80px;height:80px">
+                  <svg width="80" height="80" viewBox="0 0 80 80"><circle class="ring-track" cx="40" cy="40" r="31" fill="none" stroke-width="7"/><circle class="ring-arc md" cx="40" cy="40" r="31" fill="none" stroke-width="7" stroke-linecap="round"/></svg>
+                  <div class="ring-mid"><span class="ring-num md figure" style="font-size:28px">33</span></div>
+                </div>
+              </div>
+              <div class="verdict-body">
+                <div class="verdict-label md">Moderate risk for nuts</div>
+                <div class="verdict-prov"><span class="pvchip pv-callahead">Call ahead</span><span class="pv-blurb">No online menu found. Confirm directly with the restaurant.</span></div>
+                <div class="verdict-badges"><span class="cbadge md">Caution</span><span class="cbadge" style="color:var(--muted)">31% confidence</span></div>
+              </div>
+            </div>
+            <p class="rationale">We couldn't find a machine-readable menu for Marlowe's, so this score reflects the cuisine prior for American steakhouses: generally lower-nut, though desserts and some sauces (pesto, romesco) are common nut sources. Treat this as a starting point, not a confirmation.</p>
+            <div class="detail-grid" style="margin-top:24px">
+              <div>
+                <div class="dsec">
+                  <h4>Why this score</h4>
+                  <ul class="why-list">
+                    <li>No online menu or allergen chart found <a class="cite" href="#" onclick="return false">E1</a></li>
+                    <li>Steakhouse cuisine prior is moderate for nuts (desserts, sauces) <a class="cite" href="#" onclick="return false">E2</a></li>
+                    <li>One review mentions almond-crusted trout as a special <a class="cite" href="#" onclick="return false">E3</a></li>
+                  </ul>
+                  <div class="why-trust">No allergen labeling available. Verify by phone.</div>
+                </div>
+                <div class="dsec">
+                  <h4>What diners report</h4>
+                  <div class="quote">"Staff were happy to check the kitchen when I asked about my peanut allergy."<span class="src">From diner reviews</span></div>
+                </div>
+              </div>
+              <div>
+                <div class="dsec">
+                  <h4>Coverage &amp; confidence</h4>
+                  <div class="meter"><div class="meter-top"><span>Menu coverage</span><span class="figure">0%</span></div><div class="meter-track"><div class="meter-fill amber" data-w="6"></div></div></div>
+                  <div class="meter"><div class="meter-top"><span>Confidence</span><span class="figure">31%</span></div><div class="meter-track"><div class="meter-fill amber" data-w="31"></div></div></div>
+                </div>
+                <div class="dsec">
+                  <h4>Sources</h4>
+                  <div class="ledger">
+                    <div class="led-row"><span class="led-id">E1</span><div class="led-body"><div class="led-title">No machine-readable menu located</div><div class="led-meta"><span class="pvchip pv-callahead">Call ahead</span></div></div></div>
+                    <div class="led-row"><span class="led-id">E2</span><div class="led-body"><div class="led-title">Cuisine risk prior · steakhouse</div><div class="led-meta"><span class="pvchip pv-estimate">Estimate</span></div></div></div>
+                    <div class="led-row"><span class="led-id">E3</span><div class="led-body"><div class="led-title">Diner review mention</div><div class="led-meta"><span class="pvchip pv-signal">Signal</span><a class="led-link" href="#" onclick="return false">review source <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ───── CARD 4 — Verde Taqueria (Moderate / Signal) ───── -->
+      <article class="rcard reveal" style="--i:1">
+        <div class="card-stripe md" aria-hidden="true"></div>
+        <div class="card-top">
+          <div class="card-info">
+            <h3>Verde Taqueria</h3>
+            <div class="card-meta">
+              <span class="rating"><span class="star" aria-hidden="true">★</span> <span class="figure">4.3</span></span>
+              <span class="sep" aria-hidden="true"></span><span class="figure">450 m</span>
+              <span class="sep" aria-hidden="true"></span>Mexican
+            </div>
+            <div class="tags"><span class="tag">Tacos</span><span class="tag">Casual</span></div>
+            <div class="card-badges">
+              <span class="cbadge md">Caution</span>
+              <span class="pvchip pv-signal">Restaurant info</span>
+            </div>
+          </div>
+          <div class="risk-cluster">
+            <div class="ring" data-score="50" style="width:64px;height:64px">
+              <svg width="64" height="64" viewBox="0 0 64 64"><circle class="ring-track" cx="32" cy="32" r="25" fill="none" stroke-width="6"/><circle class="ring-arc md" cx="32" cy="32" r="25" fill="none" stroke-width="6" stroke-linecap="round"/></svg>
+              <div class="ring-mid"><span class="ring-num md figure">50</span></div>
+            </div>
+            <div class="risk-word md">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              Moderate risk
+            </div>
+            <div class="risk-conf">62% conf.</div>
+          </div>
+        </div>
+        <div class="card-howline"><b>How we know:</b> based on the restaurant's own allergy statements plus a menu read. Moles and some salsas use peanuts &amp; almonds.</div>
+        <div class="card-foot">
+          <button class="expand-btn" type="button" aria-expanded="false" aria-controls="d4">
+            See the evidence
+            <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span class="cov"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Menu-backed · 35 items read</span>
+        </div>
+        <div class="detail" id="d4">
+          <div class="detail-inner">
+            <div class="verdict">
+              <div class="ring-wrap">
+                <div class="verdict-glow" aria-hidden="true"></div>
+                <div class="ring" data-score="50" style="width:80px;height:80px">
+                  <svg width="80" height="80" viewBox="0 0 80 80"><circle class="ring-track" cx="40" cy="40" r="31" fill="none" stroke-width="7"/><circle class="ring-arc md" cx="40" cy="40" r="31" fill="none" stroke-width="7" stroke-linecap="round"/></svg>
+                  <div class="ring-mid"><span class="ring-num md figure" style="font-size:28px">50</span></div>
+                </div>
+              </div>
+              <div class="verdict-body">
+                <div class="verdict-label md">Moderate risk for nuts</div>
+                <div class="verdict-prov"><span class="pvchip pv-signal">Restaurant info</span><span class="pv-blurb">Based on the restaurant's allergy statements.</span></div>
+                <div class="verdict-badges"><span class="cbadge md">Caution</span><span class="cbadge" style="color:var(--muted)">62% confidence</span></div>
+              </div>
+            </div>
+            <p class="rationale">Verde's site warns that several moles and the romesco salsa contain peanuts and almonds, and that nuts are handled in the kitchen. Plenty of dishes are nut-free, but with a severe allergy and strict cross-contact, the shared prep keeps this at moderate.</p>
+            <div class="detail-grid" style="margin-top:24px">
+              <div>
+                <div class="dsec">
+                  <h4>Why this score</h4>
+                  <ul class="why-list">
+                    <li>Restaurant states mole &amp; romesco contain peanuts/almonds <a class="cite" href="#" onclick="return false">E1</a></li>
+                    <li>4 of 35 dishes flag nuts in their description <a class="cite" href="#" onclick="return false">E2</a></li>
+                    <li>Nuts handled in a shared kitchen, raising cross-contact risk <a class="cite" href="#" onclick="return false">E1</a></li>
+                  </ul>
+                </div>
+                <div class="dsec">
+                  <h4>Riskiest dishes</h4>
+                  <div class="warning-box">
+                    <div class="warning-head">
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                      3 dishes likely contain nuts
+                    </div>
+                    <div class="risky-row"><span class="nm">Mole Poblano Enchiladas</span><span class="pct hi figure">86%</span></div>
+                    <div class="risky-row"><span class="nm">Romesco Street Corn</span><span class="pct hi figure">74%</span></div>
+                    <div class="risky-row"><span class="nm">Almond Horchata</span><span class="pct md figure">52%</span></div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="dsec">
+                  <h4>Coverage &amp; confidence</h4>
+                  <div class="meter"><div class="meter-top"><span>Menu coverage</span><span class="figure">35/35</span></div><div class="meter-track"><div class="meter-fill green" data-w="100"></div></div></div>
+                  <div class="meter"><div class="meter-top"><span>Confidence</span><span class="figure">62%</span></div><div class="meter-track"><div class="meter-fill amber" data-w="62"></div></div></div>
+                </div>
+                <div class="dsec">
+                  <h4>Sources</h4>
+                  <div class="ledger">
+                    <div class="led-row"><span class="led-id">E1</span><div class="led-body"><div class="led-title">Allergy statement page</div><div class="led-meta"><span class="pvchip pv-signal">Restaurant info</span><a class="led-link" href="#" onclick="return false">verdetaqueria.com/allergens <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                    <div class="led-row"><span class="led-id">E2</span><div class="led-body"><div class="led-title">Main menu (read)</div><div class="led-meta"><span class="pvchip pv-inferred">Menu reviewed</span><a class="led-link" href="#" onclick="return false">verdetaqueria.com/menu <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ───── CARD 5 — Blue Door Bistro (Moderate / Inferred) ─────
+           span2: fills the row so the featured full-width card below leaves no orphan cell. -->
+      <article class="rcard span2 reveal" style="--i:0">
+        <div class="card-stripe md" aria-hidden="true"></div>
+        <div class="card-top">
+          <div class="card-info">
+            <h3>Blue Door Bistro</h3>
+            <div class="card-meta">
+              <span class="rating"><span class="star" aria-hidden="true">★</span> <span class="figure">4.5</span></span>
+              <span class="sep" aria-hidden="true"></span><span class="figure">780 m</span>
+              <span class="sep" aria-hidden="true"></span>French
+            </div>
+            <div class="tags"><span class="tag">Bistro</span><span class="tag">Pastry</span></div>
+            <div class="card-badges">
+              <span class="cbadge md">Caution</span>
+              <span class="pvchip pv-inferred">Inferred</span>
+            </div>
+          </div>
+          <div class="risk-cluster">
+            <div class="ring" data-score="42" style="width:64px;height:64px">
+              <svg width="64" height="64" viewBox="0 0 64 64"><circle class="ring-track" cx="32" cy="32" r="25" fill="none" stroke-width="6"/><circle class="ring-arc md" cx="32" cy="32" r="25" fill="none" stroke-width="6" stroke-linecap="round"/></svg>
+              <div class="ring-mid"><span class="ring-num md figure">42</span></div>
+            </div>
+            <div class="risk-word md">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              Moderate risk
+            </div>
+            <div class="risk-conf">54% conf.</div>
+          </div>
+        </div>
+        <div class="card-howline"><b>How we know:</b> inferred from dish names: almond pastries &amp; praline appear on the menu, but there's no confirmed allergen list.</div>
+        <div class="card-foot">
+          <button class="expand-btn" type="button" aria-expanded="false" aria-controls="d5">
+            See the evidence
+            <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span class="cov"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Menu-backed · 31 items read</span>
+        </div>
+        <div class="detail" id="d5">
+          <div class="detail-inner">
+            <div class="verdict">
+              <div class="ring-wrap">
+                <div class="verdict-glow" aria-hidden="true"></div>
+                <div class="ring" data-score="42" style="width:80px;height:80px">
+                  <svg width="80" height="80" viewBox="0 0 80 80"><circle class="ring-track" cx="40" cy="40" r="31" fill="none" stroke-width="7"/><circle class="ring-arc md" cx="40" cy="40" r="31" fill="none" stroke-width="7" stroke-linecap="round"/></svg>
+                  <div class="ring-mid"><span class="ring-num md figure" style="font-size:28px">42</span></div>
+                </div>
+              </div>
+              <div class="verdict-body">
+                <div class="verdict-label md">Moderate risk for nuts</div>
+                <div class="verdict-prov"><span class="pvchip pv-inferred">Inferred</span><span class="pv-blurb">Inferred from dish names, not a confirmed allergen list.</span></div>
+                <div class="verdict-badges"><span class="cbadge md">Caution</span><span class="cbadge" style="color:var(--muted)">54% confidence</span></div>
+              </div>
+            </div>
+            <p class="rationale">French bistro menus lean on nuts in the pastry section. We found almond croissants, frangipane tart, and praline parfait by name. Savoury mains read clean, but without a confirmed allergen chart and with shared pastry prep, this sits at moderate.</p>
+            <div class="detail-grid" style="margin-top:24px">
+              <div>
+                <div class="dsec">
+                  <h4>Why this score</h4>
+                  <ul class="why-list">
+                    <li>Dish names imply almonds &amp; praline in 3 desserts <a class="cite" href="#" onclick="return false">E1</a></li>
+                    <li>No allergen chart, so allergens are inferred, not confirmed <a class="cite" href="#" onclick="return false">E1</a></li>
+                    <li>French pastry cuisine prior is elevated for nuts <a class="cite" href="#" onclick="return false">E2</a></li>
+                  </ul>
+                  <div class="why-trust">Limited allergen labeling in this area.</div>
+                </div>
+                <div class="dsec">
+                  <h4>Riskiest dishes</h4>
+                  <div class="warning-box">
+                    <div class="warning-head">
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                      3 dishes likely contain nuts <span class="note">· inferred</span>
+                    </div>
+                    <div class="risky-row"><span class="nm">Almond Croissant</span><span class="pct hi figure">91%</span></div>
+                    <div class="risky-row"><span class="nm">Frangipane Tart</span><span class="pct hi figure">83%</span></div>
+                    <div class="risky-row"><span class="nm">Praline Parfait</span><span class="pct hi figure">79%</span></div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="dsec">
+                  <h4>Coverage &amp; confidence</h4>
+                  <div class="meter"><div class="meter-top"><span>Menu coverage</span><span class="figure">31/31</span></div><div class="meter-track"><div class="meter-fill green" data-w="100"></div></div></div>
+                  <div class="meter"><div class="meter-top"><span>Confidence</span><span class="figure">54%</span></div><div class="meter-track"><div class="meter-fill amber" data-w="54"></div></div></div>
+                </div>
+                <div class="dsec">
+                  <h4>Sources</h4>
+                  <div class="ledger">
+                    <div class="led-row"><span class="led-id">E1</span><div class="led-body"><div class="led-title">Online menu (read &amp; inferred)</div><div class="led-meta"><span class="pvchip pv-inferred">Inferred</span><a class="led-link" href="#" onclick="return false">bluedoorbistro.com/menu <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                    <div class="led-row"><span class="led-id">E2</span><div class="led-body"><div class="led-title">Cuisine risk prior · French pastry</div><div class="led-meta"><span class="pvchip pv-estimate">Estimate</span></div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ───── CARD 6 — Saffron & Sage (Higher / Confirmed) — FEATURED EXPANDED ───── -->
+      <article class="rcard span2 reveal" style="--i:1">
+        <div class="card-stripe hi" aria-hidden="true"></div>
+        <div class="card-top">
+          <div class="card-info">
+            <h3>Saffron &amp; Sage</h3>
+            <div class="card-meta">
+              <span class="rating"><span class="star" aria-hidden="true">★</span> <span class="figure">4.8</span> <span class="figure" style="color:var(--muted)">(1,204)</span></span>
+              <span class="sep" aria-hidden="true"></span><span class="figure">890 m</span>
+              <span class="sep" aria-hidden="true"></span>North Indian
+            </div>
+            <div class="tags"><span class="tag">Curry</span><span class="tag">Tandoor</span><span class="tag">Vegetarian options</span></div>
+            <div class="card-badges">
+              <span class="cbadge hi">Avoid</span>
+              <span class="pvchip pv-confirmed">Confirmed</span>
+            </div>
+          </div>
+          <div class="risk-cluster">
+            <div class="ring" data-score="72" style="width:64px;height:64px">
+              <svg width="64" height="64" viewBox="0 0 64 64"><circle class="ring-track" cx="32" cy="32" r="25" fill="none" stroke-width="6"/><circle class="ring-arc hi" cx="32" cy="32" r="25" fill="none" stroke-width="6" stroke-linecap="round"/></svg>
+              <div class="ring-mid"><span class="ring-num hi figure">72</span></div>
+            </div>
+            <div class="risk-word hi">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 3h8l5 5v8l-5 5H8l-5-5V8l5-5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              Higher risk
+            </div>
+            <div class="risk-conf">90% conf.</div>
+          </div>
+        </div>
+        <div class="card-howline"><b>How we know:</b> graded from the menu's own text and an allergen chart. Cashew &amp; almond gravies are used across many curries. <b>Featured detail open below.</b></div>
+        <div class="card-foot">
+          <button class="expand-btn" type="button" aria-expanded="true" aria-controls="d6">
+            Hide the evidence
+            <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span class="cov"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Menu-backed · 54 items read</span>
+        </div>
+        <div class="detail" id="d6">
+          <div class="detail-inner">
+            <div class="verdict">
+              <div class="ring-wrap">
+                <div class="verdict-glow" aria-hidden="true"></div>
+                <div class="ring" data-score="72" style="width:96px;height:96px">
+                  <svg width="96" height="96" viewBox="0 0 96 96"><circle class="ring-track" cx="48" cy="48" r="37" fill="none" stroke-width="8"/><circle class="ring-arc hi" cx="48" cy="48" r="37" fill="none" stroke-width="8" stroke-linecap="round"/></svg>
+                  <div class="ring-mid"><span class="ring-num hi figure" style="font-size:34px">72</span></div>
+                </div>
+              </div>
+              <div class="verdict-body">
+                <div class="verdict-label hi">Higher risk for nuts</div>
+                <div class="verdict-prov"><span class="pvchip pv-confirmed">Confirmed</span><span class="pv-blurb">From the menu's own text and published allergen chart.</span></div>
+                <div class="verdict-badges"><span class="cbadge hi">Avoid</span><span class="cbadge" style="color:var(--muted)">90% confidence</span></div>
+              </div>
+            </div>
+            <p class="rationale">Saffron &amp; Sage uses cashew and almond gravies (<em>makhani</em>, <em>korma</em>, <em>shahi</em>) across a large share of its curries, and the published allergen chart confirms tree nuts in 19 of 54 dishes. The kitchen does not offer a nut-free prep line. For a severe peanut, cashew &amp; almond allergy with strict cross-contact, we'd advise against ordering here without speaking to the kitchen first.</p>
+
+            <div class="dsec">
+              <h4>Where this dish lands</h4>
+              <div class="rangetrack">
+                <div class="rt-name"><span>Paneer Makhani</span><span class="figure">86% likely to contain nuts</span></div>
+                <div class="rt-rail"><span class="rt-dot" data-pos="86" aria-hidden="true"></span></div>
+                <div class="rt-bands"><span>Safe</span><span>Caution</span><span>Avoid</span></div>
+              </div>
+              <div class="rangetrack">
+                <div class="rt-name"><span>Tandoori Roti (plain)</span><span class="figure">8% likely to contain nuts</span></div>
+                <div class="rt-rail"><span class="rt-dot" data-pos="8" aria-hidden="true"></span></div>
+                <div class="rt-bands"><span>Safe</span><span>Caution</span><span>Avoid</span></div>
+              </div>
+            </div>
+
+            <div class="detail-grid" style="margin-top:24px">
+              <div>
+                <div class="dsec">
+                  <h4>Why this score <span class="ai-badge">✦ AI reasoning</span></h4>
+                  <ul class="why-list">
+                    <li>Allergen chart lists tree nuts in 19 of 54 dishes <a class="cite" href="#" onclick="return false">E1</a></li>
+                    <li>Cashew &amp; almond gravies named in makhani, korma &amp; shahi curries <a class="cite" href="#" onclick="return false">E1</a><a class="cite" href="#" onclick="return false">E2</a></li>
+                    <li>No dedicated nut-free prep area stated <a class="cite" href="#" onclick="return false">E3</a></li>
+                    <li>Diners report nut traces in several dishes <a class="cite" href="#" onclick="return false">E4</a></li>
+                  </ul>
+                  <div class="why-trust">Strong allergen labeling in this area.</div>
+                </div>
+
+                <div class="dsec">
+                  <h4>Riskiest dishes <span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0">· likely contain nuts</span></h4>
+                  <div class="warning-box">
+                    <div class="warning-head">
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                      5 dishes confirmed with nuts
+                    </div>
+                    <div class="risky-row"><span class="nm">Shahi Paneer</span><span class="pct hi figure">92%</span></div>
+                    <div class="risky-row"><span class="nm">Chicken Korma</span><span class="pct hi figure">90%</span></div>
+                    <div class="risky-row"><span class="nm">Paneer Makhani</span><span class="pct hi figure">86%</span></div>
+                    <div class="risky-row"><span class="nm">Badam Halwa</span><span class="pct hi figure">84%</span></div>
+                    <div class="risky-row"><span class="nm">Navratan Korma</span><span class="pct hi figure">81%</span></div>
+                  </div>
+                </div>
+
+                <div class="dsec">
+                  <h4>Kitchen awareness</h4>
+                  <div class="sig-row">
+                    <span class="sig-chip yes"><span class="pip" aria-hidden="true"></span>Allergy disclaimer</span>
+                    <span class="sig-chip yes"><span class="pip" aria-hidden="true"></span>Cross-contact warning</span>
+                    <span class="sig-chip no"><span class="pip" aria-hidden="true"></span><span class="x" aria-hidden="true">✕</span> No nut-free prep</span>
+                    <span class="sig-chip no"><span class="pip" aria-hidden="true"></span><span class="x" aria-hidden="true">✕</span> No nut-free claim</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div class="dsec">
+                  <h4>Coverage &amp; confidence</h4>
+                  <div class="meter"><div class="meter-top"><span>Menu coverage</span><span class="figure">54/54</span></div><div class="meter-track"><div class="meter-fill green" data-w="100"></div></div></div>
+                  <div class="meter"><div class="meter-top"><span>Allergen labeling</span><span class="figure">Strong</span></div><div class="meter-track"><div class="meter-fill green" data-w="86"></div></div></div>
+                  <div class="meter"><div class="meter-top"><span>Confidence</span><span class="figure">90%</span></div><div class="meter-track"><div class="meter-fill green" data-w="90"></div></div></div>
+                </div>
+
+                <div class="dsec">
+                  <h4>What they say about allergies</h4>
+                  <div class="quote">"Many of our dishes contain cashew or almond paste. Please inform staff of allergies — we cannot guarantee a nut-free kitchen."<span class="src">From their allergy page</span></div>
+                </div>
+
+                <div class="dsec">
+                  <h4>Sample menu <span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0">· 54 items</span></h4>
+                  <div class="menu-list">
+                    <div class="mi">
+                      <div class="mi-top"><span class="mi-name">Shahi Paneer</span><span class="mi-price">$16</span></div>
+                      <div class="mi-desc">Cottage cheese in a rich cashew-almond gravy.</div>
+                      <div class="mi-chips"><span class="mchip nut">Cashew</span><span class="mchip nut">Almond</span><span class="mchip diet">Vegetarian</span></div>
+                    </div>
+                    <div class="mi">
+                      <div class="mi-top"><span class="mi-name">Chicken Korma</span><span class="mi-price">$18</span></div>
+                      <div class="mi-desc">Mild curry thickened with ground cashews &amp; cream.</div>
+                      <div class="mi-chips"><span class="mchip nut">Cashew</span><span class="mchip other">Dairy</span></div>
+                    </div>
+                    <div class="mi">
+                      <div class="mi-top"><span class="mi-name">Dal Tadka</span><span class="mi-price">$13</span></div>
+                      <div class="mi-desc">Yellow lentils tempered with cumin &amp; garlic.</div>
+                      <div class="mi-chips"><span class="mchip diet">Vegan</span><span class="mchip diet">Nut-free</span></div>
+                    </div>
+                    <div class="mi">
+                      <div class="mi-top"><span class="mi-name">Tandoori Roti</span><span class="mi-price">$4</span></div>
+                      <div class="mi-desc">Whole-wheat flatbread from the clay oven.</div>
+                      <div class="mi-chips"><span class="mchip other">Gluten</span><span class="mchip diet">Nut-free</span></div>
+                    </div>
+                    <div class="mi">
+                      <div class="mi-top"><span class="mi-name">Badam Halwa</span><span class="mi-price">$8</span></div>
+                      <div class="mi-desc">Warm almond pudding with ghee &amp; saffron.</div>
+                      <div class="mi-chips"><span class="mchip nut">Almond</span><span class="mchip other">Dairy</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="dsec">
+                  <h4>Sources</h4>
+                  <div class="ledger">
+                    <div class="led-row"><span class="led-id">E1</span><div class="led-body"><div class="led-title">Allergen chart (PDF)</div><div class="led-meta"><span class="pvchip pv-confirmed">Confirmed</span><a class="led-link" href="#" onclick="return false">saffronandsage.com/allergens <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                    <div class="led-row"><span class="led-id">E2</span><div class="led-body"><div class="led-title">Main menu page</div><div class="led-meta"><span class="pvchip pv-confirmed">Confirmed</span><a class="led-link" href="#" onclick="return false">saffronandsage.com/menu <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                    <div class="led-row"><span class="led-id">E3</span><div class="led-body"><div class="led-title">Allergy / dietary info page</div><div class="led-meta"><span class="pvchip pv-signal">Restaurant info</span><a class="led-link" href="#" onclick="return false">saffronandsage.com/allergy <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                    <div class="led-row"><span class="led-id">E4</span><div class="led-body"><div class="led-title">Diner reviews (web search)</div><div class="led-meta"><span class="pvchip pv-signal">Signal</span><a class="led-link" href="#" onclick="return false">review source <svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ How we know (sticky scroll) ════════════════ -->
+<section class="section alt" id="howweknow" aria-labelledby="hwkTitle">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow terra">How we know</p>
+      <h2 class="headline" id="hwkTitle">From scattered menus to a verdict you can <em>inspect</em>.</h2>
+      <p>Every score is built from real evidence, graded by tier. As you read, the provenance ladder on the left lights up the source behind each step.</p>
+    </div>
+    <div class="hwk">
+      <div class="hwk-sticky">
+        <div class="hwk-visual">
+          <div class="v-aurora" aria-hidden="true"></div>
+          <div class="vlabel">Provenance ladder · strongest to weakest</div>
+          <div class="tierstrip" id="tierstrip">
+            <div class="tier" data-tier="0"><span class="pvchip pv-confirmed">Confirmed</span><span class="t-desc">A published allergen chart or the menu's own text.</span></div>
+            <div class="tier" data-tier="1"><span class="pvchip pv-signal">Restaurant info</span><span class="t-desc">The restaurant's own allergy statements.</span></div>
+            <div class="tier" data-tier="2"><span class="pvchip pv-inferred">Inferred</span><span class="t-desc">Read from dish names, not a confirmed list.</span></div>
+            <div class="tier" data-tier="3"><span class="pvchip pv-estimate">Estimate</span><span class="t-desc">Cuisine &amp; area prior, when no menu exists.</span></div>
+            <div class="tier" data-tier="4"><span class="pvchip pv-callahead">Call ahead</span><span class="t-desc">Too little data. Confirm with the restaurant.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="hwk-steps">
+        <div class="step reveal" data-step="0">
+          <div class="s-num">Around you</div>
+          <h3>We <em>discover</em> what's nearby</h3>
+          <p>From your location we pull the restaurants around you, plus their official sites, menus, and allergy pages: the raw material for a decision.</p>
+        </div>
+        <div class="step reveal" data-step="1">
+          <div class="s-num">From the menu</div>
+          <h3>We <em>read</em> the real menu</h3>
+          <p>We extract every dish, price, and allergen note, preferring a published allergen chart, then the menu's own text, then the restaurant's allergy statements.</p>
+        </div>
+        <div class="step reveal" data-step="2">
+          <div class="s-num">Against your profile</div>
+          <h3>We <em>grade</em> against your profile</h3>
+          <p>Each dish is scored for your specific nuts, severity, and cross-contact tolerance. Weaker evidence lowers confidence; it never gets rounded up to "safe."</p>
+        </div>
+        <div class="step reveal" data-step="3">
+          <div class="s-num">On the desk</div>
+          <h3>We <em>show</em> our work</h3>
+          <p>Every verdict carries its tier, its rationale, and the sources behind it. You can always answer "how does it know that?", and call ahead when we can't.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ Why trust it / tiles ════════════════ -->
+<section class="section" id="trust" aria-labelledby="trustTitle">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Why you can trust it</p>
+      <h2 class="headline" id="trustTitle">Built to <em>fail safe</em>, not to look confident.</h2>
+    </div>
+    <div class="tiles">
+      <div class="tile reveal" style="--i:0">
+        <div class="tile-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <h3>Real menu evidence</h3>
+        <p>We grade from the restaurant's actual menus and allergen charts, not crowd opinion or star ratings. Most verdicts trace to a real dish.</p>
+      </div>
+      <div class="tile reveal" style="--i:1">
+        <div class="tile-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <h3>Every score, explained</h3>
+        <p>Each verdict shows its rationale and links to the exact source: a chart, a menu line, or a review. Nothing is asserted without proof on the desk.</p>
+      </div>
+      <div class="tile reveal" style="--i:2">
+        <div class="tile-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8"/><path d="M9.3 12l1.9 1.9L15 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>Safety is asymmetric</h3>
+        <p>A missed risk is far worse than a false alarm. When evidence is thin, we say so plainly and lower confidence. We never round up to a reassuring "safe."</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ Closing drenched verdict band ════════════════ -->
+<section class="closer" id="about" aria-labelledby="closeTitle">
+  <div class="c-aurora" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="wrap closer-inner reveal">
+    <p class="eyebrow">SafePlate</p>
+    <h2 id="closeTitle">Eat out with <em>calm</em>, earned trust.</h2>
+    <p>One search shows you which nearby places to trust with your nut allergy, plus the evidence behind every call, so the decision is always yours.</p>
+    <a href="#results" class="btn-light">
+      Find safe places near you
+      <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </div>
+</section>
+
+<!-- ════════════════ Medical disclaimer ════════════════ -->
+<section class="disclaimer" aria-label="Medical disclaimer">
+  <div class="wrap disclaimer-inner reveal">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <p><b>Not medical advice.</b> SafePlate estimates allergen risk from public menu and restaurant data, which can be incomplete or out of date. Always confirm directly with the restaurant before ordering, carry your prescribed medication, and follow your allergist's guidance. SafePlate does not guarantee any dish or kitchen is free of allergens.</p>
+  </div>
+</section>
+
+</main>
+
+<!-- ════════════════ Footer ════════════════ -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="#top" aria-label="SafePlate home">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 21c4.97-2.5 8-6.2 8-10.5A5.5 5.5 0 0012 6a5.5 5.5 0 00-8 4.5C4 14.8 7.03 18.5 12 21z" fill="#fff" opacity=".95"/><path d="M9.5 12.2l1.8 1.8 3.6-3.8" stroke="#0F4A2E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="brand-name">Safe<b>Plate</b></span>
+        </a>
+        <p>Allergy-aware dining decisions you can trust: evidence on the desk, risk graded in plain sight.</p>
+      </div>
+      <div class="fcol">
+        <h5>Product</h5>
+        <a href="#results">Find places</a>
+        <a href="#howweknow">How it works</a>
+        <a href="#trust">Why trust it</a>
+      </div>
+      <div class="fcol">
+        <h5>Company</h5>
+        <a href="#about">About</a>
+        <a href="#" onclick="return false">FAQ</a>
+        <a href="#" onclick="return false">Contact</a>
+      </div>
+      <div class="fcol">
+        <h5>Legal</h5>
+        <a href="#" onclick="return false">Privacy</a>
+        <a href="#" onclick="return false">Terms</a>
+        <a href="#" onclick="return false">Accessibility</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 SafePlate. Evidence over opinion.</span>
+      <span>Made for people who can't afford a wrong guess.</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ════════════════ Accessibility toggle (pinned) ════════════════ -->
+<button class="hc-toggle" id="hcToggle" type="button" aria-pressed="false">
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 3v18" stroke="currentColor" stroke-width="1.8"/><path d="M12 3a9 9 0 010 18z" fill="currentColor"/></svg>
+  High contrast
+</button>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ── High-contrast toggle ── */
+  var hcBtn = document.getElementById("hcToggle");
+  hcBtn.addEventListener("click", function(){
+    var on = document.documentElement.classList.toggle("hc");
+    hcBtn.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+
+  /* ── Geolocation affordance (demo) ── */
+  var geoBtn = document.getElementById("geoBtn");
+  if (geoBtn) geoBtn.addEventListener("click", function(){
+    var loc = document.getElementById("loc");
+    geoBtn.disabled = true;
+    geoBtn.textContent = "Locating…";
+    setTimeout(function(){
+      loc.value = "Current location";
+      geoBtn.disabled = false;
+      geoBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Use my location';
+    }, 700);
+  });
+
+  /* ── Generic toggle groups (chips: multi; segmented: single) ── */
+  document.querySelectorAll('.chip[aria-pressed]').forEach(function(c){
+    c.addEventListener("click", function(){
+      c.setAttribute("aria-pressed", c.getAttribute("aria-pressed")==="true" ? "false" : "true");
+    });
+  });
+  /* Radiogroups (severity, cross-contact): full keyboard conformance —
+     roving tabindex + Arrow/Home/End selection per WCAG radio pattern.
+     These govern how strictly nut risk is graded, so they must be operable by keyboard. */
+  document.querySelectorAll('[role="radiogroup"]').forEach(function(grp){
+    var radios = Array.prototype.slice.call(grp.querySelectorAll('[role="radio"]'));
+    if (!radios.length) return;
+    function select(r, focus){
+      radios.forEach(function(x){
+        var on = x === r;
+        x.setAttribute("aria-checked", on ? "true" : "false");
+        x.tabIndex = on ? 0 : -1;
+      });
+      if (focus) r.focus();
+    }
+    // Initialise roving tabindex: only the checked radio is tabbable.
+    var checked = grp.querySelector('[role="radio"][aria-checked="true"]') || radios[0];
+    radios.forEach(function(x){ x.tabIndex = (x === checked) ? 0 : -1; });
+    radios.forEach(function(r, i){
+      r.addEventListener("click", function(){ select(r, false); });
+      r.addEventListener("keydown", function(e){
+        var n = radios.length, next = null;
+        switch (e.key){
+          case "ArrowRight": case "ArrowDown": next = (i + 1) % n; break;
+          case "ArrowLeft":  case "ArrowUp":   next = (i - 1 + n) % n; break;
+          case "Home": next = 0; break;
+          case "End":  next = n - 1; break;
+          case " ": case "Enter": e.preventDefault(); select(r, false); return;
+          default: return;
+        }
+        e.preventDefault();
+        select(radios[next], true);
+      });
+    });
+  });
+  /* sort toggles (single-select pressed) */
+  document.querySelectorAll('.sortrow button').forEach(function(b){
+    b.addEventListener("click", function(){
+      b.parentElement.querySelectorAll('button').forEach(function(x){ x.setAttribute("aria-pressed","false"); });
+      b.setAttribute("aria-pressed","true");
+    });
+  });
+
+  /* ── Count-up (rings + big stats) ── */
+  function countUp(el, to, ms){
+    if (reduce){ el.textContent = formatNum(to); return; }
+    var t0 = performance.now();
+    (function step(t){
+      var k = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = formatNum(Math.round(to * e));
+      if (k < 1) requestAnimationFrame(step);
+      else el.textContent = formatNum(to);
+    })(t0);
+  }
+  function formatNum(n){ return n >= 1000 ? n.toLocaleString("en-US") : String(n); }
+
+  /* ── Score rings: bake filled (no-JS safe), reset to empty if motion allowed ── */
+  function setupRing(ring){
+    var arc = ring.querySelector(".ring-arc");
+    var num = ring.querySelector(".ring-num");
+    var score = +ring.dataset.score;
+    var r = +arc.getAttribute("r");
+    var C = 2 * Math.PI * r;
+    var target = C * (1 - score / 100);
+    arc.style.strokeDasharray = C.toFixed(2);
+    ring._target = target.toFixed(2);
+    ring._score = score;
+    ring._num = num;
+    ring._arc = arc;
+    if (reduce){
+      arc.style.strokeDashoffset = target.toFixed(2);
+      if (num) num.textContent = score;
+    } else {
+      arc.style.transition = "none";
+      arc.style.strokeDashoffset = C.toFixed(2);   // start empty
+      if (num) num.textContent = "0";
+    }
+    ring._ready = true;
+  }
+  function animateRing(ring){
+    if (reduce || ring._done) return;
+    ring._done = true;
+    var arc = ring._arc;
+    arc.style.transition = "stroke-dashoffset 1.05s cubic-bezier(.16,1,.3,1)";
+    requestAnimationFrame(function(){ arc.style.strokeDashoffset = ring._target; });
+    if (ring._num) countUp(ring._num, ring._score, 1100);
+    // one-time aurora bloom behind verdict rings
+    var glow = ring.parentElement && ring.parentElement.querySelector(".verdict-glow");
+    if (glow) glow.classList.add("bloom");
+  }
+  var rings = Array.prototype.slice.call(document.querySelectorAll(".ring"));
+  rings.forEach(setupRing);
+
+  /* ── Meters & range-track dots (reset then fill on view) ── */
+  function setupBar(el){
+    el._scale = "scaleX(" + ((+el.dataset.w) / 100) + ")";
+    if (reduce) el.style.transform = el._scale;
+    else el.style.transform = "scaleX(0)";
+  }
+  function fillBar(el){ if (!reduce) el.style.transform = el._scale; }
+  document.querySelectorAll(".meter-fill").forEach(setupBar);
+
+  function setupDot(d){
+    // map 0-100 risk to position inside the rail (clamped a touch off the edges)
+    var pos = Math.max(4, Math.min(96, +d.dataset.pos));
+    d._pos = pos + "%";
+    if (reduce) d.style.left = d._pos;
+    else d.style.left = "4%";
+  }
+  function fillDot(d){ if (!reduce) d.style.left = d._pos; }
+  document.querySelectorAll(".rt-dot").forEach(setupDot);
+
+  /* ── Reveal + nested animation trigger via one pooled observer ── */
+  if ("IntersectionObserver" in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (!en.isIntersecting) return;
+        var el = en.target;
+        el.classList.add("in-view");
+        el.querySelectorAll(".ring").forEach(animateRing);
+        el.querySelectorAll(".meter-fill").forEach(fillBar);
+        el.querySelectorAll(".rt-dot").forEach(fillDot);
+        io.unobserve(el);
+      });
+    }, { threshold: 0.15, rootMargin: "0px 0px -10% 0px" });
+    document.querySelectorAll(".reveal").forEach(function(el){ io.observe(el); });
+
+    // Stat numbers count up on their own enter
+    var statIO = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (!en.isIntersecting) return;
+        countUp(en.target, +en.target.dataset.count, 1200);
+        statIO.unobserve(en.target);
+      });
+    }, { threshold: 0.5 });
+    document.querySelectorAll("[data-count]").forEach(function(el){ statIO.observe(el); });
+  } else {
+    // No IO: show everything, fill instantly
+    document.querySelectorAll(".reveal").forEach(function(el){ el.classList.add("in-view"); });
+    rings.forEach(function(r){ if(r._arc){ r._arc.style.strokeDashoffset = r._target; if(r._num) r._num.textContent = r._score; } });
+    document.querySelectorAll(".meter-fill").forEach(function(el){ el.style.transform = el._scale; });
+    document.querySelectorAll(".rt-dot").forEach(function(el){ el.style.left = el._pos; });
+    document.querySelectorAll("[data-count]").forEach(function(el){ el.textContent = formatNum(+el.dataset.count); });
+  }
+
+  /* ── Expandable detail panels (baked open; collapse all but the featured one) ── */
+  document.querySelectorAll(".expand-btn").forEach(function(btn){
+    var panel = document.getElementById(btn.getAttribute("aria-controls"));
+    if (!panel) return;
+    if (btn.getAttribute("aria-expanded") !== "true") panel.classList.add("collapsed");
+    btn.addEventListener("click", function(){
+      var open = btn.getAttribute("aria-expanded") === "true";
+      if (open){
+        panel.classList.add("collapsed");
+        btn.setAttribute("aria-expanded","false");
+        btn.firstChild.textContent = "See the evidence ";
+      } else {
+        panel.classList.remove("collapsed");
+        btn.setAttribute("aria-expanded","true");
+        btn.firstChild.textContent = "Hide the evidence ";
+        // animate any rings/meters/dots revealed for the first time
+        panel.querySelectorAll(".ring").forEach(animateRing);
+        panel.querySelectorAll(".meter-fill").forEach(fillBar);
+        panel.querySelectorAll(".rt-dot").forEach(fillDot);
+      }
+    });
+  });
+
+  /* ── Connective thread: draw with scroll progress ── */
+  var threadLine = document.getElementById("threadLine");
+  var aurora = document.getElementById("aurora");
+  if (!reduce){
+    var ticking = false;
+    function onScroll(){
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function(){
+        var doc = document.documentElement;
+        var max = doc.scrollHeight - window.innerHeight;
+        var p = max > 0 ? Math.min(1, window.scrollY / max) : 0;
+        if (threadLine) threadLine.style.strokeDashoffset = (1000 * (1 - p)).toFixed(1);
+        if (aurora) aurora.style.transform = "translate3d(0," + (window.scrollY * 0.12) + "px,0)";
+        ticking = false;
+      });
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+  } else if (threadLine){
+    threadLine.style.strokeDashoffset = "0";
+  }
+
+  /* ── Sticky "how we know": light up provenance tier as each step crosses center ── */
+  var tiers = document.querySelectorAll("#tierstrip .tier");
+  if ("IntersectionObserver" in window && tiers.length){
+    var stepIO = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (!en.isIntersecting) return;
+        var i = +en.target.dataset.step;
+        tiers.forEach(function(t){ t.classList.toggle("active", +t.dataset.tier === i); });
+      });
+    }, { threshold: 0.6, rootMargin: "-20% 0px -40% 0px" });
+    document.querySelectorAll(".hwk-steps .step").forEach(function(s){ stepIO.observe(s); });
+  } else {
+    if (tiers[0]) tiers[0].classList.add("active");
+  }
+})();
+</script>
+</body>
+</html>
