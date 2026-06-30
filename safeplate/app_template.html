@@ -1335,7 +1335,7 @@ function openOnboarding(step = 1){
 }
 function closeOnboarding(){
   document.getElementById("onboard").classList.remove("show");
-  _setBgInert(false); markOnboarded();
+  _setBgInert(false); markOnboarded(); saveProfile();
   if (typeof renderProfileSummary === "function") renderProfileSummary();   // Task 5
   if (_obTrigger && _obTrigger.focus) _obTrigger.focus();
 }
@@ -2085,6 +2085,7 @@ function renderMenu(m,r) {
       else state.experienceHistory.push({ name, rating, note });
       saveHistory();
       renderHistoryList();
+      if (typeof renderProfileSummary === "function") renderProfileSummary();
       if (scoreEl) scoreEl.value = "";
       if (noteEl)  noteEl.value  = "";
       toast("Saved to your history");
