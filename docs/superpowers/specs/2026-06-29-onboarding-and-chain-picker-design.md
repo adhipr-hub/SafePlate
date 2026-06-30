@@ -23,8 +23,10 @@ at common chains. The search card slims down to location + search + a profile su
 - **Chain picker = tap → 1–10 comfort.** The 1–10 means **"how comfortable are you eating
   here"** (10 = fully comfortable, 1 = avoid), **not** reaction presence. It maps onto the
   existing `rating` field — no schema change.
-- **Curated catalog**, tap-only (no typing). ~60–80 popular US brands grouped by category.
-  Places not in the catalog are rated from the restaurant **drawer** ("Rate your experience").
+- **Curated catalog**, tap-only (no typing). **~30** of the most recognizable US brands —
+  about 3–4 per category — kept small so first-run scans fast (personalization generalizes by
+  category, so a few exemplars per category suffice). Places not in the catalog are rated from
+  the restaurant **drawer** ("Rate your experience").
 - **First run: auto on first visit, skippable.** Reopenable anytime via **Edit**.
 - **Build: client-side modal wizard; catalog as static JS data** (Approach A). The only
   backend change is one prompt-wording line.
@@ -76,9 +78,9 @@ No data-shape changes. State + localStorage:
   load; set on Done or Skip.
 
 ### 5.1 Catalog
-A static JS const `CHAIN_CATALOG = [{category: str, chains: [str, ...]}, ...]`, ~60–80 US
-brands across ~9 categories (Fast food/Burgers, Pizza, Mexican, Coffee, Chicken,
-Sandwiches/Subs, Asian, Bakery/Dessert, Breakfast/Diner). Pure tap-source; selecting writes
+A static JS const `CHAIN_CATALOG = [{category: str, chains: [str, ...]}, ...]`, **~30** US
+brands (~3–4 each) across ~8 categories (Fast food/Burgers, Pizza, Mexican, Coffee, Chicken,
+Sandwiches/Subs, Asian, Bakery/Dessert). Pure tap-source; selecting writes
 a history entry by brand name. Case-insensitive de-dup with drawer entries (the shipped
 upsert already does this).
 
@@ -128,6 +130,6 @@ free-text (notes, any names) escaped via the existing `esc()`.
 
 ## 11. Open questions / future
 
-- Catalog breadth is a curation call; start ~60–80 and grow from real misses.
+- Catalog breadth is a curation call; start ~30 (3–4 per category) and grow from real misses.
 - A future "most-tapped chains first" ordering could speed setup once usage data exists.
 - Backend-served catalog (Approach B) only if non-engineers need to edit it.
