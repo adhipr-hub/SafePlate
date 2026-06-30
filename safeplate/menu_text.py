@@ -826,6 +826,11 @@ def _listed_items_from_soup(soup: BeautifulSoup) -> list[MenuItemRecord]:
         attrs={"class": lambda c: c and any(
             h in _classlist_text(c).lower() for h in _MENU_CONTAINER_HINTS)}
     )
+    # A menu-classed <li> matches both selectors; de-dup by identity (Tag equality is
+    # structural, so dict.fromkeys could wrongly merge distinct same-markup elements)
+    # to avoid re-walking ancestors and re-running get_text on the same element.
+    seen_ids: set[int] = set()
+    candidates = [el for el in candidates if not (id(el) in seen_ids or seen_ids.add(id(el)))]
     for el in candidates:
         if not _has_menu_ancestor(el) or _in_navigation(el):
             continue
@@ -855,54 +860,14 @@ def _extract_menu_items_from_soup(
     listed = _listed_items_from_soup(soup)
     _remove_non_content_tags(soup)
     records = []
-    seen = set()
+    seen: set = set()
 
+    # Each line-source starts a fresh category context but shares the dedupe set so a
+    # dish seen in visible text isn't re-emitted from the price-block pass.
     for lines in [_visible_lines_from_soup(soup), _price_text_blocks_from_soup(soup)]:
-        current_category = ""
-        for line in lines:
-            if _looks_like_category(line):
-                current_category = line[:80]
-                continue
-
-            for raw_text, before_price, price, after_price in _price_segments(line):
-                if not before_price or _looks_like_category(before_price):
-                    continue
-
-                item_name, description = _split_item_name_and_description(before_price)
-                if after_price and not description:
-                    description = after_price
-                if not _looks_like_item_name(item_name):
-                    continue
-
-                key = (item_name.lower(), price.lower(), raw_text.lower())
-                if key in seen:
-                    continue
-                seen.add(key)
-
-                dietary_terms, allergen_terms = _dietary_and_allergen_terms(raw_text)
-                records.append(
-                    MenuItemRecord(
-                        restaurant_name="",
-                        restaurant_source_id="",
-                        menu_source_url="",
-                        category=current_category,
-                        item_name=item_name,
-                        description=description,
-                        price=price,
-                        dietary_terms=dietary_terms,
-                        allergen_terms=allergen_terms,
-                        source_type="",
-                        extraction_method=extraction_method,
-                        confidence=_item_confidence(
-                            category=current_category,
-                            description=description,
-                            dietary_terms=dietary_terms,
-                            allergen_terms=allergen_terms,
-                        ),
-                        raw_text=raw_text,
-                        fetched_at="",
-                    )
-                )
+        records.extend(_records_from_price_lines(
+            lines, extraction_method=extraction_method, allow_bare_prices=False, seen=seen,
+        ))
 
     # Add price-less listed items whose name wasn't already captured with a price.
     priced_names = {record.item_name.lower() for record in records}
@@ -1147,8 +1112,8 @@ def _schema_menu_item_price(item: dict[str, object]) -> str:
             if price:
                 return _format_schema_price(price)
 
-    for field in ["price", "priceRange"]:
-        price = _schema_text(item.get(field))
+    for field_name in ["price", "priceRange"]:
+        price = _schema_text(item.get(field_name))
         if price:
             return _format_schema_price(price)
 
@@ -1229,8 +1194,8 @@ def _schema_text(value: object) -> str:
     if isinstance(value, (int, float)):
         return str(value)
     if isinstance(value, dict):
-        for field in ["@value", "name", "text", "@id", "url"]:
-            text = _schema_text(value.get(field))
+        for field_name in ["@value", "name", "text", "@id", "url"]:
+            text = _schema_text(value.get(field_name))
             if text:
                 return text
     return ""
@@ -1268,18 +1233,25 @@ def _schema_record_key(record: MenuItemRecord) -> tuple[str, str, str]:
     )
 
 
-def _extract_menu_items_from_text(text: str) -> list[MenuItemRecord]:
-    lines = [_clean_text(line) for line in text.splitlines() if _clean_text(line)]
-    records = []
+def _records_from_price_lines(
+    lines: list[str],
+    *,
+    extraction_method: str,
+    allow_bare_prices: bool,
+    seen: set,
+) -> list[MenuItemRecord]:
+    """Build priced MenuItemRecords from a sequence of text lines, tracking the running
+    category and skipping dishes already in `seen`. Shared by the soup and plain-text
+    extractors, which differ only in `extraction_method` and `allow_bare_prices`."""
+    records: list[MenuItemRecord] = []
     current_category = ""
-    seen = set()
     for line in lines:
         if _looks_like_category(line):
             current_category = line[:80]
             continue
         for raw_text, before_price, price, after_price in _price_segments(
             line,
-            allow_bare_prices=True,
+            allow_bare_prices=allow_bare_prices,
         ):
             if not before_price or _looks_like_category(before_price):
                 continue
@@ -1305,7 +1277,7 @@ def _extract_menu_items_from_text(text: str) -> list[MenuItemRecord]:
                     dietary_terms=dietary_terms,
                     allergen_terms=allergen_terms,
                     source_type="",
-                    extraction_method="text_price_lines",
+                    extraction_method=extraction_method,
                     confidence=_item_confidence(
                         category=current_category,
                         description=description,
@@ -1317,6 +1289,13 @@ def _extract_menu_items_from_text(text: str) -> list[MenuItemRecord]:
                 )
             )
     return records
+
+
+def _extract_menu_items_from_text(text: str) -> list[MenuItemRecord]:
+    lines = [_clean_text(line) for line in text.splitlines() if _clean_text(line)]
+    return _records_from_price_lines(
+        lines, extraction_method="text_price_lines", allow_bare_prices=True, seen=set(),
+    )
 
 
 def _price_segments(

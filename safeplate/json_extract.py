@@ -10,6 +10,7 @@ Depends only on `soup` (no menu_text), so there is no import cycle.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Callable
 
 from safeplate.soup import make_soup
@@ -29,8 +30,6 @@ _MAX_ITEMS = 600
 
 def first_string(obj: dict[str, Any], keys: set[str]) -> str | None:
     """First string value whose key is in `keys`, skipping url/id-looking values."""
-    import re
-
     for raw_key, value in obj.items():
         if isinstance(raw_key, str) and raw_key.lower() in keys and isinstance(value, str) and value.strip():
             if value.startswith(("http://", "https://", "/")) or re.fullmatch(r"[0-9a-f-]{8,}", value):
@@ -41,17 +40,20 @@ def first_string(obj: dict[str, Any], keys: set[str]) -> str | None:
 
 def json_blobs(html: str, *, soup: Any = None) -> list[str]:
     """All embedded JSON payloads: `<script id=__NEXT_DATA__>` / `type=application/json`
-    blobs PLUS inline `window.__NUXT__ = {...}`-style state assignments (brace-matched).
+    blobs PLUS inline `window.__NUXT__ = {...}`-style state assignments (brace-matched)
+    PLUS Next.js App Router `self.__next_f.push(...)` streamed hydration chunks.
     Schema.org JSON-LD is skipped -- it has a dedicated extractor. ``soup`` lets a caller
     that already parsed this HTML reuse the tree instead of re-parsing it."""
     if soup is None:
         soup = make_soup(html)
     blobs: list[str] = []
+    inline_texts: list[str] = []
     for script in soup.find_all("script"):
         script_type = (script.get("type") or "").lower()
         text = script.string or script.get_text() or ""
         if not text:
             continue
+        inline_texts.append(text)
         if "ld+json" not in script_type and (
             script.get("id") == "__NEXT_DATA__" or script_type == "application/json"
         ):
@@ -70,6 +72,51 @@ def json_blobs(html: str, *, soup: Any = None) -> list[str]:
             if blob:
                 blobs.append(blob)
                 break
+    # Next.js 13+ App Router does not embed one state blob; it streams the payload as
+    # many `self.__next_f.push([1,"<chunk>"])` calls (often one per <script>). Joining
+    # the scripts lets us find pushes regardless of how they're split across tags.
+    blobs.extend(_next_flight_blobs("\n".join(inline_texts)))
+    return blobs
+
+
+_FLIGHT_PUSH = "self.__next_f.push("
+# Start of a Flight row in the concatenated stream: a line-leading "<ref>:" before a
+# JSON object/array (the row's payload). Line-anchored so JSON-internal "key":[...]
+# pairs aren't mistaken for rows.
+_FLIGHT_ROW = re.compile(r"(?:^|\n)[0-9A-Za-z]+:(?=[\[{])")
+
+
+def _next_flight_blobs(text: str) -> list[str]:
+    """JSON payloads inside Next.js App Router `self.__next_f.push([1,"<chunk>"])`
+    calls. The push argument is a JSON array `[id, chunk]`; the chunk strings,
+    concatenated in push order, form a stream of Flight rows shaped `<ref>:<json>`.
+    Returns each row's balanced JSON so the normal walker can find dish objects."""
+    if _FLIGHT_PUSH not in text:
+        return []
+    chunks: list[str] = []
+    idx = 0
+    while True:
+        idx = text.find(_FLIGHT_PUSH, idx)
+        if idx == -1:
+            break
+        arr = _balanced_json(text, idx + len(_FLIGHT_PUSH))
+        idx += len(_FLIGHT_PUSH)
+        if not arr:
+            continue
+        try:
+            parsed = json.loads(arr)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(parsed, list) and len(parsed) >= 2 and isinstance(parsed[1], str):
+            chunks.append(parsed[1])
+    if not chunks:
+        return []
+    joined = "".join(chunks)
+    blobs: list[str] = []
+    for match in _FLIGHT_ROW.finditer(joined):
+        blob = _balanced_json(joined, match.end())
+        if blob:
+            blobs.append(blob)
     return blobs
 
 

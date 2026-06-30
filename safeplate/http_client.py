@@ -211,11 +211,6 @@ def _disk_put(cache_key: str, response: "HttpResponse") -> None:
         pass
 
 
-def clear_cache() -> None:
-    with _CACHE_LOCK:
-        _CACHE.clear()
-
-
 def _http_get_requests(
     url: str, *, user_agent: str, timeout: float
 ) -> HttpResponse:

@@ -512,6 +512,19 @@ def discover_and_extract(
     from safeplate.extraction2.pipeline import _fold_allergen_evidence, extract_menu
     from safeplate.extraction2.schema import MenuExtractionResult, Policy
 
+    def _merge_records(records, index, items):
+        # Fold each record into `items` by lower-cased name. A name collision UNIONs
+        # allergen evidence into the kept record instead of dropping it (R5: completion
+        # order must not decide which allergens survive); a new name is appended and
+        # indexed. `index` (lower-name -> position in `items`) is updated in place.
+        for record in records:
+            key = record.item_name.lower()
+            if key in index:
+                items[index[key]] = _fold_allergen_evidence(items[index[key]], record)
+            elif key:
+                index[key] = len(items)
+                items.append(record)
+
     cache_model = model or DEFAULT_MODEL
     cache_url = _normalize_cache_url(website_url)  # share one entry across utm/clean URLs
     cache_disc = _cache_discriminator(website_url, restaurant_name)
@@ -635,23 +648,13 @@ def discover_and_extract(
                     # it like a deadline truncation: keep the items we got this run but
                     # don't cache, so the next open re-extracts the missing chunk.
                     timed_out = True
-                for record in sub.items:
-                    key = record.item_name.lower()
-                    if key in items_by_name:
-                        # Same dish from another source -> UNION its allergen evidence
-                        # into the kept record instead of dropping it (R5: completion
-                        # order must not decide which allergens survive).
-                        i = items_by_name[key]
-                        result.items[i] = _fold_allergen_evidence(result.items[i], record)
-                    elif key:
-                        items_by_name[key] = len(result.items)
-                        result.items.append(record)
-                # Recompute coverage counters from the MERGED set so a folded-in matrix
-                # row counts toward the early-stop thresholds.
-                allergen_dishes = sum(1 for it in result.items if it.allergen_terms)
-                matrix_dishes = sum(
-                    1 for it in result.items if _is_structured_matrix(it.extraction_method)
-                )
+                _merge_records(sub.items, items_by_name, result.items)
+            # Recompute coverage counters from the MERGED set so a folded-in matrix
+            # row counts toward the early-stop thresholds.
+            allergen_dishes = sum(1 for it in result.items if it.allergen_terms)
+            matrix_dishes = sum(
+                1 for it in result.items if _is_structured_matrix(it.extraction_method)
+            )
             if allergen_dishes >= 3:
                 have_allergens = True
             # Matrix early-exit: the dish x allergen grid already covers the menu, so
@@ -681,13 +684,7 @@ def discover_and_extract(
             if cand.kind not in ("allergen", "nutrition", "menu"):
                 continue
             captured, cap_coverage = capture_allergen_api(cand.url, user_agent=user_agent)
-            for record in captured:
-                k = record.item_name.lower()
-                if k in idx:
-                    result.items[idx[k]] = _fold_allergen_evidence(result.items[idx[k]], record)
-                elif k:
-                    idx[k] = len(result.items)
-                    result.items.append(record)
+            _merge_records(captured, idx, result.items)
             # Record per-endpoint coverage (carries the region stamp) so captured
             # backend allergen data can trigger the from-another-region notice.
             result.coverage.extend(cap_coverage)
@@ -728,13 +725,7 @@ def discover_and_extract(
                 [payload], policy=policy or Policy.HYBRID, llm_enabled=True,
                 gemini_api_key=api_key, gemini_model=model, use_cache=use_cache,
             )
-            for record in sub.items:
-                k = record.item_name.lower()
-                if k in idx:
-                    result.items[idx[k]] = _fold_allergen_evidence(result.items[idx[k]], record)
-                elif k:
-                    idx[k] = len(result.items)
-                    result.items.append(record)
+            _merge_records(sub.items, idx, result.items)
             result.coverage.extend(sub.coverage)
             result.llm_calls += sub.llm_calls
             candidates.append(cand)

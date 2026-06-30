@@ -333,12 +333,8 @@ def _ico(paths: str) -> str:
 
 
 _ICO_PIN = _ico('<path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/>')
-_ICO_DOC = _ico('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h6M8 16h4"/>')
-_ICO_SPARK = _ico('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/>')
 _ICO_SHIELD = _ico('<path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/>')
-_ICO_BOLT = _ico('<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8Z"/>')
 _ICO_EYE = _ico('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>')
-_ICO_LIST = _ico('<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>')
 _ICO_CHAT = _ico('<path d="M4 5h16v11H9l-5 4V5Z"/>')
 _ICO_MAIL = _ico('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>')
 _ICO_HEART = _ico('<path d="M12 20s-7-4.6-9.3-9C1 8 3 4.5 6.5 4.5c2 0 3.5 1.4 5.5 3.5 2-2.1 3.5-3.5 5.5-3.5C21 4.5 23 8 21.3 11 19 15.4 12 20 12 20Z"/>')
@@ -369,15 +365,15 @@ def _cta_band() -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 def _how_it_works_body() -> str:
     steps = [
-        (_ICO_PIN, "1", "Tell us where &amp; what",
+        ("1", "Tell us where &amp; what",
          "Search a city, neighbourhood, or use your location, and set your allergy &mdash; nuts "
          "today, with sesame, dairy and gluten on the way. You also set how serious your reaction "
          "is and how careful you need to be about cross-contact."),
-        (_ICO_DOC, "2", "We read the real menu",
+        ("2", "We read the real menu",
          "For each nearby restaurant we find and read its actual online menu, allergen charts, and "
          "allergy statements &mdash; not just the cuisine type. Structured allergen data is used "
          "directly; prose is interpreted dish by dish."),
-        (_ICO_SPARK, "3", "You get a ranked, explained score",
+        ("3", "You get a ranked, explained score",
          "Every place gets a nut-risk score and a plain-English reason. Tap any restaurant to see "
          "the riskiest dishes, what the restaurant says about allergies, and exactly where the "
          "score came from."),
@@ -388,7 +384,7 @@ def _how_it_works_body() -> str:
           <h3>{title}</h3>
           <p>{body}</p>
         </div>"""
-        for ico, n, title, body in steps
+        for n, title, body in steps
     )
 
     layers = [

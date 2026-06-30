@@ -18,7 +18,6 @@ from safeplate.config import (
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
-GEMINI_MENU_VALIDATION_CHUNK_SIZE = 45
 
 
 def _int_env(name: str, default: int) -> int:

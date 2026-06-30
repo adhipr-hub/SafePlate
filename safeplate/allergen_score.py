@@ -42,7 +42,6 @@ from safeplate.allergen_prior import (
     NUT_TYPES,
     PEANUTS,
     TREE_NUTS,
-    TREE_NUT_TYPES,
     absence_inference_factor,
     clamp_risk as _clamp,
     families_for_nut_types,
@@ -669,7 +668,6 @@ def _score_one_allergen(
 
     # T1 / T2: grounded presence evidence from extracted allergen_terms.
     matrix_present = False
-    matrix_dish_total = 0
     matrix_hit_items: list[str] = []
     text_hit_items: list[str] = []
     matrix_source_urls: list[str] = []
@@ -686,8 +684,6 @@ def _score_one_allergen(
             matrix_present = True
             matrix_source_urls.append(src_url)
             matrix_columns.update(mcols)
-            if name:
-                matrix_dish_total += 1
             if hits and name:
                 matrix_hit_items.append(name)
         elif hits and name:

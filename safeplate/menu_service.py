@@ -296,7 +296,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     # menu-less place beats a bare cuisine guess. Never grounded allergen evidence.
     community_quotes: list[str] = []
     try:
-        from safeplate.allergen_score import RestaurantSignals, assess_restaurant_record
+        from safeplate.allergen_score import assess_restaurant_record
         from safeplate.community_signals import fetch_community_signals
 
         cres = fetch_community_signals(
@@ -314,9 +314,10 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
                 latitude=latitude, longitude=longitude,
                 website_url=website_url,
             )
-            from safeplate.allergy_registry import apply_registry
-            sig = RestaurantSignals.from_allergy_signals(allergy_signals)
-            apply_registry(sig, restaurant_name, address, website_url)
+            sig = _build_restaurant_signals(
+                allergy_signals, name=restaurant_name, address=address,
+                website_url=website_url,
+            )
             if _is_ai_engine(scoring_engine):
                 from safeplate.allergen_score_llm import assess_restaurant_record_with_llm
                 assessment = assess_restaurant_record_with_llm(
@@ -728,9 +729,7 @@ def restaurant_signals_from_evidence(
             text,
             [
                 "cross contact",
-                "cross-contact",
                 "cross contamination",
-                "cross-contamination",
                 "shared fryer",
                 "shared fryers",
                 "may contain",
@@ -753,11 +752,8 @@ def restaurant_signals_from_evidence(
             text,
             [
                 "nut free",
-                "nut-free",
                 "peanut free",
-                "peanut-free",
                 "tree nut free",
-                "tree-nut-free",
                 "no peanuts",
                 "no tree nuts",
             ],

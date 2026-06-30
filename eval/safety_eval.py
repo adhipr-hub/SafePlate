@@ -62,7 +62,7 @@ def main() -> None:
         print("FAILURES (a MISS is a positive scored 'likely_ok'; over-warn is a "
               "negative scored 'avoid'):")
         print(f"  {'scenario':34s} {'cuisine':14s} {'truth':5s} {'v2':9s} v3")
-        for label, cuisine, truth, dt, ht, dc, hc in bad:
+        for label, cuisine, truth, dt, ht, dc, hc, _grounded in bad:
             print(f"  {label[:34]:34s} {cuisine:14s} {truth:5s} "
                   f"{(dt if dc!='ok' else '-'):9s} {(ht if hc!='ok' else '-')}")
     else:
@@ -94,7 +94,7 @@ def main() -> None:
 
     # Per-cuisine false-negative breakdown (v2) -- where would a real diner be missed?
     by_cuisine: dict[str, list[int]] = {}
-    for label, cuisine, truth, dt, ht, dc, hc in rows:
+    for label, cuisine, truth, dt, ht, dc, hc, _grounded in rows:
         if truth != "pos":
             continue
         agg = by_cuisine.setdefault(cuisine, [0, 0])

@@ -27,7 +27,6 @@ from safeplate.allergen_prior import (
     NUTS,
     cuisines_for,
     labeling_trust_for_region,
-    normalize_cuisine,
     region_from_address,
 )
 from safeplate.allergen_score import (
@@ -571,10 +570,6 @@ def _parse_tier(value: Any, *, default: Tier) -> Tier:
         return Tier(str(value).strip().lower())
     except (ValueError, AttributeError):
         return default
-
-
-def _worse(a: Tier, b: Tier) -> Tier:
-    return a if a.rank >= b.rank else b
 
 
 def _by_rank(rank: int) -> Tier:

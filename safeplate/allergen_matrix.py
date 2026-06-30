@@ -33,22 +33,30 @@ from safeplate.soup import make_soup
 # Header text -> canonical allergen token. Substring match on the lowercased
 # header. Order matters: more specific entries first so "peanut" wins over the
 # generic "nut" column and "shellfish" wins over "fish".
+# Multilingual aliases (DE/FR/ES/IT/NL) are included so allergen tables under EU-14
+# labelling law parse too; only UNAMBIGUOUS tokens are added -- short/substring-prone
+# ones (e.g. German "ei" for egg, which is inside "Weizen") are deliberately omitted
+# in favour of the longer plural/spelled-out form ("eier").
 _ALLERGEN_COLUMN_ALIASES: list[tuple[tuple[str, ...], str]] = [
-    (("peanut", "groundnut"), "peanut"),
-    (("tree nut", "treenut", "tree-nut"), "tree nut"),
-    (("crustacean", "shellfish"), "shellfish"),
-    (("mollusc", "mollusk"), "mollusc"),
-    (("fish",), "fish"),
-    (("milk", "dairy", "lactose"), "milk"),
-    (("egg",), "egg"),
-    (("soya", "soybean", "soy"), "soy"),
+    (("peanut", "groundnut", "erdnuss", "erdnüsse", "erdnusse", "cacahuète", "cacahuete",
+      "arachide", "arachidi"), "peanut"),
+    (("tree nut", "treenut", "tree-nut", "schalenfrüchte", "schalenfruchte",
+      "fruits à coque", "fruits a coque", "frutos de cáscara", "frutos de cascara",
+      "frutta a guscio"), "tree nut"),
+    (("crustacean", "shellfish", "krebstier", "crustacé", "crustace", "crustáceo",
+      "crustaceo", "crostacei", "schaaldier"), "shellfish"),
+    (("mollusc", "mollusk", "weichtier", "mollusque", "molusco", "mollusco"), "mollusc"),
+    (("fish", "fisch", "poisson", "pescado", "pesce"), "fish"),
+    (("milk", "dairy", "lactose", "milch", "lait", "leche", "latte", "melk"), "milk"),
+    (("egg", "eier", "œuf", "oeuf", "huevo", "uovo"), "egg"),
+    (("soya", "soybean", "soy", "soja", "soia"), "soy"),
     (("gluten",), "gluten"),
-    (("wheat",), "wheat"),
-    (("sesame",), "sesame"),
-    (("mustard",), "mustard"),
-    (("celery",), "celery"),
-    (("sulphite", "sulfite", "sulphur", "sulfur"), "sulphites"),
-    (("lupin", "lupine"), "lupin"),
+    (("wheat", "weizen", "blé", "trigo", "frumento", "tarwe"), "wheat"),
+    (("sesame", "sesam", "sésame", "sésamo", "sesamo"), "sesame"),
+    (("mustard", "senf", "moutarde", "mostaza", "senape"), "mustard"),
+    (("celery", "sellerie", "céleri", "apio", "sedano", "selderij"), "celery"),
+    (("sulphite", "sulfite", "sulphur", "sulfur", "schwefeldioxid", "solfiti"), "sulphites"),
+    (("lupin", "lupine", "altramuces", "lupini"), "lupin"),
     # Per-nut columns. Detailed charts often split nuts into one column per type, and
     # these names don't contain the substring "nut", so without them the generic
     # catch-all below misses them: the table can be rejected (needs >=3 distinct
@@ -58,13 +66,15 @@ _ALLERGEN_COLUMN_ALIASES: list[tuple[tuple[str, ...], str]] = [
     # already contain "nut" and are caught by the generic entry. Coconut stays guarded
     # in _header_allergen. They share one canonical token, so several per-nut columns
     # still count as ONE distinct allergen (a nut nutrition table won't be mis-detected).
-    (("almond",), "tree nut"),
-    (("cashew",), "tree nut"),
-    (("pecan",), "tree nut"),
-    (("pistachio",), "tree nut"),
+    (("almond", "mandel", "amande", "almendra", "mandorla"), "tree nut"),
+    (("cashew", "cajou", "anacardo", "anacardi"), "tree nut"),
+    (("pecan", "pekan"), "tree nut"),
+    (("pistachio", "pistazie", "pistache", "pistacho", "pistacchio"), "tree nut"),
     (("macadamia", "macademia"), "tree nut"),
+    (("hazelnut", "haselnuss", "noisette", "avellana", "nocciola"), "tree nut"),
+    (("walnut", "walnuss", "noix", "nuez", "noce"), "tree nut"),
     # Generic "nut(s)" column, checked last so the specific nut types win.
-    (("nut",), "tree nut"),
+    (("nut", "nuss", "nüsse", "nusse"), "tree nut"),
 ]
 
 _POSITIVE_SYMBOLS = "✓✔✅☑●•◆■▪♦"
@@ -179,7 +189,7 @@ def extract_items_from_allergen_pdf(pdf_bytes: bytes) -> list[MenuItemRecord]:
                 for table in page.extract_tables() or []:
                     records.extend(_records_from_text_grid(table, set()))
     except Exception:
-        return _fold_records_by_name(records)
+        pass
     return _fold_records_by_name(records)
 
 

@@ -253,7 +253,7 @@ def _render_matrix_pages(pdf, max_pages, api_key, model, records, seen,
         except Exception:
             continue
     if not images:
-        return records
+        return
 
     # Cost: try ONE batched multi-image call instead of one per page. Accuracy: if
     # the model TRUNCATES (large matrix) or the call fails, fall back to per-page so
@@ -264,7 +264,7 @@ def _render_matrix_pages(pdf, max_pages, api_key, model, records, seen,
             if rows and not truncated:
                 _absorb_matrix_rows(rows, records, seen, restaurant_name,
                                     restaurant_source_id, columns)
-                return records
+                return
         except Exception:
             pass
 
@@ -274,7 +274,6 @@ def _render_matrix_pages(pdf, max_pages, api_key, model, records, seen,
         except Exception:
             continue
         _absorb_matrix_rows(rows, records, seen, restaurant_name, restaurant_source_id, columns)
-    return records
 
 
 def _matrix_call(payload: dict[str, Any], api_key: str, model: str):

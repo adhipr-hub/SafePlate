@@ -30,6 +30,21 @@ from safeplate.menu_text import ALLERGEN_TERMS, MenuItemRecord, _matched_terms
 _TRUTHY = {"true", "1", "yes", "y", "contains", "may contain", "present", "x", "✓", "✔", "●"}
 _FLAG_KEYS = ("contains", "present", "value", "status", "flag", "ispresent", "has", "marked")
 _ALLERGEN_NAME_KEYS = {"name", "allergen", "allergenname", "allergen_name", "label", "title", "code"}
+# Locale keys inside a localized-string wrapper -- Sanity/GraphQL/i18n shapes serialize
+# a dish name as {"locale": "Whopper", "__typename": "LocaleString"} or {"en": "..."}
+# instead of a plain string, which the plain name lookup would otherwise skip.
+_LOCALE_KEYS = {"locale", "en", "en-us", "en_us", "en-gb", "en_gb", "value", "default"}
+
+
+def _localized_name(obj: dict[str, Any]) -> str | None:
+    """A dish name wrapped as a localized object -> its display string, else None."""
+    for raw_key, value in obj.items():
+        if isinstance(raw_key, str) and raw_key.lower() in _NAME_KEYS and isinstance(value, dict):
+            for loc_key, loc_val in value.items():
+                if (isinstance(loc_key, str) and loc_key.lower() in _LOCALE_KEYS
+                        and isinstance(loc_val, str) and loc_val.strip()):
+                    return loc_val.strip()
+    return None
 
 
 def extract_allergen_items_from_embedded_json(
@@ -50,7 +65,7 @@ def extract_allergen_items_from_obj(payload: Any) -> list[MenuItemRecord]:
 
 
 def _item_from_object(obj: dict[str, Any]) -> MenuItemRecord | None:
-    name = _first_string(obj, _NAME_KEYS)
+    name = _first_string(obj, _NAME_KEYS) or _localized_name(obj)
     if not name or not (2 <= len(name) <= 120):
         return None
     allergens = _allergens_from_object(obj)

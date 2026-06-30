@@ -16,7 +16,6 @@ from safeplate.menu_sources import (
     _evidence_grade,
     _score_candidate,
     _source_type,
-    _validate_record,
 )
 from safeplate.page_fetch import PageFetchError, fetch_html_page
 from safeplate.soup import make_soup
@@ -217,129 +216,6 @@ def brave_web_search(
     return _search_results_from_payload(payload)
 
 
-def recover_restaurant_website_with_brave(
-    row: RestaurantRecord,
-    *,
-    api_key: str,
-    user_agent: str,
-    results_per_query: int = 5,
-) -> dict[str, Any]:
-    queries = _website_recovery_queries(row)
-    if not queries:
-        return {
-            "status": "skipped",
-            "reason": "restaurant row does not have enough name/location context",
-            "website_url": "",
-            "confidence": 0.0,
-            "queries": [],
-            "candidates": [],
-        }
-
-    candidates: list[dict[str, Any]] = []
-    for query in queries:
-        results = brave_web_search(
-            query=query,
-            api_key=api_key,
-            user_agent=user_agent,
-            count=results_per_query,
-            extra_snippets=True,
-        )
-        for result in results:
-            candidates.append(
-                _evaluate_website_candidate(
-                    row=row,
-                    result=result,
-                    query=query,
-                    user_agent=user_agent,
-                )
-            )
-        accepted = [candidate for candidate in candidates if candidate["accepted"]]
-        if accepted:
-            break
-
-    accepted_candidates = [candidate for candidate in candidates if candidate["accepted"]]
-    if accepted_candidates:
-        best = max(accepted_candidates, key=lambda candidate: candidate["confidence"])
-        return {
-            "status": "recovered",
-            "reason": best["reason"],
-            "website_url": best["url"],
-            "confidence": best["confidence"],
-            "queries": queries,
-            "candidates": candidates,
-        }
-
-    return {
-        "status": "not_found",
-        "reason": "no Brave result matched restaurant name plus address or phone",
-        "website_url": "",
-        "confidence": 0.0,
-        "queries": queries,
-        "candidates": candidates,
-    }
-
-
-def discover_menu_sources_with_brave(
-    *,
-    restaurant_name: str,
-    restaurant_source_id: str,
-    website_url: str,
-    address: str,
-    api_key: str,
-    user_agent: str,
-    limit: int = 8,
-    fetch_mode: str = "static",
-) -> list[MenuSourceRecord]:
-    queries = _menu_source_queries(
-        restaurant_name=restaurant_name,
-        website_url=website_url,
-        address=address,
-    )
-    if not queries:
-        return []
-
-    records: list[MenuSourceRecord] = []
-    fetched_at = datetime.now(timezone.utc).isoformat()
-    seen_urls: set[str] = set()
-    for query in queries:
-        results = brave_web_search(
-            query=query,
-            api_key=api_key,
-            user_agent=user_agent,
-            count=5,
-            extra_snippets=True,
-        )
-        for result in results:
-            if result.url in seen_urls:
-                continue
-            seen_urls.add(result.url)
-            record = _menu_source_record_from_result(
-                result=result,
-                query=query,
-                website_url=website_url,
-                restaurant_name=restaurant_name,
-                restaurant_source_id=restaurant_source_id,
-                address=address,
-                fetched_at=fetched_at,
-            )
-            if record is not None:
-                records.append(record)
-
-    records = _dedupe_records(records)
-    validated = [
-        _validate_record(record, user_agent=user_agent, fetch_mode=fetch_mode)
-        for record in records
-    ]
-    validated = [
-        record
-        for record in validated
-        if record.validation_status == "validated"
-        or (record.source_type == "image" and record.is_primary_menu_candidate)
-    ]
-    validated.sort(key=lambda record: record.confidence, reverse=True)
-    return validated[:limit]
-
-
 def discover_allergen_pdfs_with_brave(
     *,
     restaurant_name: str,
@@ -463,38 +339,6 @@ def _website_recovery_queries(row: RestaurantRecord) -> list[str]:
         for category_term in _category_query_terms(row.categories):
             queries.append(f"{core_name} {category_term} restaurant {city_name} website")
         queries.append(f"{core_name} restaurant {city_name} website")
-
-    return list(dict.fromkeys(query for query in queries if query.strip()))
-
-
-def _menu_source_queries(
-    *,
-    restaurant_name: str,
-    website_url: str,
-    address: str,
-) -> list[str]:
-    if not restaurant_name:
-        return []
-
-    queries = []
-    domain = _host_without_www(website_url)
-    if domain:
-        queries.append(f"site:{domain} menu")
-        queries.append(f"site:{domain} filetype:pdf menu")
-        # Allergen/nutrition matrices map dish -> allergen directly and are the
-        # most valuable source we can find, especially for chains whose ordering
-        # menus hide prices behind a location picker.
-        queries.append(f"site:{domain} allergen OR nutrition")
-        queries.append(f"site:{domain} filetype:pdf allergen OR nutrition")
-
-    location = _city_region(address) or _street_line(address)
-    if location:
-        queries.append(f"{_quoted(restaurant_name)} {_quoted(location)} menu")
-        queries.append(f"{_quoted(restaurant_name)} {_quoted(location)} menu pdf")
-        queries.append(f"{_quoted(restaurant_name)} {_quoted(location)} allergen menu")
-    else:
-        queries.append(f"{_quoted(restaurant_name)} menu")
-        queries.append(f"{_quoted(restaurant_name)} allergen menu")
 
     return list(dict.fromkeys(query for query in queries if query.strip()))
 

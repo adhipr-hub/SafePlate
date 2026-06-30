@@ -409,18 +409,22 @@ def extract_restaurant_evidence_with_gemini(
         restaurant_source_id=restaurant_source_id,
         model=model,
         extracted_at=datetime.now(timezone.utc).isoformat(),
-        evidence_sources=[
-            {
-                "menu_source_url": source.menu_source_url,
-                "source_type": source.source_type,
-                "extraction_method": source.extraction_method,
-                "char_count": source.char_count,
-                "price_count": source.price_count,
-            }
-            for source in sources
-        ],
+        evidence_sources=_evidence_source_dicts(sources),
         extraction=extraction,
     )
+
+
+def _evidence_source_dicts(sources: list[GeminiEvidenceSource]) -> list[dict[str, Any]]:
+    return [
+        {
+            "menu_source_url": source.menu_source_url,
+            "source_type": source.source_type,
+            "extraction_method": source.extraction_method,
+            "char_count": source.char_count,
+            "price_count": source.price_count,
+        }
+        for source in sources
+    ]
 
 
 def extract_restaurant_candidate_evidence_with_gemini(
@@ -472,16 +476,7 @@ def extract_restaurant_candidate_evidence_with_gemini(
         restaurant_source_id=restaurant_source_id,
         model=model,
         extracted_at=datetime.now(timezone.utc).isoformat(),
-        evidence_sources=[
-            {
-                "menu_source_url": source.menu_source_url,
-                "source_type": source.source_type,
-                "extraction_method": source.extraction_method,
-                "char_count": source.char_count,
-                "price_count": source.price_count,
-            }
-            for source in context_sources
-        ],
+        evidence_sources=_evidence_source_dicts(context_sources),
         extraction=extraction,
     )
 
@@ -698,23 +693,6 @@ def menu_item_rows_to_candidates(
     return candidates
 
 
-def group_menu_item_rows_by_restaurant(
-    rows: list[dict[str, str]],
-) -> list[tuple[str, str, list[dict[str, str]]]]:
-    groups: dict[tuple[str, str], list[dict[str, str]]] = {}
-    for row in rows:
-        restaurant_name = row.get("restaurant_name", "").strip()
-        restaurant_source_id = row.get("restaurant_source_id", "").strip()
-        if not restaurant_name:
-            continue
-        key = (restaurant_source_id, restaurant_name)
-        groups.setdefault(key, []).append(row)
-    return [
-        (restaurant_name, restaurant_source_id, group_rows)
-        for (restaurant_source_id, restaurant_name), group_rows in groups.items()
-    ]
-
-
 def group_menu_text_rows_by_restaurant(
     rows: list[dict[str, str]],
 ) -> list[tuple[str, str, list[dict[str, str]]]]:
@@ -730,6 +708,11 @@ def group_menu_text_rows_by_restaurant(
         (restaurant_name, restaurant_source_id, group_rows)
         for (restaurant_source_id, restaurant_name), group_rows in groups.items()
     ]
+
+
+# Menu-item rows and menu-text rows group identically (same keys, same shape); keep
+# both public names importable without duplicating the body.
+group_menu_item_rows_by_restaurant = group_menu_text_rows_by_restaurant
 
 
 def build_gemini_output_paths(label: str, out_dir: Path) -> tuple[Path, Path, Path]:
@@ -956,27 +939,26 @@ def _response_text(payload: dict[str, Any]) -> str:
     raise GeminiMenuError("Gemini response did not include output text")
 
 
-def _normalize_for_grounding(text: str) -> str:
-    # Lowercase, straighten curly quotes, and strip ALL whitespace so the check
-    # survives PDF letter-spacing ("f a c i l i t y") and quote-style differences.
+def _lower_straight_quotes(text: str) -> str:
     text = (text or "").lower()
     for curly, straight in (
         ("“", '"'), ("”", '"'), ("‘", "'"), ("’", "'"),
     ):
         text = text.replace(curly, straight)
-    return re.sub(r"\s+", "", text)
+    return text
+
+
+def _normalize_for_grounding(text: str) -> str:
+    # Lowercase, straighten curly quotes, and strip ALL whitespace so the check
+    # survives PDF letter-spacing ("f a c i l i t y") and quote-style differences.
+    return re.sub(r"\s+", "", _lower_straight_quotes(text))
 
 
 def _collapse_for_grounding(text: str) -> str:
     # Like _normalize_for_grounding but COLLAPSES whitespace to single spaces instead
     # of stripping it, so word boundaries survive -- a short dish name can then match
     # as a whole word rather than as a substring of an unrelated word.
-    text = (text or "").lower()
-    for curly, straight in (
-        ("“", '"'), ("”", '"'), ("‘", "'"), ("’", "'"),
-    ):
-        text = text.replace(curly, straight)
-    return re.sub(r"\s+", " ", text).strip()
+    return re.sub(r"\s+", " ", _lower_straight_quotes(text)).strip()
 
 
 _ELLIPSIS_RE = re.compile(r"\.\.\.|…")

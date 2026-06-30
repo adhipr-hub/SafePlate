@@ -71,6 +71,36 @@ class AllergenMatrixTests(unittest.TestCase):
         self.assertIsNone(_header_allergen("Coconut"))
         self.assertIsNone(_header_allergen("Calories"))
 
+    def test_multilingual_header_aliases(self) -> None:
+        # German
+        self.assertEqual(_header_allergen("Milch"), "milk")
+        self.assertEqual(_header_allergen("Weizen"), "wheat")
+        self.assertEqual(_header_allergen("Erdnüsse"), "peanut")
+        self.assertEqual(_header_allergen("Sellerie"), "celery")
+        self.assertEqual(_header_allergen("Haselnuss"), "tree nut")
+        # French / Spanish / Italian
+        self.assertEqual(_header_allergen("Lait"), "milk")
+        self.assertEqual(_header_allergen("Œufs"), "egg")
+        self.assertEqual(_header_allergen("Moutarde"), "mustard")
+        self.assertEqual(_header_allergen("Pescado"), "fish")
+        self.assertEqual(_header_allergen("Frutta a guscio"), "tree nut")
+
+    def test_multilingual_no_false_friend(self) -> None:
+        # The German wheat header must NOT be mis-read as egg via a naive "ei" alias.
+        self.assertEqual(_header_allergen("Weizen"), "wheat")
+
+    def test_german_allergen_table_end_to_end(self) -> None:
+        html = """<table><thead><tr>
+            <th>Gericht</th><th>Milch</th><th>Eier</th><th>Weizen</th>
+            <th>Erdnuss</th><th>Sellerie</th></tr></thead>
+          <tbody><tr><td>Pizza Margherita</td><td>x</td><td></td><td>x</td>
+            <td></td><td></td></tr></tbody></table>"""
+        records = extract_items_from_allergen_matrix(html)
+        pizza = next(r for r in records if r.item_name == "Pizza Margherita")
+        self.assertIn("milk", pizza.allergen_terms)
+        self.assertIn("wheat", pizza.allergen_terms)
+        self.assertNotIn("peanut", pizza.allergen_terms)
+
 
 if __name__ == "__main__":
     unittest.main()

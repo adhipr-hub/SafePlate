@@ -83,7 +83,6 @@ def fetch_community_signals(
     *,
     restaurant_name: str,
     address: str | None,
-    allergen: str = NUTS,
     user_agent: str,
     brave_api_key: str | None,
     gemini_api_key: str | None,

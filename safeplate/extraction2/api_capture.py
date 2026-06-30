@@ -131,10 +131,11 @@ def _candidate_endpoints(html: str, page_url: str, user_agent: str, max_bundles:
         full = urljoin(page_url, raw)
         if not full.startswith(("http://", "https://")):
             continue
-        low = full.lower().split("?")[0]
+        fl = full.lower()
+        low = fl.split("?")[0]
         if low.endswith(_SKIP_EXT):
             continue
-        if any(hint in full.lower() for hint in _API_HINTS) or any(h in full.lower() for h in _CMS_HOSTS):
+        if any(hint in fl for hint in _API_HINTS) or any(h in fl for h in _CMS_HOSTS):
             endpoints.append(full)
 
     endpoints = list(dict.fromkeys(endpoints))

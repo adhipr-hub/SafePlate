@@ -43,10 +43,6 @@ _CACHE_MAX = 64
 _state: dict[str, object] = {"pw": None, "browser": None}
 
 
-def has_dynamic_rendering() -> bool:
-    return _HAS_PLAYWRIGHT
-
-
 def _browser():
     browser = _state["browser"]
     # If Chromium died mid-run, the stored handle is dead and every new_context()
@@ -136,21 +132,3 @@ def _reveal_content(page) -> None:
         page.wait_for_timeout(600)
     except Exception:
         pass
-
-
-def shutdown() -> None:
-    with _LOCK:
-        browser = _state.get("browser")
-        pw = _state.get("pw")
-        try:
-            if browser is not None:
-                browser.close()
-        except Exception:
-            pass
-        try:
-            if pw is not None:
-                pw.stop()
-        except Exception:
-            pass
-        _state["browser"] = None
-        _state["pw"] = None

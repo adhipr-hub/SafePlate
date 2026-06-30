@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 import re
 from typing import Any
@@ -212,6 +213,7 @@ def _find_matching_group(
     return None
 
 
+@lru_cache(maxsize=4096)
 def _normalized_name(name: str | None) -> str:
     if not name:
         return ""

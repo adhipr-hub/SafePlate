@@ -135,6 +135,9 @@ def _keyword_regex(keywords: list[str]) -> re.Pattern[str]:
 
 
 _STRICT_KEYWORD_RE = _keyword_regex(STRICT_MENU_KEYWORDS)
+# A PDF whose URL carries none of these is almost certainly a corporate/legal doc,
+# not a menu or allergen chart.
+_FOOD_PDF_KEYWORDS = ("allergen", "allerg", "nutrition", "menu", "food", "diet")
 
 
 class MenuSourceError(RuntimeError):
@@ -357,6 +360,16 @@ def _has_allergen_candidate(candidates: list[MenuSourceRecord | None]) -> bool:
     return False
 
 
+def _probe_paths(base_url, paths, probe, max_workers):
+    """Probe `root + path` for each path concurrently; return the non-None probe
+    results. Shared by the allergen-page and allergen-PDF seekers."""
+    parsed = urlparse(base_url)
+    root = f"{parsed.scheme}://{parsed.netloc}"
+    urls = [root + path for path in paths]
+    results = map_concurrent(probe, urls, max_workers=max_workers)
+    return [r for r in results if r is not None]
+
+
 def _seek_allergen_pages(
     base_url: str,
     *,
@@ -365,10 +378,6 @@ def _seek_allergen_pages(
     max_workers: int,
 ) -> list[tuple[str, str]]:
     """Probe common allergen-page paths; return (url, html) for real ones."""
-    parsed = urlparse(base_url)
-    root = f"{parsed.scheme}://{parsed.netloc}"
-    urls = [root + path for path in _ALLERGEN_PROBE_PATHS]
-
     def probe(url: str) -> tuple[str, str] | None:
         try:
             html = _fetch_text(url, user_agent=user_agent, fetch_mode=fetch_mode)
@@ -380,8 +389,7 @@ def _seek_allergen_pages(
             return (url, html)
         return None
 
-    results = map_concurrent(probe, urls, max_workers=max_workers)
-    return [page for page in results if page is not None]
+    return _probe_paths(base_url, _ALLERGEN_PROBE_PATHS, probe, max_workers)
 
 
 # Common URL paths where restaurants publish the allergen matrix as a PDF.
@@ -400,10 +408,6 @@ def _seek_allergen_pdfs(
     max_workers: int,
 ) -> list[str]:
     """Probe common allergen-PDF paths; return URLs that return a real PDF."""
-    parsed = urlparse(base_url)
-    root = f"{parsed.scheme}://{parsed.netloc}"
-    urls = [root + path for path in _ALLERGEN_PDF_PATHS]
-
     def probe(url: str) -> str | None:
         try:
             raw, content_type = _fetch_bytes(url, user_agent=user_agent)
@@ -414,8 +418,7 @@ def _seek_allergen_pdfs(
             return url
         return None
 
-    results = map_concurrent(probe, urls, max_workers=max_workers)
-    return [url for url in results if url is not None]
+    return _probe_paths(base_url, _ALLERGEN_PDF_PATHS, probe, max_workers)
 
 
 def _seek_allergen_with_brave(
@@ -521,18 +524,20 @@ def _record_from_link(
     if score <= 0:
         return None
 
+    src_type = _source_type(candidate_url, text)
+    conf = min(score, 1.0)
     return MenuSourceRecord(
         restaurant_name=restaurant_name,
         restaurant_source_id=restaurant_source_id,
         website_url=website_url,
         candidate_url=candidate_url,
-        source_type=_source_type(candidate_url, text),
+        source_type=src_type,
         link_text=text or None,
-        confidence=min(score, 1.0),
+        confidence=conf,
         evidence_grade=_evidence_grade(
-            min(score, 1.0),
+            conf,
             "unvalidated",
-            _source_type(candidate_url, text),
+            src_type,
         ),
         reason="; ".join(reasons),
         is_primary_menu_candidate=_is_primary_menu_candidate(candidate_url, text),
@@ -748,7 +753,6 @@ def _validate_record(
 ) -> MenuSourceRecord:
     if record.source_type == "pdf":
         url_lower = record.candidate_url.lower()
-        _FOOD_PDF_KEYWORDS = ("allergen", "allerg", "nutrition", "menu", "food", "diet")
         if not any(kw in url_lower for kw in _FOOD_PDF_KEYWORDS):
             return _replace_validation(
                 record,
@@ -835,12 +839,13 @@ def _replace_validation(
     validation_reason: str,
     confidence_delta: float,
 ) -> MenuSourceRecord:
+    new_confidence = max(0.0, min(1.0, record.confidence + confidence_delta))
     return MenuSourceRecord(
         **{
             **asdict(record),
-            "confidence": max(0.0, min(1.0, record.confidence + confidence_delta)),
+            "confidence": new_confidence,
             "evidence_grade": _evidence_grade(
-                max(0.0, min(1.0, record.confidence + confidence_delta)),
+                new_confidence,
                 validation_status,
                 record.source_type,
             ),
