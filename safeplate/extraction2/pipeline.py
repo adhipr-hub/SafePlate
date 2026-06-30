@@ -14,6 +14,7 @@ from safeplate.extraction2.schema import (
     Policy,
 )
 from safeplate.extraction2.verify import mean_confidence, verify
+from safeplate.ingredient_allergens import infer_allergens
 from safeplate.menu_text import MenuItemRecord
 from safeplate.textutil import norm_ws
 
@@ -77,11 +78,35 @@ def extract_menu(
         items_all.extend(items)
 
     return MenuExtractionResult(
-        items=_dedupe_across_sources(items_all),
+        items=_dedupe_across_sources(_enrich_inferred_allergens(items_all)),
         coverage=coverage,
         llm_calls=llm_calls,
         incomplete=incomplete,
     )
+
+
+def _enrich_inferred_allergens(items: list[MenuItemRecord]) -> list[MenuItemRecord]:
+    """Fold ingredient-implied allergens into each item: ``tahini`` -> sesame,
+    ``paneer`` -> milk, ``pesto`` -> may-contain tree nut. Definite inferences join
+    ``allergen_terms`` (treated as confirmed presence); "often" ones join
+    ``cross_contact_terms``. Items from an authoritative allergen chart are trusted
+    exactly as parsed and left untouched -- a chart's verdict outranks a guess from
+    the dish name."""
+    out: list[MenuItemRecord] = []
+    for it in items:
+        if "matrix" in (it.extraction_method or "").lower():
+            out.append(it)
+            continue
+        definite, maybe = infer_allergens(f"{it.item_name} {it.description} {it.raw_text}")
+        if not definite and not maybe:
+            out.append(it)
+            continue
+        allergens = list(dict.fromkeys(list(it.allergen_terms) + definite))
+        cc = list(dict.fromkeys(
+            list(it.cross_contact_terms) + [t for t in maybe if t not in allergens]
+        ))
+        out.append(replace(it, allergen_terms=allergens, cross_contact_terms=cc))
+    return out
 
 
 def _interpret_one(
