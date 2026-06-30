@@ -155,6 +155,31 @@ def _item_method(item: Any) -> str:
     return str(getattr(item, "extraction_method", "") or "")
 
 
+_MAX_HISTORY = 30
+
+
+def _clean_history(raw: Any) -> list[dict[str, Any]]:
+    """Sanitize untrusted client history: keep at most _MAX_HISTORY entries with a
+    non-empty name, an int rating clamped to 1-10, and a short note."""
+    out: list[dict[str, Any]] = []
+    for e in (raw or []):
+        if not isinstance(e, dict):
+            continue
+        name = str(e.get("name") or "").strip()[:120]
+        if not name:
+            continue
+        try:
+            rating = int(e.get("rating"))
+        except (TypeError, ValueError):
+            continue
+        rating = max(1, min(10, rating))
+        note = str(e.get("note") or "").strip()[:300]
+        out.append({"name": name, "rating": rating, "note": note})
+        if len(out) >= _MAX_HISTORY:
+            break
+    return out
+
+
 def _scenario(menu_items: Sequence[Any] | None) -> str:
     """Route a restaurant to one of three LLM-scoring shapes:
       'labeled'  -- a comprehensive per-item allergen chart exists -> trust the labels;
@@ -357,6 +382,7 @@ def _build_bundle(
     community: Sequence[CommunitySignal] | None,
     menu_items: Sequence[Any] | None,
     name: str | None = None,
+    experience_history: Sequence[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build ONE restaurant's bundle, routed by label coverage:
       - 'labeled'  -> a `chart_summary` (authoritative per-item counts); no raw menu.
@@ -425,6 +451,11 @@ def _build_bundle(
     elif scenario == "raw_menu":
         # Hand over the raw dish names; the LLM identifies nut dishes itself.
         bundle["menu"] = _compact_menu(menu_items)
+    hist = _clean_history(experience_history)
+    if hist:
+        # The diner's own rated experiences -> the scorer infers their demonstrated
+        # tolerance and calibrates THIS restaurant toward how they'd actually fare.
+        bundle["your_history"] = hist
     return bundle
 
 
