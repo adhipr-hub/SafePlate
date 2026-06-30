@@ -826,6 +826,22 @@
       padding: 10px 20px; font: 600 14px var(--sans); cursor: pointer; }
     .ob-pane { display: none; }
     .ob-pane.on { display: block; }
+    .pk-cat { margin-top: 14px; }
+    .pk-cat-h { font: 600 12px/1 var(--sans); letter-spacing: .04em; text-transform: uppercase;
+      color: var(--tx3); margin: 0 0 8px; }
+    .pk-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pk-chain { position: relative; }
+    .pk-chain.rated { border-color: var(--g1); }
+    .pk-chain .pk-val { font: 700 11px/1 var(--mono); color: var(--g0); margin-left: 6px; }
+    .pk-editor { margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 12px;
+      background: var(--bg2, #f6f7f5); display: none; }
+    .pk-editor.show { display: block; }
+    .pk-editor label { display: block; font: 600 13px var(--sans); color: var(--tx); margin-bottom: 8px; }
+    .pk-slide-row { display: flex; align-items: center; gap: 12px; }
+    .pk-slide-row input[type=range] { flex: 1; accent-color: var(--g1); }
+    .pk-slide-val { font: 700 15px var(--mono); color: var(--g0); min-width: 26px; text-align: center; }
+    .pk-intro { font: 400 13.5px/1.5 var(--sans); color: var(--tx2, var(--tx3)); margin: 0 0 4px; }
+    .pk-privacy { font: italic 400 12px/1.5 var(--sans); color: var(--tx3); margin-top: 10px; }
     @media (prefers-reduced-motion: reduce) { .ob-scrim { backdrop-filter: none; } }
 
     /* Reduced motion: neutralize motion safely across the board */
@@ -1223,6 +1239,86 @@ const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact
 const _HIST_KEY = "safeplate.experienceHistory";
 function loadHistory(){ try { state.experienceHistory = JSON.parse(localStorage.getItem(_HIST_KEY)||"[]")||[]; } catch { state.experienceHistory = []; } }
 function saveHistory(){ try { localStorage.setItem(_HIST_KEY, JSON.stringify(state.experienceHistory)); } catch {} }
+/* ── Task 4: Chain catalog + comfort picker ── */
+const CHAIN_CATALOG = [
+  { category: "Fast food / Burgers", chains: ["McDonald's", "Burger King", "Wendy's", "In-N-Out"] },
+  { category: "Pizza", chains: ["Domino's", "Pizza Hut", "Papa John's"] },
+  { category: "Mexican", chains: ["Chipotle", "Taco Bell", "Qdoba"] },
+  { category: "Coffee / Cafe", chains: ["Starbucks", "Dunkin'", "Peet's Coffee"] },
+  { category: "Chicken", chains: ["Chick-fil-A", "KFC", "Popeyes", "Raising Cane's"] },
+  { category: "Sandwiches / Subs", chains: ["Subway", "Jersey Mike's", "Panera Bread"] },
+  { category: "Asian", chains: ["Panda Express", "Pei Wei", "Pho restaurants"] },
+  { category: "Bakery / Dessert", chains: ["Cinnabon", "Krispy Kreme", "Baskin-Robbins"] },
+];
+function _findHist(name){ return state.experienceHistory.find(e => (e.name||"").toLowerCase() === name.toLowerCase()); }
+function _upsertHistory(name, rating, note){
+  const e = _findHist(name);
+  if (e) { e.rating = rating; if (note != null) e.note = note; }
+  else { state.experienceHistory.push({ name, rating, note: note || "" }); }
+  saveHistory();
+}
+function _removeHistory(name){
+  state.experienceHistory = state.experienceHistory.filter(e => (e.name||"").toLowerCase() !== name.toLowerCase());
+  saveHistory();
+}
+let _pkOpenChain = null;
+function renderPicker(){
+  const root = document.getElementById("obStep2");
+  let html = `<p class="pk-intro">Tap places you eat at and rate how comfortable you are there (10 = totally comfortable, 1 = avoid). This stays in your browser.</p>`;
+  for (const cat of CHAIN_CATALOG) {
+    html += `<div class="pk-cat"><p class="pk-cat-h">${esc(cat.category)}</p><div class="pk-grid">`;
+    for (const name of cat.chains) {
+      const e = _findHist(name);
+      const rated = e ? " rated" : "";
+      const val = e ? `<span class="pk-val">${esc(String(e.rating))}</span>` : "";
+      html += `<button type="button" class="allergen-chip pk-chain${rated}" data-chain="${esc(name)}" aria-pressed="${e ? "true" : "false"}">${esc(name)}${val}</button>`;
+    }
+    html += `</div></div>`;
+  }
+  html += `<div class="pk-editor" id="pkEditor">
+    <label id="pkEditorLabel"></label>
+    <div class="pk-slide-row">
+      <input type="range" id="pkSlide" min="1" max="10" value="7" aria-label="Comfort, 1 to 10" />
+      <span class="pk-slide-val" id="pkSlideVal">7</span>
+    </div>
+    <input id="pkNote" class="hist-input hist-note-input" type="text" placeholder="Note (optional)" autocomplete="off" aria-label="Optional note" style="margin-top:10px;width:100%" />
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button type="button" class="ob-next" id="pkSave">Save</button>
+      <button type="button" class="ob-skip" id="pkClear">Remove</button>
+    </div>
+  </div>
+  <p class="pk-privacy">Stays in your browser; sent to the scorer as context when you search.</p>`;
+  root.innerHTML = html;
+}
+// Delegated handlers (the picker DOM is re-rendered, so bind on the stable #obStep2)
+document.getElementById("obStep2").addEventListener("click", e => {
+  const chip = e.target.closest(".pk-chain");
+  if (chip) {
+    _pkOpenChain = chip.dataset.chain;
+    const existing = _findHist(_pkOpenChain);
+    const ed = document.getElementById("pkEditor");
+    document.getElementById("pkEditorLabel").textContent = `How comfortable are you eating at ${_pkOpenChain}?`;
+    const v = existing ? existing.rating : 7;
+    document.getElementById("pkSlide").value = v;
+    document.getElementById("pkSlideVal").textContent = String(v);
+    document.getElementById("pkNote").value = existing ? (existing.note || "") : "";
+    ed.classList.add("show");
+    document.getElementById("pkSlide").focus();
+    return;
+  }
+  if (e.target.id === "pkSave" && _pkOpenChain) {
+    const r = parseInt(document.getElementById("pkSlide").value, 10);
+    _upsertHistory(_pkOpenChain, r, document.getElementById("pkNote").value.trim());
+    _pkOpenChain = null; renderPicker(); return;
+  }
+  if (e.target.id === "pkClear" && _pkOpenChain) {
+    _removeHistory(_pkOpenChain); _pkOpenChain = null; renderPicker(); return;
+  }
+});
+document.getElementById("obStep2").addEventListener("input", e => {
+  if (e.target.id === "pkSlide") document.getElementById("pkSlideVal").textContent = e.target.value;
+});
+/* ── end Task 4 ── */
 const _PROFILE_KEY = "safeplate.profile";
 const _ONBOARDED_KEY = "safeplate.onboarded";
 function loadProfile(){
