@@ -73,3 +73,38 @@ Grep confirmation: `const keep = new Set` at line 2110 includes `$("#onboard")`.
 ## Pytest result
 
 392 passed, 11 subtests passed in 4.24s — no regressions.
+
+---
+
+# Review Fix: Chip scoping + modal focus trap
+
+## Finding 1 — In-card chip selectors scoped to #search
+
+Six selectors in `/* ── events ── */` and `/* ── per-nut picker ── */` region
+(app_template.html ~lines 2189–2216) changed from document-scoped to `#search`-scoped:
+
+1. `document.querySelectorAll(".allergen-chip.sev")` (onclick handler) → `document.querySelectorAll("#search .allergen-chip.sev")`
+2. `document.querySelectorAll(".allergen-chip.sev")` (inner deselect-all) → `document.querySelectorAll("#search .allergen-chip.sev")`
+3. `document.querySelectorAll(".allergen-chip.cc")` → `document.querySelectorAll("#search .allergen-chip.cc")`
+4. `_nutChips`: `document.querySelectorAll('.allergen-chip.nut[data-nut]')` → `document.querySelectorAll('#search .allergen-chip.nut[data-nut]')`
+5. `allBtn`: `document.querySelector('.allergen-chip.nut[data-nut="__all"]')` → `document.querySelector('#search .allergen-chip.nut[data-nut="__all"]')`
+6. `document.querySelectorAll(".allergen-chip.nut")` (onclick) → `document.querySelectorAll("#search .allergen-chip.nut")`
+
+`paintCC` (~line 1326): `document.querySelectorAll(".allergen-chip.cc")` → `document.querySelectorAll("#search .allergen-chip.cc")`
+
+Modal `#obSev`/`#obCc`/`#obNuts` handlers: unchanged (already scoped by getElementById).
+
+Grep confirmation: all 7 JS chip queries now contain `#search`; CSS selector (line 251) is untouched.
+
+## Finding 2 — Modal Tab focus trap
+
+`trapModalTab(e)` function added immediately after `trapDrawerTab` (~line 2136):
+mirrors the drawer trap pattern, checks `#onboard` `.show` class, cycles focus
+within the modal's focusable elements.
+
+The existing `#onboard` keydown listener (~line 1311) updated to call
+`trapModalTab(e);` at top before the Escape branch.
+
+## Pytest result
+
+392 passed, 11 subtests passed in 4.02s — no regressions.

@@ -1309,6 +1309,7 @@ document.getElementById("obToStep2").addEventListener("click", () => goStep(2));
 document.getElementById("obDone").addEventListener("click", closeOnboarding);
 document.getElementById("obSkip").addEventListener("click", closeOnboarding);
 document.getElementById("onboard").addEventListener("keydown", e => {
+  trapModalTab(e);
   if (e.key === "Escape") { e.preventDefault(); closeOnboarding(); }
 });
 /* ── end Task 3 ── */
@@ -1322,7 +1323,7 @@ const CC_DEFAULT_BY_SEV = { avoid_preference:"not_concerned", intolerance:"moder
 function effectiveCC() { return state.crossContact || CC_DEFAULT_BY_SEV[state.severity] || "moderate"; }
 function paintCC() {
   const eff = effectiveCC();
-  document.querySelectorAll(".allergen-chip.cc").forEach(x => {
+  document.querySelectorAll("#search .allergen-chip.cc").forEach(x => {
     const on = x.dataset.cc === eff;
     x.classList.toggle("on", on);
     x.setAttribute("aria-pressed", on ? "true" : "false");
@@ -2132,6 +2133,14 @@ function trapDrawerTab(e) {
   if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
+function trapModalTab(e) {
+  if (e.key !== "Tab" || !document.getElementById("onboard").classList.contains("show")) return;
+  const f = document.getElementById("onboard").querySelectorAll('a[href],button:not([disabled]),input,[tabindex]:not([tabindex="-1"])');
+  if (!f.length) return;
+  const first = f[0], last = f[f.length-1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
 
 /* ── experience history editor ── */
 function renderHistoryList() {
@@ -2177,14 +2186,14 @@ $("#goBtn").onclick  = () => search();
 $("#geoBtn").onclick = useBrowserLocation;
 $("#loc").addEventListener("keydown", e => { if (e.key==="Enter") search(); });
 $("#dclose").onclick = closeDrawer;
-document.querySelectorAll(".allergen-chip.sev").forEach(el => el.onclick = () => {
-  document.querySelectorAll(".allergen-chip.sev").forEach(x => { x.classList.remove("on"); x.setAttribute("aria-pressed","false"); });
+document.querySelectorAll("#search .allergen-chip.sev").forEach(el => el.onclick = () => {
+  document.querySelectorAll("#search .allergen-chip.sev").forEach(x => { x.classList.remove("on"); x.setAttribute("aria-pressed","false"); });
   el.classList.add("on"); el.setAttribute("aria-pressed","true");
   state.severity = el.dataset.sev;
   paintCC();                         // auto cross-contact follows severity
   if (state.rows.length) search();   // re-rank the list for the new severity
 });
-document.querySelectorAll(".allergen-chip.cc").forEach(el => el.onclick = () => {
+document.querySelectorAll("#search .allergen-chip.cc").forEach(el => el.onclick = () => {
   state.crossContact = el.dataset.cc;  // explicit override, decoupled from severity
   paintCC();
   if (state.rows.length) search();
@@ -2194,17 +2203,17 @@ document.querySelectorAll(".allergen-chip.cc").forEach(el => el.onclick = () => 
    Choose the exact nuts you react to. All-on (the default) == the family behaviour;
    a strict subset narrows what's flagged (other nuts add only a small cross-contact
    note, scored server-side). state.nutTypes=[] means "all" (the backend default). */
-const _nutChips = () => [...document.querySelectorAll('.allergen-chip.nut[data-nut]')]
+const _nutChips = () => [...document.querySelectorAll('#search .allergen-chip.nut[data-nut]')]
   .filter(c => c.dataset.nut !== "__all");
 function _setChip(c, on) { c.classList.toggle("on", on); c.setAttribute("aria-pressed", on ? "true" : "false"); }
 function syncNutState() {
   const on = _nutChips().filter(c => c.classList.contains("on")).map(c => c.dataset.nut);
   const isAll = on.length === 0 || on.length === _nutChips().length;
-  const allBtn = document.querySelector('.allergen-chip.nut[data-nut="__all"]');
+  const allBtn = document.querySelector('#search .allergen-chip.nut[data-nut="__all"]');
   if (allBtn) _setChip(allBtn, isAll);
   state.nutTypes = isAll ? [] : on;   // [] == all nuts (family default)
 }
-document.querySelectorAll(".allergen-chip.nut").forEach(el => el.onclick = () => {
+document.querySelectorAll("#search .allergen-chip.nut").forEach(el => el.onclick = () => {
   if (el.dataset.nut === "__all") {
     _nutChips().forEach(c => _setChip(c, true));     // "All nuts" re-selects everything
   } else {
