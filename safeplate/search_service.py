@@ -168,7 +168,17 @@ def _coordinates_from_payload(
     latitude = payload.get("latitude")
     longitude = payload.get("longitude")
     if latitude not in [None, ""] and longitude not in [None, ""]:
-        coordinates = Coordinates(latitude=float(latitude), longitude=float(longitude))
+        import math
+        try:
+            lat = float(latitude)
+            lon = float(longitude)
+        except (TypeError, ValueError):
+            raise ValueError("Latitude/longitude must be numbers.")
+        # Reject NaN/inf and out-of-range coords before they reach the provider (an
+        # invalid lat/lon serializes to malformed JSON / a nonsense query upstream).
+        if not (math.isfinite(lat) and math.isfinite(lon)) or not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+            raise ValueError("Latitude/longitude out of range.")
+        coordinates = Coordinates(latitude=lat, longitude=lon)
         label = str(payload.get("location") or "browser_location").strip()
         return label or "browser_location", coordinates
 
@@ -327,23 +337,30 @@ _GEOCODE_BUDGET_S = _float_env("SAFEPLATE_GEOCODE_BUDGET_S", 12.0)
 _PROVIDER_FETCH_BUDGET_S = _float_env("SAFEPLATE_PROVIDER_BUDGET_S", 25.0)
 
 
-def _with_deadline(fn, *, seconds: float, what: str):
-    """Run ``fn()`` with a wall-clock cap, raising a clean ValueError on overrun. The
-    orphaned worker thread finishes on its own (its socket timeout ends it); we just
-    stop waiting so the request returns instead of pinning the thread."""
-    from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeout
+import atexit as _atexit
+from concurrent.futures import ThreadPoolExecutor as _TPE, TimeoutError as _FuturesTimeout
 
-    executor = ThreadPoolExecutor(max_workers=1)
+# ONE shared, bounded pool for deadline-guarded calls. The old code spun up a fresh
+# ThreadPoolExecutor (and a new thread) on EVERY request, so under load each request
+# leaked threads -- a memory/DoS surface on a public deploy. A shared bounded pool caps
+# the total; a timed-out task still finishes on its own socket timeout, just within a
+# fixed worker budget rather than unbounded growth.
+_DEADLINE_POOL = _TPE(max_workers=64, thread_name_prefix="deadline")
+_atexit.register(lambda: _DEADLINE_POOL.shutdown(wait=False, cancel_futures=True))
+
+
+def _with_deadline(fn, *, seconds: float, what: str):
+    """Run ``fn()`` with a wall-clock cap, raising a clean ValueError on overrun. A
+    timed-out worker finishes on its own (its socket timeout ends it); we just stop
+    waiting so the request returns instead of pinning the request thread."""
+    future = _DEADLINE_POOL.submit(fn)
     try:
-        future = executor.submit(fn)
-        try:
-            return future.result(timeout=seconds)
-        except _FuturesTimeout:
-            raise ValueError(
-                f"{what} timed out after ~{seconds:.0f}s. Please try again, or narrow the search."
-            )
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
+        return future.result(timeout=seconds)
+    except _FuturesTimeout:
+        future.cancel()
+        raise ValueError(
+            f"{what} timed out after ~{seconds:.0f}s. Please try again, or narrow the search."
+        )
 
 
 def _row_distance(row: Any) -> float:

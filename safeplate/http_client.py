@@ -15,6 +15,8 @@ from urllib.request import Request, urlopen
 # Prefer requests for keep-alive connection pooling and transparent gzip when
 # it is installed. Fall back to urllib (with manual gzip handling) so SafePlate
 # still runs on a pure-stdlib environment.
+from safeplate.net_guard import BlockedUrlError, assert_public_url
+
 try:
     import requests
 
@@ -22,6 +24,20 @@ try:
 except ImportError:  # pragma: no cover - exercised only without requests
     requests = None  # type: ignore[assignment]
     _HAS_REQUESTS = False
+
+
+if _HAS_REQUESTS:
+    class _GuardedHTTPAdapter(requests.adapters.HTTPAdapter):
+        """SSRF guard at the transport layer: ``Session.send`` re-invokes the adapter
+        for EVERY redirect hop, so validating ``request.url`` here blocks both a
+        direct internal URL and a public page that redirects to an internal one."""
+
+        def send(self, request, *args, **kwargs):  # type: ignore[override]
+            try:
+                assert_public_url(request.url)
+            except BlockedUrlError as exc:
+                raise requests.exceptions.ConnectionError(str(exc)) from exc
+            return super().send(request, *args, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -77,7 +93,7 @@ def _session() -> "requests.Session":
         from safeplate.config import get_fetch_concurrency, get_gemini_concurrency
 
         size = max(get_fetch_concurrency(), get_gemini_concurrency(), 16)
-        adapter = requests.adapters.HTTPAdapter(
+        adapter = _GuardedHTTPAdapter(
             pool_connections=size, pool_maxsize=size, pool_block=True
         )
         session.mount("https://", adapter)
@@ -93,7 +109,15 @@ def http_get(
     timeout: float = 30,
     use_cache: bool = False,
 ) -> HttpResponse:
-    """Fetch a URL, reusing connections and decompressing gzip/deflate."""
+    """Fetch a URL, reusing connections and decompressing gzip/deflate.
+
+    SSRF guard: the URL (and every redirect hop, via ``_GuardedHTTPAdapter``) must
+    target a public host over http(s); a blocked URL raises ``HttpConnectionError``
+    so callers treat it as an ordinary failed fetch (no data returned)."""
+    try:
+        assert_public_url(url)
+    except BlockedUrlError as exc:
+        raise HttpConnectionError(str(exc)) from exc
     cache_key = f"{user_agent}\n{url}" if use_cache else None
     if cache_key is not None:
         ttl = _memory_cache_ttl()

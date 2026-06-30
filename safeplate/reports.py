@@ -12,6 +12,13 @@ from safeplate.io import read_csv_rows
 IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"]
 
 
+def _safe_href(url: str) -> str:
+    """Only allow http(s) in a generated href so a javascript:/data: URL captured from
+    a fetched page can't become a clickable code-execution link in the report."""
+    u = str(url or "").strip()
+    return u if u[:7].lower() == "http://" or u[:8].lower() == "https://" else "#"
+
+
 def build_report_path(csv_path: Path, out_dir: Path | None = None) -> Path:
     target_dir = out_dir or csv_path.parent
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -479,7 +486,7 @@ def _render_best_menu_row(row: dict[str, str]) -> str:
             <td><span class="badge">{escape(source_type)}</span></td>
             <td class="confidence">{escape(row.get("confidence", ""))}</td>
             <td><span class="badge {escape(status)}">{escape(status or "n/a")}</span></td>
-            <td class="url"><a href="{escape(candidate_url)}" target="_blank" rel="noreferrer">{escape(candidate_url)}</a></td>
+            <td class="url"><a href="{escape(_safe_href(candidate_url))}" target="_blank" rel="noreferrer">{escape(candidate_url)}</a></td>
             <td>{escape(row.get("reason", ""))}<div class="small">{escape(row.get("validation_reason", ""))}</div></td>
           </tr>
 """
@@ -499,20 +506,20 @@ def _render_menu_row(row: dict[str, str]) -> str:
             <td><span class="badge">{escape(source_type)}</span></td>
             <td class="confidence">{escape(row.get("confidence", ""))}</td>
             <td><span class="badge {escape(status)}">{escape(status or "n/a")}</span></td>
-            <td class="url"><a href="{escape(candidate_url)}" target="_blank" rel="noreferrer">{escape(candidate_url)}</a></td>
+            <td class="url"><a href="{escape(_safe_href(candidate_url))}" target="_blank" rel="noreferrer">{escape(candidate_url)}</a></td>
             <td>{escape(row.get("link_text", ""))}</td>
             <td>{escape(row.get("reason", ""))}</td>
             <td>{escape(row.get("validation_reason", ""))}</td>
-            <td class="url"><a href="{escape(website_url)}" target="_blank" rel="noreferrer">{escape(website_url)}</a></td>
+            <td class="url"><a href="{escape(_safe_href(website_url))}" target="_blank" rel="noreferrer">{escape(website_url)}</a></td>
           </tr>
 """
 
 
 def _preview(url: str, source_type: str) -> str:
     if source_type == "image" or _is_image_url(url):
-        return f'<a class="preview" href="{escape(url)}" target="_blank" rel="noreferrer"><img src="{escape(url)}" alt="Candidate image preview" loading="lazy"></a>'
+        return f'<a class="preview" href="{escape(_safe_href(url))}" target="_blank" rel="noreferrer"><img src="{escape(url)}" alt="Candidate image preview" loading="lazy"></a>'
     label = "PDF" if urlparse(url).path.lower().endswith(".pdf") else "Open"
-    return f'<a class="preview" href="{escape(url)}" target="_blank" rel="noreferrer">{label}</a>'
+    return f'<a class="preview" href="{escape(_safe_href(url))}" target="_blank" rel="noreferrer">{label}</a>'
 
 
 def _is_image_url(url: str) -> bool:

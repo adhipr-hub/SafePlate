@@ -78,6 +78,13 @@ def render_html(
     """Return fully-rendered HTML for a URL. Raises DynamicFetchError on failure."""
     if not _HAS_PLAYWRIGHT:
         raise DynamicFetchError("playwright is not installed")
+    # SSRF guard: this drives a real browser at the URL, so block private/loopback/
+    # metadata targets before navigating (the http_get guard doesn't cover Chromium).
+    from safeplate.net_guard import BlockedUrlError, assert_public_url
+    try:
+        assert_public_url(url)
+    except BlockedUrlError as exc:
+        raise DynamicFetchError(str(exc)) from exc
     if use_cache and url in _CACHE:
         return _CACHE[url]
 
