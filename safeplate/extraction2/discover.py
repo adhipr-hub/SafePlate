@@ -26,6 +26,7 @@ from urllib.parse import urljoin, urlparse
 from safeplate.concurrency import map_concurrent
 from safeplate.config import get_cache_dir
 from safeplate.extraction2.interpret_llm import DEFAULT_MODEL, _call_with_retry
+from safeplate.extraction2.recency import dated_duplicate_key, source_recency
 from safeplate.gemini_menu import GeminiMenuError
 from safeplate.page_fetch import PageFetchError, fetch_html_page
 from safeplate.soup import make_soup
@@ -314,7 +315,7 @@ def _rank_sources(
     data, and the UI labels it as from-another-region). Stable within a rank, so
     the original query priority is preserved as a tiebreak."""
 
-    def _key(c: Candidate) -> int:
+    def _provenance(c: Candidate) -> int:
         host = urlparse(c.url).netloc.lower()
         if official_regdomain and registrable_domain(host) == official_regdomain:
             return 0
@@ -324,7 +325,9 @@ def _rank_sources(
             return 3  # wrong country -> last resort, surfaced with a region notice
         return 2  # country-neutral host (CDN/aggregator); can't tell the country
 
-    return sorted(cands, key=_key)
+    # Provenance dominates (a foreign-but-newer chart must NOT beat the official one);
+    # recency breaks ties so the freshest official/home copy wins.
+    return sorted(cands, key=lambda c: (_provenance(c), -source_recency(c.url)))
 
 
 def _allergen_queries(
@@ -1014,10 +1017,35 @@ def _finalize(candidates: list[Candidate], max_candidates: int) -> list[Candidat
         existing = best.get(cand.url)
         if existing is None or _KIND_PRIORITY[cand.kind] < _KIND_PRIORITY[existing.kind]:
             best[cand.url] = cand
-    # Tier 0: prefer a STATIC allergen document (PDF) over a JS allergen tool of
-    # the same kind -- a PDF is parseable; a JS tool often renders to nothing.
+    deduped = _collapse_dated_pdf_reuploads(list(best.values()))
+    # Order by: kind (allergen first), then a STATIC PDF over a JS tool of the same
+    # kind (a PDF is parseable; a JS tool often renders to nothing), then RECENCY so a
+    # current menu is reached before a stale one (and survives the candidate cap /
+    # extraction early-exit). Recency is only ever a within-kind tiebreak -- a dated
+    # plain menu never outranks an allergen chart.
     ordered = sorted(
-        best.values(),
-        key=lambda c: (_KIND_PRIORITY[c.kind], 0 if _is_pdf_url(c.url) else 1),
+        deduped,
+        key=lambda c: (_KIND_PRIORITY[c.kind],
+                       0 if _is_pdf_url(c.url) else 1,
+                       -source_recency(c.url)),
     )
     return ordered[:max_candidates]
+
+
+def _collapse_dated_pdf_reuploads(cands: list[Candidate]) -> list[Candidate]:
+    """Drop an older copy of a menu PDF that has been re-uploaded under a newer date
+    (same host + same date-stripped filename stem), keeping the freshest. Only dated
+    PDFs are eligible; undated PDFs and non-PDF candidates always pass through, so a
+    breakfast vs dinner menu (different stems) and a stable undated URL are untouched."""
+    newest: dict[str, Candidate] = {}
+    passthrough: list[Candidate] = []
+    for c in cands:
+        recency = source_recency(c.url)
+        if not _is_pdf_url(c.url) or recency == 0.0:
+            passthrough.append(c)
+            continue
+        key = dated_duplicate_key(c.url)
+        incumbent = newest.get(key)
+        if incumbent is None or recency > source_recency(incumbent.url):
+            newest[key] = c
+    return passthrough + list(newest.values())
