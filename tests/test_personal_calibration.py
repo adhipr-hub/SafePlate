@@ -1,5 +1,5 @@
 from safeplate.allergen_score_llm import _clean_history, _build_bundle
-from safeplate.allergen_score import UserProfile, Severity, score_restaurant_for_user
+from safeplate.allergen_score import UserProfile, Severity, score_restaurant_for_user, Tier
 
 NUT = UserProfile.for_nuts(Severity.ALLERGY)
 
@@ -41,3 +41,20 @@ def test_score_with_llm_passes_history_to_bundle(monkeypatch):
         experience_history=[{"name": "BK", "rating": 9, "note": "fine"}],
     )
     assert seen["bundle"]["your_history"][0]["name"] == "BK"
+
+def test_history_cannot_override_confirmed_presence():
+    import safeplate.allergen_score_llm as m
+    from safeplate.allergen_score import Tier
+    items = [{"item_name": "House Salad", "description": "", "allergen_terms": ["peanut"],
+              "extraction_method": "allergen_matrix",
+              "matrix_allergen_columns": ("peanut", "tree nut", "milk", "egg", "soy", "gluten")}]
+    det = score_restaurant_for_user(NUT, cuisines=["american"], region="US", menu_items=items)
+    assert det.tier == Tier.AVOID.value  # confirmed presence -> avoid (grounded)
+    bundle = m._build_bundle(profile=NUT, cuisines=["american"], region="US", det=det,
+                             signals=None, community=None, menu_items=items, name="X",
+                             experience_history=[{"name": "X", "rating": 10, "note": "always fine"}])
+    # The LLM tries to drop it to likely_ok; the grounded guardrail must hold the floor.
+    llm = {"tier": "likely_ok", "risk": 0.05, "confidence": 0.9, "rationale": []}
+    out = m._apply_guardrails(llm, det=det, severity=NUT.allergens[0].severity, bundle=bundle)
+    assert out.tier == Tier.AVOID.value
+    assert out.overall_risk >= det.overall_risk
