@@ -140,4 +140,7 @@ def _judge_batch(batch: list[dict], *, api_key: str, model: str):
         for v in parsed.get("verdicts", [])
         if isinstance(v, dict)
     }
-    return [(it, by_id.get(i, True)) for i, it in enumerate(batch)]
+    # The judge RAN: an item it omitted is NOT a confirmed dish. Default missing ids to
+    # False so an incomplete judge response can't silently inflate precision. (A full
+    # judge OUTAGE is handled above with the deliberate fail-open.)
+    return [(it, by_id.get(i, False)) for i, it in enumerate(batch)]

@@ -46,10 +46,11 @@ def main() -> None:
     rows = []  # (label, cuisine, truth, det_tier, hyb_tier, det_class, hyb_class)
     for label, truth, kw in SCENARIOS:
         cuisine = (kw.get("cuisines") or ["?"])[0]
+        grounded = bool(kw.get("menu_items"))  # real evidence vs cuisine-only (self-referential)
         det = score_restaurant_for_user(NUT, **kw)
         hyb = score_restaurant_with_llm(NUT, api_key=api_key, model=model, **kw)
         rows.append((label, cuisine, truth, det.tier, hyb.tier,
-                     _classify(det.tier, truth), _classify(hyb.tier, truth)))
+                     _classify(det.tier, truth), _classify(hyb.tier, truth), grounded))
 
     print(f"Benchmark: {len(rows)} labeled cases "
           f"({sum(1 for r in rows if r[2]=='pos')} pos / "
@@ -77,6 +78,19 @@ def main() -> None:
         fp, nneg = rate(idx, "neg", "overwarn")
         print(f"{name:10s}  FALSE-NEGATIVE (missed nuts): {fn}/{npos}   "
               f"over-warn (nut-free->avoid): {fp}/{nneg}")
+    if not api_key:
+        print("  NOTE: v3 NOT MEASURED -- no GEMINI_API_KEY, so the v3 column is just the "
+              "v2 deterministic fallback, not the LLM scorer.")
+
+    # Honest headline: cuisine-only positives are labelled from the SAME baseline that
+    # scores them (partly self-referential), so their 0/N is structurally easy. The
+    # GROUNDED positives (real menu/chart evidence) are the non-circular signal.
+    g_fn = sum(1 for r in rows if r[2] == "pos" and r[7] and r[5] == "MISS")
+    g_pos = sum(1 for r in rows if r[2] == "pos" and r[7])
+    c_pos = sum(1 for r in rows if r[2] == "pos" and not r[7])
+    print(f"\nGROUNDED-only v2 false-negative (the non-circular signal): {g_fn}/{g_pos}")
+    print(f"  ({c_pos} cuisine-only positives are partly self-referential -- "
+          "their result is reassuring, not conclusive.)")
 
     # Per-cuisine false-negative breakdown (v2) -- where would a real diner be missed?
     by_cuisine: dict[str, list[int]] = {}

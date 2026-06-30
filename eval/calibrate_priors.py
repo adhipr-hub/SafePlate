@@ -55,8 +55,18 @@ def _spearman(pairs: list[tuple[float, float]]) -> float:
     ys = [p[1] for p in pairs]
     rx, ry = ranks(xs), ranks(ys)
     n = len(pairs)
-    d2 = sum((rx[i] - ry[i]) ** 2 for i in range(n))
-    return 1 - (6 * d2) / (n * (n * n - 1))
+    # Pearson correlation of the AVERAGE ranks. The 1 - 6*d^2/(n(n^2-1)) shortcut is only
+    # valid with NO ties; the prior data is heavily tied (per-cuisine baselines), where
+    # the shortcut is materially wrong. ranks() already averages ties, so Pearson on those
+    # ranks is the correct tie-aware Spearman rho.
+    mean_x = sum(rx) / n
+    mean_y = sum(ry) / n
+    cov = sum((rx[i] - mean_x) * (ry[i] - mean_y) for i in range(n))
+    var_x = sum((rx[i] - mean_x) ** 2 for i in range(n))
+    var_y = sum((ry[i] - mean_y) ** 2 for i in range(n))
+    if var_x == 0 or var_y == 0:
+        return float("nan")
+    return cov / (var_x * var_y) ** 0.5
 
 
 def main() -> None:

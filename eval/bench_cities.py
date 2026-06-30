@@ -43,8 +43,14 @@ def grounded_fraction(item_names, page_text):
     hay = norm(page_text)
     if not hay or not item_names:
         return None, 0
-    hits = sum(1 for n in item_names if len(norm(n)) >= 5 and norm(n) in hay)
-    return hits / len(item_names), hits
+    # Denominator is the items ELIGIBLE to be grounded (>=5 normalized chars). Short
+    # names can never count as hits, so including them in the denominator deflated the
+    # fraction (a denominator bug); divide by the eligible set instead.
+    eligible = [n for n in item_names if len(norm(n)) >= 5]
+    if not eligible:
+        return None, 0
+    hits = sum(1 for n in eligible if norm(n) in hay)
+    return hits / len(eligible), hits
 
 
 def run_city(city: str, limit: int = 12) -> dict:
