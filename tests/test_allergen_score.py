@@ -633,5 +633,38 @@ class CoverageDeQuantizationTests(unittest.TestCase):
         self.assertEqual(result.evidence_basis, "menu_coverage")
 
 
+class RiskiestItemsPrecisionTests(unittest.TestCase):
+    """The drawer's 'items likely contain nuts' list must only surface dishes with a
+    real PER-DISH nut signal -- named/confirmed, or suspected-by-type (flagged). A plain
+    dish that only sits on a high-nut CUISINE baseline (e.g. Jasmine Rice at a Thai
+    place) has no per-dish signal and must not be listed as a nut item."""
+
+    def _riskiest(self):
+        items = [
+            _item("Jasmine Rice"), _item("Steamed Edamame"),   # plain, cuisine-floor only
+            _item("Walnut Prawn"),                              # named nut
+            _item("Chocolate Brownie"), _item("Green Curry"),  # suspected by dish type
+        ]
+        r = score_restaurant_for_user(
+            NUT_ALLERGY, cuisines=["thai"], region="US", menu_items=items
+        )
+        return {x["itemName"]: x for x in r.per_allergen[0].riskiest_items}
+
+    def test_cuisine_floor_dishes_are_not_listed(self) -> None:
+        ri = self._riskiest()
+        self.assertNotIn("Jasmine Rice", ri)
+        self.assertNotIn("Steamed Edamame", ri)
+
+    def test_named_nut_dish_listed_as_confirmed(self) -> None:
+        ri = self._riskiest()
+        self.assertIn("Walnut Prawn", ri)
+        self.assertFalse(ri["Walnut Prawn"]["suspected"])
+
+    def test_suspected_dish_listed_but_flagged(self) -> None:
+        ri = self._riskiest()
+        self.assertIn("Chocolate Brownie", ri)
+        self.assertTrue(ri["Chocolate Brownie"]["suspected"])
+
+
 if __name__ == "__main__":
     unittest.main()

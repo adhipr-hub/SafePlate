@@ -933,7 +933,6 @@ def _score_one_allergen(
         confidence=confidence,
         community=community,
         families=families,
-        presence=presence,
     )
     rationale.extend(community_notes)
 
@@ -954,14 +953,22 @@ def _score_one_allergen(
         riskiest = [{"itemName": n, "risk": 0.95, "confidence": 0.9, "suspected": False}
                     for n in matrix_hit_items[:8]]
     else:
+        # Only surface dishes with a real PER-DISH nut signal: named/confirmed
+        # (in risky_names) or suspected-by-type. A plain dish that merely sits on a
+        # high-nut CUISINE baseline (e.g. Jasmine Rice at a Thai place, risk == the
+        # 0.60 cuisine floor) has no per-dish evidence -- listing it as a nut item is
+        # a false alarm. The cuisine risk is already carried by the overall score, not
+        # by naming innocent dishes. (Was: `risk >= 0.35`, which swept in every dish at
+        # high-nut cuisines.)
         riskiest = []
         for d in base.item_details[:8]:
+            named = d["name"] in risky_names
             is_suspected = d.get("basis") == "suspected_nuts"
-            if d["risk"] >= 0.35 or d["name"] in risky_names:
+            if named or is_suspected:
                 riskiest.append({
                     "itemName": d["name"], "risk": round(d["risk"], 3),
                     "confidence": round(d.get("confidence", 0.5), 2),
-                    "suspected": is_suspected,
+                    "suspected": is_suspected and not named,
                 })
 
     return AllergenAssessment(
@@ -1013,7 +1020,6 @@ def _apply_community(
     confidence: float,
     community: Sequence[CommunitySignal],
     families: set[str],
-    presence: bool,
 ) -> tuple[float, float, bool, list[str]]:
     """Pure, asymmetric, bounded community adjustment. Adverse reports RAISE risk;
     positive reports do NOT lower it (they only feed Handling, handled elsewhere).
