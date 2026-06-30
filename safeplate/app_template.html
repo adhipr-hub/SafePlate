@@ -263,6 +263,12 @@
     .cc-hint { position: relative; font-size: 12px; color: var(--tx3); cursor: help; opacity: .75;
       background: none; border: none; padding: 0; line-height: 1; font-family: inherit; }
     .cc-hint::before { content: ""; position: absolute; inset: -16px; }  /* ~44px touch target */
+    .profile-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-top: 14px; font: 500 13.5px/1.4 var(--sans); color: var(--tx2, var(--tx)); }
+    .profile-summary .ps-text { color: var(--tx); }
+    .profile-summary .ps-edit { background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: 5px 12px; font: 600 13px var(--sans); color: var(--g0); cursor: pointer; }
+    .profile-summary .ps-edit:hover { border-color: var(--g1); }
 
     /* ─── Results bar ─── */
     .results { padding: 0 0 96px; }
@@ -986,56 +992,7 @@
         </button>
         <button class="go-btn" id="goBtn">Find safe places</button>
       </div>
-      <div class="allergen-row">
-        <span class="allergen-label">Avoiding</span>
-        <span class="allergen-chip on">🥜 Nuts</span>
-        <button type="button" class="allergen-chip locked" disabled>Sesame<span class="soon">Soon</span></button>
-        <button type="button" class="allergen-chip locked" disabled>Dairy<span class="soon">Soon</span></button>
-        <button type="button" class="allergen-chip locked" disabled>Gluten<span class="soon">Soon</span></button>
-      </div>
-      <div class="allergen-row nut-row" role="group" aria-labelledby="nutLabel">
-        <span class="allergen-label" id="nutLabel">Which nuts
-          <button type="button" class="cc-hint" aria-label="Which nuts?" title="Pick the exact nuts you react to. We flag only dishes with those nuts; other nuts add just a small cross-contact note. Leave 'All nuts' on if any nut is a problem.">ⓘ</button>
-        </span>
-        <button type="button" class="allergen-chip nut nut-all on" data-nut="__all" aria-pressed="true">All nuts</button>
-        <button type="button" class="allergen-chip nut on" data-nut="almond" aria-pressed="true">Almond</button>
-        <button type="button" class="allergen-chip nut on" data-nut="cashew" aria-pressed="true">Cashew</button>
-        <button type="button" class="allergen-chip nut on" data-nut="walnut" aria-pressed="true">Walnut</button>
-        <button type="button" class="allergen-chip nut on" data-nut="pecan" aria-pressed="true">Pecan</button>
-        <button type="button" class="allergen-chip nut on" data-nut="pistachio" aria-pressed="true">Pistachio</button>
-        <button type="button" class="allergen-chip nut on" data-nut="hazelnut" aria-pressed="true">Hazelnut</button>
-        <button type="button" class="allergen-chip nut on" data-nut="macadamia" aria-pressed="true">Macadamia</button>
-        <button type="button" class="allergen-chip nut on" data-nut="brazil_nut" aria-pressed="true">Brazil</button>
-        <button type="button" class="allergen-chip nut on" data-nut="pine_nut" aria-pressed="true">Pine nut</button>
-        <button type="button" class="allergen-chip nut on" data-nut="chestnut" aria-pressed="true">Chestnut</button>
-        <button type="button" class="allergen-chip nut nut-peanut on" data-nut="peanuts" aria-pressed="true">Peanut</button>
-      </div>
-      <div class="allergen-row" role="group" aria-labelledby="sevLabel">
-        <span class="allergen-label" id="sevLabel">How serious</span>
-        <button type="button" class="allergen-chip sev" data-sev="avoid_preference" aria-pressed="false">Preference</button>
-        <button type="button" class="allergen-chip sev" data-sev="intolerance" aria-pressed="false">Intolerance</button>
-        <button type="button" class="allergen-chip sev on" data-sev="allergy" aria-pressed="true">Allergy</button>
-        <button type="button" class="allergen-chip sev" data-sev="anaphylaxis" aria-pressed="false">Anaphylaxis</button>
-      </div>
-      <div class="allergen-row" role="group" aria-labelledby="ccLabel">
-        <span class="allergen-label" id="ccLabel">Cross-contact
-          <button type="button" class="cc-hint" aria-label="What is cross-contact?" title="How much trace / shared-kitchen exposure matters to you — separate from how serious a reaction is. Defaults to your severity; tap to override.">ⓘ</button>
-        </span>
-        <button type="button" class="allergen-chip cc" data-cc="not_concerned" aria-pressed="false">Not a concern</button>
-        <button type="button" class="allergen-chip cc" data-cc="moderate" aria-pressed="false">Somewhat careful</button>
-        <button type="button" class="allergen-chip cc" data-cc="strict" aria-pressed="false">Very careful</button>
-      </div>
-      <div class="hist-section" id="histSection">
-        <span class="allergen-label" style="display:block">Places you've eaten</span>
-        <div class="hist-row">
-          <input id="histName" class="hist-input hist-name-input" type="text" placeholder="Restaurant name" autocomplete="off" aria-label="Restaurant name" />
-          <input id="histRating" class="hist-input hist-rating-input" type="number" min="1" max="10" placeholder="1–10" aria-label="Rating (1 to 10)" />
-          <input id="histNote" class="hist-input hist-note-input" type="text" placeholder="Note (optional)" autocomplete="off" aria-label="Optional note about your experience" />
-          <button type="button" class="hist-add-btn" id="histAddBtn">Add</button>
-        </div>
-        <div class="hist-list" id="histList"></div>
-        <p class="hist-privacy">Stays in your browser; sent to the scorer as context when you search.</p>
-      </div>
+      <div class="profile-summary" id="profileSummary"></div>
     </div>
   </div>
 
@@ -1773,6 +1730,7 @@ function renderResults() {
     el.onclick = open;
     el.onkeydown = e => { if (e.key==="Enter"||e.key===" ") { e.preventDefault(); open(); } };
   });
+  renderProfileSummary();
 }
 
 /* ── drawer ── */
@@ -2096,14 +2054,15 @@ function renderMenu(m,r) {
 
   /* Rate your experience — pre-filled with the current restaurant's name */
   html += `<div class="ds">
-    <h3 class="sec-head">Rate your experience</h3>
+    <h3 class="sec-head">How comfortable are you eating here?</h3>
     <div class="rate-widget">
       <div class="hist-row">
         <input id="drawerRateName" class="hist-input hist-name-input" type="text" value="${esc(r.name)}" aria-label="Restaurant name" readonly />
-        <input id="drawerRateScore" class="hist-input hist-rating-input" type="number" min="1" max="10" placeholder="1–10" aria-label="Your rating (1 to 10)" />
+        <input id="drawerRateScore" class="hist-input hist-rating-input" type="number" min="1" max="10" placeholder="1–10" aria-label="How comfortable, 1 to 10" />
         <input id="drawerRateNote" class="hist-input hist-note-input" type="text" placeholder="Note (optional)" autocomplete="off" aria-label="Optional note" />
         <button type="button" class="rate-save-btn" id="drawerRateSaveBtn">Save</button>
       </div>
+      <p class="hist-privacy">1 = avoid · 10 = totally comfortable</p>
     </div>
   </div>`;
 
@@ -2238,6 +2197,19 @@ function trapModalTab(e) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
 
+/* ── profile summary ── */
+const _SEV_LABEL = { avoid_preference: "Preference", intolerance: "Intolerance", allergy: "Allergy", anaphylaxis: "Anaphylaxis" };
+const _CC_LABEL = { not_concerned: "not concerned", moderate: "somewhat careful", strict: "very careful", "": "very careful" };
+function renderProfileSummary(){
+  const el = document.getElementById("profileSummary"); if (!el) return;
+  const nuts = state.nutTypes.length === 0 ? "all nuts" : `${state.nutTypes.length} nut${state.nutTypes.length > 1 ? "s" : ""}`;
+  const places = state.experienceHistory.length;
+  const placesTxt = places ? ` · ${places} place${places > 1 ? "s" : ""} rated` : "";
+  const parts = `${_SEV_LABEL[state.severity] || "Allergy"} · ${nuts} · ${esc(_CC_LABEL[state.crossContact] ?? "very careful")}${placesTxt}`;
+  el.innerHTML = `<span class="ps-text">${parts}</span><button type="button" class="ps-edit" id="psEdit">Edit profile</button>`;
+  document.getElementById("psEdit").addEventListener("click", () => openOnboarding(1));
+}
+
 /* ── experience history editor ── */
 function renderHistoryList() {
   const el = document.querySelector("#histList");
@@ -2258,70 +2230,11 @@ function renderHistoryList() {
   });
 }
 
-document.querySelector("#histAddBtn").onclick = () => {
-  const nameEl   = document.querySelector("#histName");
-  const ratingEl = document.querySelector("#histRating");
-  const noteEl   = document.querySelector("#histNote");
-  const name   = (nameEl?.value || "").trim();
-  const rating = parseInt(ratingEl?.value || "");
-  const note   = (noteEl?.value || "").trim();
-  if (!name)                             { toast("Enter a restaurant name", true); return; }
-  if (!rating || rating < 1 || rating > 10) { toast("Rating must be 1–10", true); return; }
-  const idx = state.experienceHistory.findIndex(e => e.name.toLowerCase() === name.toLowerCase());
-  if (idx >= 0) state.experienceHistory[idx] = { name, rating, note };
-  else state.experienceHistory.push({ name, rating, note });
-  saveHistory();
-  if (nameEl)   nameEl.value   = "";
-  if (ratingEl) ratingEl.value = "";
-  if (noteEl)   noteEl.value   = "";
-  renderHistoryList();
-};
-
 /* ── events ── */
 $("#goBtn").onclick  = () => search();
 $("#geoBtn").onclick = useBrowserLocation;
 $("#loc").addEventListener("keydown", e => { if (e.key==="Enter") search(); });
 $("#dclose").onclick = closeDrawer;
-document.querySelectorAll("#search .allergen-chip.sev").forEach(el => el.onclick = () => {
-  document.querySelectorAll("#search .allergen-chip.sev").forEach(x => { x.classList.remove("on"); x.setAttribute("aria-pressed","false"); });
-  el.classList.add("on"); el.setAttribute("aria-pressed","true");
-  state.severity = el.dataset.sev;
-  paintCC();                         // auto cross-contact follows severity
-  if (state.rows.length) search();   // re-rank the list for the new severity
-});
-document.querySelectorAll("#search .allergen-chip.cc").forEach(el => el.onclick = () => {
-  state.crossContact = el.dataset.cc;  // explicit override, decoupled from severity
-  paintCC();
-  if (state.rows.length) search();
-});
-
-/* ── per-nut picker ──
-   Choose the exact nuts you react to. All-on (the default) == the family behaviour;
-   a strict subset narrows what's flagged (other nuts add only a small cross-contact
-   note, scored server-side). state.nutTypes=[] means "all" (the backend default). */
-const _nutChips = () => [...document.querySelectorAll('#search .allergen-chip.nut[data-nut]')]
-  .filter(c => c.dataset.nut !== "__all");
-function _setChip(c, on) { c.classList.toggle("on", on); c.setAttribute("aria-pressed", on ? "true" : "false"); }
-function syncNutState() {
-  const on = _nutChips().filter(c => c.classList.contains("on")).map(c => c.dataset.nut);
-  const isAll = on.length === 0 || on.length === _nutChips().length;
-  const allBtn = document.querySelector('#search .allergen-chip.nut[data-nut="__all"]');
-  if (allBtn) _setChip(allBtn, isAll);
-  state.nutTypes = isAll ? [] : on;   // [] == all nuts (family default)
-}
-document.querySelectorAll("#search .allergen-chip.nut").forEach(el => el.onclick = () => {
-  if (el.dataset.nut === "__all") {
-    _nutChips().forEach(c => _setChip(c, true));     // "All nuts" re-selects everything
-  } else {
-    _setChip(el, !el.classList.contains("on"));
-    if (!_nutChips().some(c => c.classList.contains("on")))
-      _nutChips().forEach(c => _setChip(c, true));   // never zero -> snap back to all
-  }
-  syncNutState();
-  if (state.rows.length) search();   // re-rank for the new nut profile
-});
-syncNutState();
-paintCC();  // highlight the severity-derived default on load
 $("#scrim").onclick  = closeDrawer;
 document.addEventListener("keydown", e => { if (e.key==="Escape") closeDrawer(); });
 $("#drawer").addEventListener("keydown", trapDrawerTab);
@@ -2395,6 +2308,7 @@ loadHistory();
 loadProfile();
 if (!hasOnboarded()) openOnboarding(1);
 renderHistoryList();
+renderProfileSummary();
 </script>
 </body>
 </html>
