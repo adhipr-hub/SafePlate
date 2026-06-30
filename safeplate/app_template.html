@@ -4,10 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SafePlate — Allergy-aware dining</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23166534'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
   <script>document.documentElement.classList.add('js');</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Only the weights actually used: Playfair 400 + italic-400 (display), Hanken
+       400/500/600/700 (UI), Spline 500/600 (figures). Trimmed from 9 Playfair cuts. -->
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet" />
   <style>
     /* ════════════════════════════════════════════════════════════════════════
        SafePlate — "Editorial Aurora" (live app reskin)
@@ -51,6 +54,7 @@
       --signal:     #2563EB;
       --ai:         #6D28D9;
       --ai-tint:    #EDE9FE;
+      --ai-bd:      #DDD0F7;   /* AI/call-ahead chip border (tint of --ai) */
       --callahead:  #7C3AED;
       --star:       #FBBF24;
       /* Primary CTA gradient — AA-safe for white text at BOTH stops */
@@ -111,7 +115,7 @@
 
     .nav-toggle {
       display: none; width: 42px; height: 42px; flex: none; place-items: center;
-      background: var(--surface); border: 1px solid var(--border); border-radius: 11px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--rS);
       color: var(--tx2); cursor: pointer;
     }
     .nav-toggle svg { width: 18px; height: 18px; }
@@ -294,8 +298,8 @@
     .prog { display: flex; align-items: center; gap: 14px; margin: 2px 0 18px; }
     .prog.hidden { display: none; }
     .prog-track { flex: 1; height: 5px; border-radius: var(--pill); background: var(--border); overflow: hidden; }
-    .prog-fill { height: 100%; width: 0; border-radius: var(--pill); background: var(--brand-grad);
-      transition: width .5s cubic-bezier(.22,.9,.22,1); }
+    .prog-fill { height: 100%; width: 100%; transform: scaleX(0); transform-origin: left;
+      background: var(--brand-grad); transition: transform .5s cubic-bezier(.22,.9,.22,1); }
     .prog.done .prog-fill { background: var(--g1); }
     .prog-label { font: 600 12.5px/1 var(--mono); color: var(--tx2); white-space: nowrap;
       font-variant-numeric: tabular-nums; }
@@ -360,7 +364,7 @@
     .pv-signal    { color: var(--signal); background: #EFF4FF; border-color: #CFE0FF; }
     .pv-inferred  { color: var(--md); background: var(--tm); border-color: var(--bm); }
     .pv-estimate  { color: var(--tx3); background: var(--page); border-color: var(--border); }
-    .pv-callahead { color: var(--callahead); background: var(--ai-tint); border-color: #DDD0F7; }
+    .pv-callahead { color: var(--callahead); background: var(--ai-tint); border-color: var(--ai-bd); }
     .verdict-prov { font: 600 13px/1.4 var(--sans); margin-top: 7px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .verdict-prov .pv-blurb { font-weight: 400; color: var(--tx3); }
     .risky-row.clickable { cursor: pointer; }
@@ -444,7 +448,7 @@
     }
     .ai-badge {
       font: 700 10px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase;
-      color: var(--ai); background: var(--ai-tint); border: 1px solid #DDD0F7; padding: 4px 7px; border-radius: 5px;
+      color: var(--ai); background: var(--ai-tint); border: 1px solid var(--ai-bd); padding: 4px 7px; border-radius: 5px;
     }
     .why-list { list-style: none; display: flex; flex-direction: column; gap: 0; }
     .why-list li {
@@ -463,7 +467,7 @@
     .cite {
       font: 600 11px/1.4 var(--mono); color: var(--ai); background: var(--ai-tint);
       padding: 2px 6px; border-radius: 5px; margin-left: 4px; white-space: nowrap;
-      vertical-align: 1px; border: 1px solid #DDD0F7; cursor: default;
+      vertical-align: 1px; border: 1px solid var(--ai-bd); cursor: default;
     }
     .cite.linked { cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
     .cite.linked:hover, .cite.linked:focus-visible { background: var(--ai); color: #fff; outline: none; }
@@ -498,6 +502,13 @@
     .risky-name { color: var(--tx2); font-weight: 500; flex: 1; min-width: 0;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 12px; }
     .risky-pct { font: 600 13px/1 var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    /* "might hide nuts" — a softer, amber (caution) variant for dish-TYPE guesses, so a
+       low-confidence hunch never reads as a hard "contains nuts" warning. */
+    .warning-box.maybe { background: var(--tm); border-color: var(--bm); }
+    .warning-box.maybe .warning-head { color: var(--md); }
+    .warning-head .wh-sub { font-weight: 400; opacity: .7; }
+    .risky-maybe { font: 700 10px/1 var(--sans); color: var(--md); opacity: .85;
+      text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
 
     /* Region provenance notice — amber (uncertainty, not danger); icon + text so it
        never relies on colour alone (WCAG 2.2 AA + safety-aware colour). */
@@ -593,10 +604,13 @@
     .hero-stats {
       position: relative; z-index: 2; margin-top: clamp(40px,6vw,64px);
       display: grid; grid-template-columns: repeat(3,1fr); gap: 24px;
+      align-items: start;
       border-top: 1px solid var(--border); padding-top: 32px;
     }
-    .stat .num { font: 500 clamp(34px,5vw,54px)/1 var(--mono); font-variant-numeric: tabular-nums;
-      letter-spacing: -.03em; color: var(--tx); }
+    /* nowrap keeps each figure on one line (the long "9 in 10" used to wrap and break
+       the baseline; a single "90%" token now sits flush with 1,240 and 38). */
+    .stat .num { font: 500 clamp(32px,4.4vw,50px)/1 var(--mono); font-variant-numeric: tabular-nums;
+      letter-spacing: -.03em; color: var(--tx); white-space: nowrap; }
     .stat .num em { font-style: normal; color: var(--g0); }
     .stat .cap { font: italic 400 14px/1.4 var(--serif); color: var(--tx3); margin-top: 8px; }
 
@@ -619,7 +633,7 @@
     .section.tint .feat { background: var(--surface); }
     .feat:hover { transform: translateY(-3px); box-shadow: var(--e3); border-color: var(--border2); }
     .feat-ico {
-      width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center;
+      width: 46px; height: 46px; border-radius: var(--rM); display: grid; place-items: center;
       background: var(--gt); color: var(--g0); margin-bottom: 18px;
     }
     .feat-ico svg { width: 22px; height: 22px; }
@@ -849,16 +863,16 @@
 
     <div class="hero-stats">
       <div class="stat reveal" style="--i:0">
-        <div class="num" data-count="1240">1,240</div>
-        <div class="cap">menus read this week</div>
+        <div class="num" data-count="11">11</div>
+        <div class="cap">specific nut types you can flag</div>
       </div>
       <div class="stat reveal" style="--i:1">
-        <div class="num" data-count="38">38</div>
-        <div class="cap">sources cited per decision, on average</div>
+        <div class="num" data-count="9">9</div>
+        <div class="cap">major allergens the chart reads</div>
       </div>
       <div class="stat reveal" style="--i:2">
-        <div class="num"><span data-count="9">9</span> in <em>10</em></div>
-        <div class="cap">verdicts trace to a real menu</div>
+        <div class="num"><em>Every</em></div>
+        <div class="cap">score shows how it knows</div>
       </div>
     </div>
   </div>
@@ -1064,7 +1078,7 @@
 <script>
 /* ── utilities ── */
 const $  = s => document.querySelector(s);
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cap = s => { s = String(s||"").replace(/_/g," "); return s.charAt(0).toUpperCase()+s.slice(1); };
 const asList = v => Array.isArray(v) ? v : v ? String(v).split(";").map(x=>x.trim()).filter(Boolean) : [];
 const isNut  = t => /nut|peanut|almond|cashew|walnut|pecan|pistachio|hazelnut|pine|macadamia|praline|nutella|gianduja/i.test(t);
@@ -1255,6 +1269,10 @@ async function upgradeCardsProgressive(seq) {
   }
   await Promise.all(Array.from({length:_PROG_CONCURRENCY}, worker));
   endProg(seq);
+  // The upgrades changed risks, so "Safest first" order is now stale -- re-sort once the
+  // batch settles (only when that's the active sort) so a riskier place can't keep the
+  // top slot it held on the cuisine estimate.
+  if (seq===_searchSeq && state.sort==="risk") renderResults();
 }
 
 /* ── geo ── */
@@ -1392,18 +1410,18 @@ function startProg(total, seq) {
   if (seq!==_searchSeq) return;
   const s = $("#progStrip"); clearTimeout(s._t);
   s.classList.remove("hidden","done");
-  $("#progFill").style.width = "0%";
+  $("#progFill").style.transform = "scaleX(0)";
   $("#progLabel").textContent = "Reading nearby menus…";
 }
 function tickProg(done, total, seq) {
   if (seq!==_searchSeq) return;
-  $("#progFill").style.width = Math.round(done/total*100)+"%";
+  $("#progFill").style.transform = "scaleX(" + (total ? done/total : 0) + ")";
   $("#progLabel").textContent = done>=total ? "Finishing…" : `Reading nearby menus · ${done}/${total}`;
 }
 function endProg(seq) {
   if (seq!==_searchSeq) return;
   const s = $("#progStrip");
-  $("#progFill").style.width = "100%";
+  $("#progFill").style.transform = "scaleX(1)";
   $("#progLabel").textContent = "✓ Menus updated";
   s.classList.add("done");
   clearTimeout(s._t); s._t = setTimeout(() => s.classList.add("hidden"), 1500);
@@ -1459,6 +1477,9 @@ function srcDeepLink(url, snippet) {
   return frag ? `${url}#:~:text=${encodeURIComponent(frag)}` : url;
 }
 function openSource(url, snippet) {
+  // Only open http(s) sources. The URL comes from server/LLM-derived evidence; a
+  // javascript:/data: URL must never reach window.open.
+  if (!/^https?:\/\//i.test(String(url||""))) return;
   const target = srcDeepLink(url, snippet);
   if (target) window.open(target, "_blank", "noopener,noreferrer");
 }
@@ -1534,6 +1555,7 @@ async function openDetail(r) {
   $("#scrim").classList.add("open");
   drawer.classList.add("open");
   document.body.style.overflow = "hidden";
+  _setBgInert(true);
   requestAnimationFrame(()=>$("#dclose").focus());
   const riskData = riskForRow(r);
   const coverage = r.coverageStatus||"cuisine_estimate";
@@ -1593,13 +1615,25 @@ function renderMenu(m,r) {
   if (menuRisk) {
     r.menuBackedRisk = menuRisk;
     r.coverageStatus = summary.coverageStatus||(menuRisk.isMenuBacked?"menu_backed":"cuisine_estimate");
+    // Overlay the menu-backed verdict onto the prior AND refresh the list card, so the
+    // card keeps the menu-backed score after the drawer closes (it used to revert to the
+    // cuisine estimate because only menuBackedRisk was updated, not allergenPrior).
+    r.allergenPrior = Object.assign({}, r.allergenPrior, {
+      risk: menuRisk.risk, confidence: menuRisk.confidence, tier: menuRisk.tier,
+      basis: summary.evidenceBasis, rationale: menuRisk.rationale,
+      scoringEngine: summary.scoringEngine,
+    });
+    const _card = cardNode(r);
+    if (_card) _card.innerHTML = cardMarkup(r);
     const v = $("#riskVerdict");
     if (v) v.outerHTML = verdictHtml(menuRisk,r.coverageStatus,summary.evidenceBasis);
   }
 
   const sig = summary.restaurantSignals||{};
   const coverage = summary.coverageStatus||r.coverageStatus||"cuisine_estimate";
-  const riskiestItems = (menuRisk?.riskiestItems||[]).filter(x=>x.risk>0.15).slice(0,5);
+  const _risky = (menuRisk?.riskiestItems||[]).filter(x=>x.risk>0.15);
+  const nutConfirmed = _risky.filter(x=>!x.suspected).slice(0,5);  // named / chart-confirmed
+  const nutSuspected = _risky.filter(x=>x.suspected).slice(0,5);   // dish-type guess, low confidence
   const nutItems = items.filter(it=>asList(it.allergen_terms).some(isNut));
 
   /* region provenance — when the only data we found is from another country, keep it
@@ -1642,37 +1676,38 @@ function renderMenu(m,r) {
     </div>`;
   }
 
-  /* riskiest items banner */
-  if (riskiestItems.length) {
-    html += `<div class="ds">
-      <div class="warning-box">
-        <div class="warning-head">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-            <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          ${riskiestItems.length} item${riskiestItems.length>1?"s":""} likely contain${riskiestItems.length>1?"":"s"} nuts <span style="font-weight:400;opacity:.7">· tap to find on menu</span>
-        </div>
-        ${riskiestItems.map(it=>`<div class="risky-row clickable" data-dish="${esc(it.itemName)}">
-          <span class="risky-name">${esc(it.itemName)}</span>
-          <span class="risky-pct" style="color:${textClr(it.risk)}">${Math.round(it.risk*100)}%</span>
-        </div>`).join("")}
+  /* nut warnings — CONFIRMED (named / chart) shown as a firm "contains nuts" box;
+     SUSPECTED (dish-type guesses like brownie/curry) shown as a softer, amber
+     "might hide nuts" box so a low-confidence hunch never reads as a hard warning. */
+  const _triIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+  if (nutConfirmed.length) {
+    html += `<div class="ds"><div class="warning-box">
+      <div class="warning-head">${_triIcon}
+        ${nutConfirmed.length} item${nutConfirmed.length>1?"s":""} contain${nutConfirmed.length>1?"":"s"} nuts <span class="wh-sub">· tap to find on menu</span>
       </div>
-    </div>`;
-  } else if (!riskiestItems.length && nutItems.length) {
-    html += `<div class="ds">
-      <div class="warning-box">
-        <div class="warning-head">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-            <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          ${nutItems.length} menu item${nutItems.length>1?"s":""} mention nuts
-        </div>
+      ${nutConfirmed.map(it=>`<div class="risky-row clickable" data-dish="${esc(it.itemName)}">
+        <span class="risky-name">${esc(it.itemName)}</span>
+        <span class="risky-pct" style="color:${textClr(it.risk)}">${Math.round(it.risk*100)}%</span>
+      </div>`).join("")}
+    </div></div>`;
+  }
+  if (nutSuspected.length) {
+    html += `<div class="ds"><div class="warning-box maybe">
+      <div class="warning-head">${_triIcon}
+        ${nutSuspected.length} dish${nutSuspected.length>1?"es":""} might hide nuts <span class="wh-sub">· by dish type — not confirmed</span>
       </div>
-    </div>`;
+      ${nutSuspected.map(it=>`<div class="risky-row clickable" data-dish="${esc(it.itemName)}">
+        <span class="risky-name">${esc(it.itemName)}</span>
+        <span class="risky-maybe">possible</span>
+      </div>`).join("")}
+    </div></div>`;
+  }
+  if (!nutConfirmed.length && !nutSuspected.length && nutItems.length) {
+    html += `<div class="ds"><div class="warning-box">
+      <div class="warning-head">${_triIcon}
+        ${nutItems.length} menu item${nutItems.length>1?"s":""} mention nuts
+      </div>
+    </div></div>`;
   }
 
   /* menu items */
@@ -1798,11 +1833,22 @@ function renderMenu(m,r) {
 }
 
 /* ── drawer close ── */
+// While the modal drawer is open, make the rest of the page inert so keyboard/AT
+// focus can't wander behind it (WCAG focus-management for a dialog).
+function _setBgInert(on) {
+  const keep = new Set([$("#drawer"), $("#scrim"), $("#toast")]);
+  for (const el of document.body.children) {
+    if (keep.has(el) || el.tagName === "SCRIPT") continue;
+    on ? el.setAttribute("inert", "") : el.removeAttribute("inert");
+  }
+}
+
 function closeDrawer() {
   const d = $("#drawer");
   d.classList.remove("open"); d.setAttribute("aria-hidden","true");
   $("#scrim").classList.remove("open");
   document.body.style.overflow = "";
+  _setBgInert(false);
   if (_lastFocused && _lastFocused.focus) _lastFocused.focus();
 }
 
