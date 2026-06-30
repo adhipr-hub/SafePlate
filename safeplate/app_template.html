@@ -1146,7 +1146,7 @@ const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact
 const _HIST_KEY = "safeplate.experienceHistory";
 function loadHistory(){ try { state.experienceHistory = JSON.parse(localStorage.getItem(_HIST_KEY)||"[]")||[]; } catch { state.experienceHistory = []; } }
 function saveHistory(){ try { localStorage.setItem(_HIST_KEY, JSON.stringify(state.experienceHistory)); } catch {} }
-const _histHash = () => state.experienceHistory.map(e=>`${e.name}:${e.rating}`).join("|");
+const _histHash = () => state.experienceHistory.map(e=>`${e.name}:${e.rating}:${e.note||""}`).join("|");
 let _searchSeq = 0;  // guards background progressive upgrades against a newer search
 
 /* Cross-contact defaults to a severity-derived level until the user overrides it
