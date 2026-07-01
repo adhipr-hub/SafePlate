@@ -38,20 +38,26 @@ def test_empty_menu_is_unknown_not_good():
     assert a.verdict == "unknown"  # never assume compatible with no evidence
 
 
-def test_all_unknown_menu_is_unknown():
+def test_all_unlabeled_vegan_menu_is_estimated_and_capped():
+    # Non-conflict, unlabeled dishes are now ASSUMED compatible from the name,
+    # but for vegan the name-only 'estimated' basis is capped at 'limited' and
+    # never presented as confirmed/good_options.
     items = [_item("Mystery Dish A"), _item("Mystery Dish B"), _item("House Special")]
     a = assess_diet("vegan", menu_items=items)
-    assert a.verdict == "unknown"      # non-empty but zero informative items
-    assert a.support == 0.0
+    assert a.verdict == "limited"
+    assert a.basis == "estimated"
 
 
-def test_unlabeled_allergen_item_not_compatible_option():
-    # Generic name, allergen label present, but NO positive dietary label and no meat hit.
-    # Allergen data alone must not be treated as evidence of vegan compatibility.
+def test_unlabeled_item_is_estimated_not_labeled():
+    # A non-excluded allergen (gluten) + no positive dietary label: vegan
+    # compatibility is ESTIMATED from the dish name, never 'labeled', and the
+    # vegan estimated cap keeps it at 'limited' (not good_options). Allergen data
+    # itself is still NOT treated as positive diet evidence.
     items = [_item("House Special", allergen_terms=["gluten"])]
     a = assess_diet("vegan", menu_items=items)
-    assert a.verdict == "unknown"
-    assert "House Special" not in a.compatible_items
+    assert a.basis == "estimated"
+    assert a.verdict == "limited"
+    assert "House Special" in a.compatible_items
 
 
 def test_diet_summary_payload_shape():
