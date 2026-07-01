@@ -60,7 +60,18 @@ _load_dotenv()
 
 
 def get_user_agent() -> str:
-    return os.environ.get("SAFEPLATE_USER_AGENT", DEFAULT_USER_AGENT)
+    ua = os.environ.get("SAFEPLATE_USER_AGENT", DEFAULT_USER_AGENT)
+    # HTTP header values must be Latin-1 encodable (RFC 9110). stdlib http.client
+    # encodes them as latin-1 in putheader and raises UnicodeEncodeError on any
+    # character above U+00FF -- which would crash the FIRST outbound request of every
+    # search (geocoding sends the User-Agent). Drop the un-encodable characters
+    # (Latin-1 accents like e-acute survive), falling back to the default if nothing
+    # usable remains, so a misconfigured SAFEPLATE_USER_AGENT can never crash a fetch.
+    try:
+        ua.encode("latin-1")
+    except UnicodeEncodeError:
+        ua = ua.encode("latin-1", "ignore").decode("latin-1").strip()
+    return ua or DEFAULT_USER_AGENT
 
 
 def get_cache_dir() -> Path:
@@ -180,18 +191,38 @@ def _positive_float_env(name: str, default: float) -> float:
     return value if value > 0 else default
 
 
+def _clean_api_key(name: str, value: str | None) -> str | None:
+    """Return a stripped API key, or None if unset/blank.
+
+    Raise a clear ValueError if the key holds a character that cannot go in an HTTP
+    header (non-Latin-1). The classic cause is pasting a MASKED key -- the UI's bullet
+    dots (U+2022) standing in for the hidden middle -- which otherwise crashes deep in
+    http.client with an opaque "'latin-1' codec can't encode" error before the request
+    is sent. api_server surfaces this ValueError to the user as a 400."""
+    if not value or not value.strip():
+        return None
+    cleaned = value.strip()
+    try:
+        cleaned.encode("latin-1")
+    except UnicodeEncodeError:
+        position = next(i for i, ch in enumerate(cleaned) if ord(ch) > 0xFF)
+        bad = cleaned[position]
+        raise ValueError(
+            f"{name} contains a non-ASCII character ({bad!r} at position {position}). "
+            f"This usually means a masked/obscured key (its '•' dots) was copied "
+            f"instead of the real one. Re-copy the full, unmasked API key."
+        ) from None
+    return cleaned
+
+
 def get_geoapify_api_key() -> str | None:
-    value = os.environ.get("GEOAPIFY_API_KEY")
-    if value and value.strip():
-        return value.strip()
-    return None
+    return _clean_api_key("GEOAPIFY_API_KEY", os.environ.get("GEOAPIFY_API_KEY"))
 
 
 def get_google_places_api_key() -> str | None:
-    value = os.environ.get("GOOGLE_PLACES_API_KEY")
-    if value and value.strip():
-        return value.strip()
-    return None
+    return _clean_api_key(
+        "GOOGLE_PLACES_API_KEY", os.environ.get("GOOGLE_PLACES_API_KEY")
+    )
 
 
 def get_google_rank_preference() -> str:
@@ -205,17 +236,13 @@ def get_google_rank_preference() -> str:
 
 
 def get_brave_search_api_key() -> str | None:
-    value = os.environ.get("BRAVE_SEARCH_API_KEY")
-    if value and value.strip():
-        return value.strip()
-    return None
+    return _clean_api_key(
+        "BRAVE_SEARCH_API_KEY", os.environ.get("BRAVE_SEARCH_API_KEY")
+    )
 
 
 def get_gemini_api_key() -> str | None:
-    value = os.environ.get("GEMINI_API_KEY")
-    if value and value.strip():
-        return value.strip()
-    return None
+    return _clean_api_key("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY"))
 
 
 # Scoring engine (the one user-facing choice). 'ai' = label-routing LLM scorer
