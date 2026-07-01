@@ -1,0 +1,87 @@
+[
+  [
+    "waldorf",
+    0.9,
+    "Classic Waldorf salad recipe is defined by chopped raw celery with apple, walnuts, and grapes"
+  ],
+  [
+    "gumbo",
+    0.85,
+    "Built on the Cajun/Creole 'holy trinity' of onion, celery, and bell pepper"
+  ],
+  [
+    "etouffee",
+    0.8,
+    "Cajun sauce base is the onion-celery-bell pepper trinity"
+  ],
+  [
+    "jambalaya",
+    0.8,
+    "Uses the Cajun holy trinity (onion, celery, bell pepper) as its standard aromatic base"
+  ],
+  [
+    "stuffing",
+    0.75,
+    "Traditional bread stuffing/dressing recipes use diced celery as a core aromatic with onion"
+  ],
+  [
+    "bolognese",
+    0.65,
+    "Italian soffritto (onion, carrot, celery) is the traditional base of the ragu"
+  ],
+  [
+    "minestrone",
+    0.6,
+    "Mirepoix/soffritto base typically includes celery among the vegetables"
+  ],
+  [
+    "osso buco",
+    0.6,
+    "Braised with Italian soffritto (onion, carrot, sedano/celery)"
+  ],
+  [
+    "pot pie",
+    0.6,
+    "Chicken/turkey pot pie filling is standardly built on a mirepoix that includes celery"
+  ],
+  [
+    "chicken noodle",
+    0.55,
+    "Broth is classically simmered with a mirepoix (onion, carrot, celery)"
+  ],
+  [
+    "consomme",
+    0.55,
+    "Clarified stock is traditionally built on a mirepoix of onion, carrot, and celery"
+  ],
+  [
+    "bloody mary",
+    0.5,
+    "Classic recipe seasons the mix itself with celery salt, not just a garnish"
+  ],
+  [
+    "bouillabaisse",
+    0.5,
+    "French fish stew broth traditionally includes celery in the aromatic base"
+  ],
+  [
+    "matzo ball",
+    0.5,
+    "Chicken soup broth it's served in is commonly simmered with celery stalks"
+  ],
+  [
+    "cioppino",
+    0.45,
+    "Italian-American seafood stew base often starts with a celery-onion soffritto"
+  ],
+  [
+    "gefilte",
+    0.45,
+    "Poaching stock for gefilte fish is customarily made with celery, carrot, and onion"
+  ],
+  [
+    "scotch broth",
+    0.4,
+    "Scottish barley broth recipes commonly include celery among the root vegetables"
+  ]
+]

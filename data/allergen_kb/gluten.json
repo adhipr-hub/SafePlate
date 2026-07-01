@@ -1,6 +1,167 @@
 [
-  ["pasta", 0.9, "wheat pasta unless stated GF"],
-  ["soy sauce", 0.85, "usually contains wheat"],
-  ["tempura", 0.9, "wheat batter"],
-  ["bread", 0.95, "wheat flour"]
+  [
+    "seitan",
+    0.98,
+    "Seitan is wheat gluten itself (\"wheat meat\"); name gives no hint of wheat to the uninitiated"
+  ],
+  [
+    "bread",
+    0.95,
+    "wheat flour"
+  ],
+  [
+    "pasta",
+    0.9,
+    "wheat pasta unless stated GF"
+  ],
+  [
+    "tempura",
+    0.9,
+    "wheat batter"
+  ],
+  [
+    "udon",
+    0.9,
+    "Thick Japanese noodle is made from wheat flour"
+  ],
+  [
+    "gyoza",
+    0.85,
+    "Wrapper is wheat flour dough"
+  ],
+  [
+    "katsu",
+    0.85,
+    "Cutlet is coated in panko breadcrumbs (wheat)"
+  ],
+  [
+    "kibbeh",
+    0.85,
+    "Outer shell (raw or fried) is traditionally bulgur wheat mixed with meat"
+  ],
+  [
+    "pierogi",
+    0.85,
+    "Dumpling dough is wheat flour"
+  ],
+  [
+    "ramen",
+    0.85,
+    "Noodles are wheat-based (alkaline kansui wheat noodles)"
+  ],
+  [
+    "soy sauce",
+    0.85,
+    "usually contains wheat"
+  ],
+  [
+    "spaetzle",
+    0.85,
+    "Egg noodle/dumpling made from wheat flour"
+  ],
+  [
+    "tiramisu",
+    0.85,
+    "Contains ladyfinger (savoiardi) cookies made from wheat flour"
+  ],
+  [
+    "wonton",
+    0.85,
+    "Wrapper is wheat flour dough"
+  ],
+  [
+    "baklava",
+    0.8,
+    "Made with layers of phyllo dough (wheat flour)"
+  ],
+  [
+    "chimichanga",
+    0.8,
+    "A deep-fried wheat-flour tortilla, not obvious from the name"
+  ],
+  [
+    "general tso",
+    0.8,
+    "Chicken is coated in a wheat-flour batter before frying"
+  ],
+  [
+    "gua bao",
+    0.8,
+    "Steamed bun is made from wheat-flour dough"
+  ],
+  [
+    "korokke",
+    0.8,
+    "Japanese croquette is coated in panko breadcrumbs"
+  ],
+  [
+    "moussaka",
+    0.8,
+    "Topped with a bechamel sauce made from a wheat-flour roux"
+  ],
+  [
+    "okonomiyaki",
+    0.8,
+    "Savory pancake batter is wheat-flour based"
+  ],
+  [
+    "orange chicken",
+    0.8,
+    "Chicken is coated in a wheat-flour batter before frying"
+  ],
+  [
+    "potsticker",
+    0.8,
+    "Pan-fried dumpling wrapper is wheat flour dough"
+  ],
+  [
+    "samosa",
+    0.8,
+    "Pastry shell is standard wheat-flour dough, even though the filling (potato/peas) is often gluten-free"
+  ],
+  [
+    "scotch egg",
+    0.8,
+    "Sausage coating is breaded with wheat breadcrumbs"
+  ],
+  [
+    "takoyaki",
+    0.8,
+    "Octopus ball batter is wheat-flour based"
+  ],
+  [
+    "gnocchi",
+    0.75,
+    "Potato dough is traditionally bound with wheat flour, despite being assumed gluten-free"
+  ],
+  [
+    "tabbouleh",
+    0.75,
+    "Traditional Levantine recipe mixes in bulgur (cracked wheat) with the parsley; easy to assume it's a plain gluten-free herb salad"
+  ],
+  [
+    "lumpia",
+    0.7,
+    "Wrapper is typically wheat-flour based, like a spring-roll wrapper"
+  ],
+  [
+    "gumbo",
+    0.55,
+    "Often thickened with a wheat-flour roux, though some regional styles use filé powder instead"
+  ],
+  [
+    "soba",
+    0.55,
+    "Despite the buckwheat name, most commercial soba noodles are blended with wheat flour"
+  ],
+  [
+    "injera",
+    0.5,
+    "Traditionally gluten-free teff, but many restaurant versions (especially outside Ethiopia/Eritrea) cut the batter with wheat flour for cost/texture"
+  ],
+  [
+    "teriyaki",
+    0.45,
+    "Sauce is typically soy-sauce based, and standard soy sauce contains wheat (unless tamari is used)"
+  ]
 ]

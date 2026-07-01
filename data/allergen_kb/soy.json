@@ -1,0 +1,137 @@
+[
+  [
+    "doenjang",
+    0.95,
+    "Doenjang is fermented Korean soybean paste"
+  ],
+  [
+    "tempeh",
+    0.95,
+    "Tempeh is a fermented whole-soybean product"
+  ],
+  [
+    "miso",
+    0.9,
+    "Miso is a fermented soybean paste"
+  ],
+  [
+    "ssamjang",
+    0.9,
+    "Condiment blends fermented soybean paste (doenjang) with chili paste"
+  ],
+  [
+    "pad see ew",
+    0.85,
+    "\"See ew\" is Thai for soy sauce, the dish's defining seasoning"
+  ],
+  [
+    "sukiyaki",
+    0.85,
+    "Simmering broth (warishita) is soy sauce, mirin, and sugar"
+  ],
+  [
+    "teriyaki",
+    0.85,
+    "Classic teriyaki glaze is soy sauce, mirin/sake, and sugar"
+  ],
+  [
+    "bulgogi",
+    0.8,
+    "Korean bulgogi marinade is soy sauce, garlic, sugar, sesame oil"
+  ],
+  [
+    "gyudon",
+    0.8,
+    "Beef simmered in a soy sauce-dashi-mirin broth"
+  ],
+  [
+    "general tso",
+    0.75,
+    "Sweet-savory sauce base is soy sauce"
+  ],
+  [
+    "kalbi",
+    0.75,
+    "Korean short rib marinade is soy sauce-based"
+  ],
+  [
+    "katsudon",
+    0.75,
+    "Egg and pork simmered in soy sauce-dashi sauce"
+  ],
+  [
+    "oyakodon",
+    0.75,
+    "Chicken and egg simmered in soy sauce-dashi broth"
+  ],
+  [
+    "unagi",
+    0.75,
+    "Grilled eel is glazed in kabayaki sauce, which is soy sauce-based"
+  ],
+  [
+    "char siu",
+    0.7,
+    "Marinade traditionally includes hoisin sauce and soy sauce"
+  ],
+  [
+    "nasi goreng",
+    0.7,
+    "Indonesian fried rice seasoned/colored with kecap manis (sweet soy sauce)"
+  ],
+  [
+    "kung pao",
+    0.65,
+    "Sichuan stir-fry sauce is built on soy sauce"
+  ],
+  [
+    "mee goreng",
+    0.65,
+    "Fried noodles typically seasoned with soy sauce"
+  ],
+  [
+    "moo shu",
+    0.65,
+    "Traditionally served with hoisin sauce, which is soybean-based"
+  ],
+  [
+    "chow mein",
+    0.6,
+    "Stir-fried noodles commonly seasoned with soy sauce"
+  ],
+  [
+    "lo mein",
+    0.6,
+    "Noodles tossed in a soy sauce-based seasoning"
+  ],
+  [
+    "orange chicken",
+    0.6,
+    "Sticky glaze typically includes soy sauce"
+  ],
+  [
+    "yakiniku",
+    0.6,
+    "Served with tare dipping sauce made from soy sauce"
+  ],
+  [
+    "bibimbap",
+    0.55,
+    "Seasoned namul vegetables are typically dressed with soy sauce and sesame oil"
+  ],
+  [
+    "yakitori",
+    0.55,
+    "Tare-glazed skewers use a soy sauce base, though shio (salt-only) versions are also common"
+  ],
+  [
+    "dan dan",
+    0.5,
+    "Sauce commonly includes soy sauce alongside doubanjiang and sesame paste"
+  ],
+  [
+    "california roll",
+    0.4,
+    "Imitation crab (surimi) filler often contains soy protein/starch as a binder"
+  ]
+]

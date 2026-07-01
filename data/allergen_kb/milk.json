@@ -1,6 +1,147 @@
 [
-  ["butter chicken", 0.95, "cream/butter based"],
-  ["alfredo", 0.95, "cream + parmesan sauce"],
-  ["cheese", 0.9, "named dairy ingredient"],
-  ["latte", 0.9, "milk-based drink"]
+  [
+    "alfredo",
+    0.95,
+    "cream + parmesan sauce"
+  ],
+  [
+    "butter chicken",
+    0.95,
+    "cream/butter based"
+  ],
+  [
+    "panna cotta",
+    0.95,
+    "Italian for 'cooked cream'; the dessert is essentially set cream"
+  ],
+  [
+    "cheese",
+    0.9,
+    "named dairy ingredient"
+  ],
+  [
+    "khachapuri",
+    0.9,
+    "Georgian bread filled/topped with cheese"
+  ],
+  [
+    "kheer",
+    0.9,
+    "traditional Indian rice pudding simmered in milk"
+  ],
+  [
+    "latte",
+    0.9,
+    "milk-based drink"
+  ],
+  [
+    "malai",
+    0.9,
+    "'malai' literally means cream in Hindi/Urdu (malai kofta, malai tikka, etc.)"
+  ],
+  [
+    "poutine",
+    0.9,
+    "Canadian dish topped with cheese curds"
+  ],
+  [
+    "tikka masala",
+    0.9,
+    "sauce traditionally finished with cream and/or butter"
+  ],
+  [
+    "tiramisu",
+    0.9,
+    "mascarpone cheese and cream are defining ingredients"
+  ],
+  [
+    "cannoli",
+    0.85,
+    "shells filled with sweetened ricotta cheese"
+  ],
+  [
+    "carbonara",
+    0.85,
+    "classic sauce made with egg and hard cheese (pecorino/parmesan)"
+  ],
+  [
+    "croissant",
+    0.85,
+    "laminated pastry dough made with large quantities of butter"
+  ],
+  [
+    "flan",
+    0.85,
+    "baked custard dessert made with milk/cream"
+  ],
+  [
+    "gratin",
+    0.85,
+    "baked dish conventionally topped with cream and/or cheese"
+  ],
+  [
+    "korma",
+    0.85,
+    "creamy yogurt or cream-based curry sauce (Indian/Pakistani cuisine)"
+  ],
+  [
+    "vichyssoise",
+    0.85,
+    "cold potato-leek soup made with cream"
+  ],
+  [
+    "brioche",
+    0.8,
+    "enriched bread dough made with butter and milk"
+  ],
+  [
+    "chowder",
+    0.8,
+    "classic American chowders (e.g. New England) are milk/cream-based"
+  ],
+  [
+    "bisque",
+    0.75,
+    "French-style soup traditionally enriched with cream"
+  ],
+  [
+    "moussaka",
+    0.7,
+    "Greek dish typically topped with milk-based bechamel sauce"
+  ],
+  [
+    "pesto",
+    0.7,
+    "traditional basil pesto contains parmesan/pecorino cheese"
+  ],
+  [
+    "risotto",
+    0.65,
+    "Italian rice dish conventionally finished with butter and parmesan"
+  ],
+  [
+    "enchilada",
+    0.6,
+    "commonly topped with melted cheese and/or sour cream"
+  ],
+  [
+    "caesar",
+    0.55,
+    "classic Caesar dressing traditionally contains parmesan cheese"
+  ],
+  [
+    "shepherd",
+    0.55,
+    "shepherd's pie mashed-potato topping usually made with butter and milk"
+  ],
+  [
+    "tandoori",
+    0.45,
+    "marinated in yogurt before grilling; some residual dairy is common"
+  ],
+  [
+    "naan",
+    0.4,
+    "restaurant naan dough/brushing commonly includes yogurt, milk, or ghee"
+  ]
 ]

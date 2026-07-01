@@ -1,0 +1,147 @@
+[
+  [
+    "hollandaise",
+    0.95,
+    "Classic butter-and-egg-yolk emulsion sauce"
+  ],
+  [
+    "tamagoyaki",
+    0.95,
+    "Japanese rolled omelet made almost entirely of egg"
+  ],
+  [
+    "avgolemono",
+    0.9,
+    "Greek soup thickened with an egg-lemon mixture"
+  ],
+  [
+    "bearnaise",
+    0.9,
+    "Egg yolk-butter emulsion sauce, a hollandaise variant"
+  ],
+  [
+    "brioche",
+    0.9,
+    "Enriched bread dough made with multiple eggs"
+  ],
+  [
+    "carbonara",
+    0.9,
+    "Authentic sauce is raw egg yolk/whole egg whisked with cheese, not cream"
+  ],
+  [
+    "challah",
+    0.9,
+    "Braided Jewish egg bread"
+  ],
+  [
+    "chawanmushi",
+    0.9,
+    "Savory Japanese steamed egg custard"
+  ],
+  [
+    "meringue",
+    0.9,
+    "Whipped egg whites are the defining structural ingredient"
+  ],
+  [
+    "pavlova",
+    0.9,
+    "Dessert base is baked egg-white meringue"
+  ],
+  [
+    "zabaglione",
+    0.9,
+    "Dessert of whipped egg yolks, sugar, and wine"
+  ],
+  [
+    "castella",
+    0.85,
+    "Japanese sponge cake leavened with whipped whole eggs"
+  ],
+  [
+    "eclair",
+    0.85,
+    "Choux pastry dough is made with eggs"
+  ],
+  [
+    "kaiserschmarrn",
+    0.85,
+    "Austrian shredded pancake made from a rich egg batter"
+  ],
+  [
+    "spaetzle",
+    0.85,
+    "German egg noodle/dumpling dough is egg-based"
+  ],
+  [
+    "caesar",
+    0.8,
+    "Traditional Caesar dressing is emulsified with raw or coddled egg yolk"
+  ],
+  [
+    "okonomiyaki",
+    0.8,
+    "Savory Japanese pancake batter is bound with egg"
+  ],
+  [
+    "pad thai",
+    0.8,
+    "Standard recipe stir-fries scrambled egg into the noodles"
+  ],
+  [
+    "panettone",
+    0.8,
+    "Italian holiday bread made from an egg-rich dough"
+  ],
+  [
+    "schnitzel",
+    0.75,
+    "Classic preparation breads the cutlet via an egg-wash step before frying"
+  ],
+  [
+    "tiramisu",
+    0.75,
+    "Traditional mascarpone layer is made with raw egg yolks/whites, though many modern versions omit raw egg"
+  ],
+  [
+    "katsu",
+    0.7,
+    "Cutlet is standardly dredged in beaten egg before panko breading and frying"
+  ],
+  [
+    "kaya",
+    0.7,
+    "Southeast Asian coconut jam/custard traditionally made with eggs"
+  ],
+  [
+    "meatloaf",
+    0.65,
+    "Egg is a common binder in the meat mixture"
+  ],
+  [
+    "remoulade",
+    0.65,
+    "Often a mayonnaise (egg yolk emulsion) based sauce, though some versions are egg-free"
+  ],
+  [
+    "fried rice",
+    0.6,
+    "Commonly stir-fried with beaten egg, though egg-free versions exist"
+  ],
+  [
+    "tempura",
+    0.6,
+    "Traditional batter is often made with egg (yolk) plus flour and cold water"
+  ],
+  [
+    "croquette",
+    0.55,
+    "Commonly coated in egg wash before breading and frying"
+  ],
+  [
+    "meatball",
+    0.55,
+    "Egg is a common binder, though not universal"
+  ]
+]

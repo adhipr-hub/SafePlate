@@ -1,0 +1,147 @@
+[
+  [
+    "fruitcake",
+    0.85,
+    "Dense cake loaded with dried and candied fruit"
+  ],
+  [
+    "marsala",
+    0.85,
+    "Chicken/veal sauce defined by its Marsala wine content"
+  ],
+  [
+    "bourguignon",
+    0.8,
+    "Beef braised in red (Burgundy) wine by definition"
+  ],
+  [
+    "mincemeat",
+    0.8,
+    "Dried fruit mixture typically soaked in brandy or wine"
+  ],
+  [
+    "sauerbraten",
+    0.8,
+    "German pot roast marinated for days in vinegar and/or wine"
+  ],
+  [
+    "stollen",
+    0.8,
+    "German Christmas bread packed with dried fruit"
+  ],
+  [
+    "bordelaise",
+    0.75,
+    "Classic French sauce reduced from red wine"
+  ],
+  [
+    "escabeche",
+    0.75,
+    "Fish or poultry pickled/marinated in vinegar"
+  ],
+  [
+    "panforte",
+    0.75,
+    "Dense Italian dried-fruit-and-nut confection"
+  ],
+  [
+    "sangria",
+    0.75,
+    "Wine-based punch; sulphites come from the wine base"
+  ],
+  [
+    "escovitch",
+    0.7,
+    "Jamaican fried fish topped with vinegar-pickled vegetables"
+  ],
+  [
+    "panettone",
+    0.7,
+    "Italian holiday bread traditionally studded with candied/dried fruit"
+  ],
+  [
+    "adobo",
+    0.65,
+    "Filipino/Mexican vinegar-based braise or sauce"
+  ],
+  [
+    "beurre blanc",
+    0.65,
+    "Butter sauce built on a white wine reduction"
+  ],
+  [
+    "mignonette",
+    0.65,
+    "Shallot-vinegar sauce served with raw oysters"
+  ],
+  [
+    "piccalilli",
+    0.65,
+    "Mustard-vinegar pickled vegetable relish"
+  ],
+  [
+    "pikliz",
+    0.65,
+    "Haitian spicy pickled cabbage slaw in vinegar"
+  ],
+  [
+    "torshi",
+    0.65,
+    "Middle Eastern/Persian pickled vegetables in vinegar brine"
+  ],
+  [
+    "tzimmes",
+    0.65,
+    "Jewish carrot dish often made with prunes/dried apricots"
+  ],
+  [
+    "vindaloo",
+    0.65,
+    "Goan curry historically marinated in vinegar"
+  ],
+  [
+    "chimichurri",
+    0.55,
+    "Argentine herb sauce commonly made with wine vinegar"
+  ],
+  [
+    "hot cross",
+    0.55,
+    "Traditional buns studded with sultanas/currants (dried fruit)"
+  ],
+  [
+    "charoset",
+    0.5,
+    "Passover fruit paste; many traditions include wine or grape juice with dried fruit"
+  ],
+  [
+    "piccata",
+    0.45,
+    "Lemon-caper pan sauce sometimes deglazed with white wine"
+  ],
+  [
+    "cacciatore",
+    0.4,
+    "Hunter-style chicken/rabbit braise commonly includes wine, though not universally"
+  ],
+  [
+    "chutney",
+    0.4,
+    "British-style sweet chutneys often combine dried fruit and vinegar, though many Indian chutneys have neither"
+  ],
+  [
+    "muesli",
+    0.4,
+    "Often contains dried fruit (raisins, apricots), though plain versions exist"
+  ],
+  [
+    "trail mix",
+    0.4,
+    "Frequently includes dried fruit alongside nuts"
+  ],
+  [
+    "tagine",
+    0.3,
+    "Some Moroccan tagines (e.g. apricot/prune variants) use dried fruit, but many savory tagines do not"
+  ]
+]

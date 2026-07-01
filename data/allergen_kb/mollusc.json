@@ -1,0 +1,97 @@
+[
+  [
+    "midye dolma",
+    0.9,
+    "Turkish stuffed mussels; \"midye\" (mussel) is unrecognizable to non-Turkish speakers"
+  ],
+  [
+    "moules frites",
+    0.9,
+    "French-Belgian classic; \"moules\" is French for mussels, unfamiliar to many English-speaking diners"
+  ],
+  [
+    "takoyaki",
+    0.9,
+    "\"Tako\" is Japanese for octopus, a mollusc/cephalopod; not obvious to non-Japanese-speaking diners"
+  ],
+  [
+    "arroz negro",
+    0.85,
+    "Spanish \"black rice\" gets its color and flavor from squid ink"
+  ],
+  [
+    "cioppino",
+    0.85,
+    "Italian-American seafood stew is almost always loaded with clams, mussels, and squid, none named in the dish title"
+  ],
+  [
+    "jjamppong",
+    0.8,
+    "Korean spicy seafood noodle soup routinely contains mussels, squid, and clams; not conveyed by the Korean name"
+  ],
+  [
+    "conpoy",
+    0.75,
+    "Cantonese dried scallop used whole or shredded as a savory garnish/flavoring in soups and rice dishes"
+  ],
+  [
+    "haemul pajeon",
+    0.75,
+    "Korean seafood pancake; \"haemul\" means seafood in Korean and typically includes squid and mussels"
+  ],
+  [
+    "pad see ew",
+    0.7,
+    "Thai stir-fried noodle dish is almost always seasoned with oyster sauce"
+  ],
+  [
+    "xo sauce",
+    0.7,
+    "Hong Kong luxury condiment made from dried scallops, a mollusc; appears in stir-fries without disclosure"
+  ],
+  [
+    "char kway teow",
+    0.6,
+    "Malaysian/Singaporean stir-fried noodles traditionally include cockles, a mollusc"
+  ],
+  [
+    "fideua",
+    0.6,
+    "Spanish noodle-paella dish usually includes mixed seafood such as squid and mussels"
+  ],
+  [
+    "bouillabaisse",
+    0.5,
+    "French seafood stew traditionally includes mussels and sometimes small squid"
+  ],
+  [
+    "chow fun",
+    0.5,
+    "Cantonese wide rice-noodle stir-fry (e.g. beef chow fun) is typically finished with oyster sauce"
+  ],
+  [
+    "fritto misto",
+    0.5,
+    "Italian mixed fry typically includes squid rings among the fried items"
+  ],
+  [
+    "chow mein",
+    0.45,
+    "Chinese-American stir-fried noodles are frequently sauced with oyster sauce"
+  ],
+  [
+    "pad kra pao",
+    0.45,
+    "Thai holy basil stir-fry is commonly seasoned with oyster sauce"
+  ],
+  [
+    "buddha's delight",
+    0.35,
+    "non-strict-vegetarian restaurant versions of this Chinese vegetable dish are sometimes cooked with oyster sauce despite the vegetarian-sounding name"
+  ],
+  [
+    "chop suey",
+    0.35,
+    "Chinese-American stir-fry is sometimes finished with oyster sauce"
+  ]
+]

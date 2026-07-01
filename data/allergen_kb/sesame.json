@@ -1,0 +1,117 @@
+[
+  [
+    "gomadofu",
+    0.9,
+    "Japanese sesame tofu made directly from ground sesame paste"
+  ],
+  [
+    "gomae",
+    0.9,
+    "Japanese spinach salad dressed in ground sesame ('goma')"
+  ],
+  [
+    "pasteli",
+    0.9,
+    "Greek sesame-and-honey candy bar"
+  ],
+  [
+    "simit",
+    0.9,
+    "Turkish bread ring coated in sesame seeds"
+  ],
+  [
+    "tilgul",
+    0.9,
+    "Indian sesame-jaggery sweet; 'til' is the Hindi/Marathi word for sesame"
+  ],
+  [
+    "dukkah",
+    0.85,
+    "Egyptian spice/nut blend built primarily on toasted sesame seeds"
+  ],
+  [
+    "hummus",
+    0.85,
+    "Tahini (ground sesame paste) is a standard hummus ingredient"
+  ],
+  [
+    "jiandui",
+    0.85,
+    "Chinese fried glutinous rice ball coated in sesame seeds"
+  ],
+  [
+    "koulouri",
+    0.85,
+    "Greek sesame-crusted bread ring"
+  ],
+  [
+    "gomadare",
+    0.8,
+    "Japanese sesame dipping sauce commonly used for shabu-shabu/hot pot"
+  ],
+  [
+    "zaatar",
+    0.8,
+    "The za'atar spice blend itself typically contains toasted sesame seeds"
+  ],
+  [
+    "everything bagel",
+    0.75,
+    "The everything-seasoning blend includes sesame seeds"
+  ],
+  [
+    "ganoush",
+    0.75,
+    "Baba ganoush is traditionally finished with a tahini dressing"
+  ],
+  [
+    "msabaha",
+    0.75,
+    "Levantine warm chickpea dish dressed heavily in tahini"
+  ],
+  [
+    "shaobing",
+    0.75,
+    "Chinese flaky flatbread commonly topped with sesame seeds"
+  ],
+  [
+    "dandan",
+    0.6,
+    "Dan dan noodle sauce is traditionally often made with sesame paste"
+  ],
+  [
+    "bibimbap",
+    0.55,
+    "Traditionally finished with sesame oil and toasted sesame seeds"
+  ],
+  [
+    "furikake",
+    0.55,
+    "Popular Japanese rice-seasoning blend that very often includes sesame seeds among its mix"
+  ],
+  [
+    "bulgogi",
+    0.45,
+    "Traditional marinade commonly includes sesame oil and toasted seeds"
+  ],
+  [
+    "fatteh",
+    0.45,
+    "Many versions are topped with a tahini-yogurt sauce"
+  ],
+  [
+    "bang bang",
+    0.4,
+    "Traditional Sichuan bang bang chicken sauce often includes sesame paste/oil (note: unrelated to the sesame-free American 'bang bang shrimp')"
+  ],
+  [
+    "falafel",
+    0.4,
+    "Commonly served or wrapped with tahini sauce, though not an ingredient of the falafel itself"
+  ],
+  [
+    "muhammara",
+    0.35,
+    "Some recipes of this walnut-pepper dip add tahini, though it's not universal"
+  ]
+]

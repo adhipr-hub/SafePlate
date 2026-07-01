@@ -1,0 +1,112 @@
+[
+  [
+    "bagna cauda",
+    0.9,
+    "Piedmontese hot dip made from anchovies, garlic, and olive oil"
+  ],
+  [
+    "pad thai",
+    0.85,
+    "Sauce base is built on fish sauce (nam pla)"
+  ],
+  [
+    "puttanesca",
+    0.85,
+    "Italian tomato sauce traditionally built with anchovies melted into the olive oil"
+  ],
+  [
+    "tom yum",
+    0.85,
+    "Thai hot-sour soup base is seasoned with fish sauce"
+  ],
+  [
+    "caesar",
+    0.8,
+    "Classic Caesar dressing is traditionally emulsified with anchovy paste or fillets"
+  ],
+  [
+    "okonomiyaki",
+    0.8,
+    "Batter is typically made with bonito (dashi) stock and topped with bonito flakes; sauce is Worcestershire-style"
+  ],
+  [
+    "som tam",
+    0.8,
+    "Green papaya salad dressing is fish-sauce based"
+  ],
+  [
+    "nicoise",
+    0.75,
+    "Salade Nicoise is traditionally garnished with whole anchovy fillets"
+  ],
+  [
+    "takoyaki",
+    0.75,
+    "Batter contains dashi and it's topped with dried bonito (katsuobushi) flakes"
+  ],
+  [
+    "pad see ew",
+    0.7,
+    "Thai stir-fried noodle sauce typically seasoned with fish sauce"
+  ],
+  [
+    "xo sauce",
+    0.7,
+    "Chinese luxury condiment made from dried scallops, dried fish, and dried shrimp"
+  ],
+  [
+    "bun cha",
+    0.65,
+    "Vietnamese grilled-pork dish served with nuoc mam (fish sauce) dipping broth"
+  ],
+  [
+    "chawanmushi",
+    0.65,
+    "Japanese savory egg custard steamed in bonito-kelp dashi"
+  ],
+  [
+    "larb",
+    0.65,
+    "Lao/Thai minced-meat salad dressed with fish sauce"
+  ],
+  [
+    "bloody mary",
+    0.5,
+    "Classic recipes call for Worcestershire sauce, which contains anchovy"
+  ],
+  [
+    "cha gio",
+    0.5,
+    "Vietnamese fried spring rolls conventionally served with a fish-sauce dipping sauce"
+  ],
+  [
+    "goi cuon",
+    0.5,
+    "Vietnamese fresh spring rolls conventionally served with fish-sauce-based nuoc cham"
+  ],
+  [
+    "kimchi",
+    0.5,
+    "Traditionally fermented with fish sauce or salted anchovy/shrimp (jeotgal)"
+  ],
+  [
+    "miso soup",
+    0.5,
+    "Standard miso soup stock is made with bonito-flake dashi"
+  ],
+  [
+    "pinakbet",
+    0.5,
+    "Filipino vegetable dish typically seasoned with bagoong (fermented fish/shrimp paste)"
+  ],
+  [
+    "yakisoba",
+    0.5,
+    "Sauce is Worcestershire-style and dish is often topped with bonito flakes"
+  ],
+  [
+    "rarebit",
+    0.45,
+    "Welsh rarebit cheese sauce commonly includes a dash of Worcestershire sauce"
+  ]
+]

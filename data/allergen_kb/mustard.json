@@ -1,0 +1,82 @@
+[
+  [
+    "shorshe",
+    0.95,
+    "Bengali word for mustard; dishes named shorshe (e.g. shorshe ilish) are mustard-paste based"
+  ],
+  [
+    "sarson",
+    0.9,
+    "Punjabi/Hindi word for mustard; 'sarson ka saag' is mustard-greens based"
+  ],
+  [
+    "kasundi",
+    0.85,
+    "Bengali condiment made from fermented mustard seeds"
+  ],
+  [
+    "piccalilli",
+    0.85,
+    "British piccalilli relish classically includes mustard seed/powder alongside turmeric"
+  ],
+  [
+    "deviled egg",
+    0.8,
+    "Classic deviled egg filling includes prepared/dry mustard"
+  ],
+  [
+    "branston",
+    0.75,
+    "Branston pickle's published recipe includes mustard flour"
+  ],
+  [
+    "carolina gold",
+    0.75,
+    "South Carolina 'Carolina Gold' BBQ sauce is a distinct mustard-based style"
+  ],
+  [
+    "salad cream",
+    0.75,
+    "British salad cream standardly contains mustard flour/extract"
+  ],
+  [
+    "rarebit",
+    0.7,
+    "Welsh rarebit's cheese sauce traditionally includes mustard powder"
+  ],
+  [
+    "remoulade",
+    0.65,
+    "Classic French and Danish remoulade sauces are mustard-based"
+  ],
+  [
+    "chowchow",
+    0.55,
+    "Southern US chow-chow relish is often mustard-based, though recipes vary"
+  ],
+  [
+    "achaar",
+    0.5,
+    "Many Indian achaar pickles are made with mustard oil and/or whole mustard seeds"
+  ],
+  [
+    "crab cake",
+    0.5,
+    "Maryland-style crab cakes commonly include dry/prepared mustard in the binder"
+  ],
+  [
+    "poriyal",
+    0.45,
+    "South Indian poriyal is stir-fried with a mustard-seed tempering"
+  ],
+  [
+    "sambar",
+    0.45,
+    "South Indian sambar is typically finished with a mustard-seed tadka"
+  ],
+  [
+    "masala dosa",
+    0.4,
+    "The potato filling is commonly tempered with mustard seeds"
+  ]
+]

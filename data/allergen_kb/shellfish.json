@@ -1,0 +1,87 @@
+[
+  [
+    "har gow",
+    0.9,
+    "Cantonese name literally translates to shrimp dumpling"
+  ],
+  [
+    "cioppino",
+    0.85,
+    "Italian-American seafood stew defined by a mix of shellfish including crab and shrimp"
+  ],
+  [
+    "mam tom",
+    0.8,
+    "Vietnamese fermented shrimp paste (mam tom) that is the defining ingredient of dishes bearing this name"
+  ],
+  [
+    "etouffee",
+    0.65,
+    "classic Cajun/Creole preparation is crawfish or shrimp based"
+  ],
+  [
+    "som tam",
+    0.65,
+    "Thai green papaya salad traditionally dressed with dried shrimp and shrimp paste (kapi)"
+  ],
+  [
+    "char kway teow",
+    0.6,
+    "stir-fry traditionally includes shrimp and/or cockles alongside Chinese sausage"
+  ],
+  [
+    "laksa",
+    0.6,
+    "Malaysian/Nyonya laksa broths commonly built with dried shrimp and/or prawn paste"
+  ],
+  [
+    "tom yum",
+    0.6,
+    "classic broth (tom yum goong) is shrimp-based; other proteins are less traditional variants"
+  ],
+  [
+    "xo sauce",
+    0.6,
+    "Hong Kong condiment made from dried shrimp and dried scallop"
+  ],
+  [
+    "fideua",
+    0.5,
+    "Spanish seafood noodle dish traditionally includes shrimp/prawns"
+  ],
+  [
+    "green curry paste",
+    0.5,
+    "Thai curry paste base is traditionally pounded with shrimp paste (kapi)"
+  ],
+  [
+    "pad thai",
+    0.5,
+    "traditional tamarind sauce is typically built with dried shrimp and/or shrimp paste, even in chicken/veg versions"
+  ],
+  [
+    "siu mai",
+    0.5,
+    "traditional Cantonese filling commonly blends pork with shrimp"
+  ],
+  [
+    "massaman",
+    0.4,
+    "curry paste base traditionally includes shrimp paste, though many restaurant pastes omit it"
+  ],
+  [
+    "panang curry",
+    0.4,
+    "curry paste base traditionally includes shrimp paste, though modern jarred pastes vary"
+  ],
+  [
+    "wonton",
+    0.4,
+    "traditional Cantonese filling often blends shrimp with pork, though pork-only versions are common too"
+  ],
+  [
+    "bisque",
+    0.35,
+    "classically a shellfish (lobster/crab/shrimp) stock-based soup, but many modern menu 'bisques' (tomato, squash) contain none"
+  ]
+]

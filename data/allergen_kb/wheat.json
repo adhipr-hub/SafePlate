@@ -1,0 +1,167 @@
+[
+  [
+    "seitan",
+    0.98,
+    "Made almost entirely of wheat gluten despite the unfamiliar name"
+  ],
+  [
+    "couscous",
+    0.9,
+    "Made from wheat semolina"
+  ],
+  [
+    "katsu",
+    0.9,
+    "Coated in wheat-flour panko breadcrumbs before frying"
+  ],
+  [
+    "orzo",
+    0.9,
+    "Wheat pasta shaped like rice, easily mistaken for a grain"
+  ],
+  [
+    "schnitzel",
+    0.9,
+    "Meat is dredged in flour and coated in wheat breadcrumbs"
+  ],
+  [
+    "bechamel",
+    0.85,
+    "White sauce is a roux thickened with wheat flour"
+  ],
+  [
+    "gyoza",
+    0.85,
+    "Dumpling wrapper is a wheat-flour dough"
+  ],
+  [
+    "okonomiyaki",
+    0.85,
+    "Batter is primarily wheat flour"
+  ],
+  [
+    "pierogi",
+    0.85,
+    "Dumpling dough is made from wheat flour"
+  ],
+  [
+    "samosa",
+    0.85,
+    "Pastry shell is typically made from wheat flour (maida)"
+  ],
+  [
+    "spaetzle",
+    0.85,
+    "Egg noodle/dumpling made from wheat flour"
+  ],
+  [
+    "takoyaki",
+    0.85,
+    "Batter is made from wheat flour"
+  ],
+  [
+    "tempura",
+    0.85,
+    "Batter is traditionally made from wheat flour"
+  ],
+  [
+    "wonton",
+    0.85,
+    "Wrapper is made from wheat-flour dough"
+  ],
+  [
+    "yakisoba",
+    0.85,
+    "Made with wheat noodles despite \"soba\" suggesting buckwheat"
+  ],
+  [
+    "arancini",
+    0.8,
+    "Rice balls are coated in wheat breadcrumbs before frying"
+  ],
+  [
+    "croquette",
+    0.8,
+    "Breaded shell is typically wheat flour and breadcrumbs"
+  ],
+  [
+    "egg roll",
+    0.8,
+    "Wrapper is a wheat-flour dough, unlike rice-paper spring rolls"
+  ],
+  [
+    "kibbeh",
+    0.8,
+    "Traditionally made with bulgur, a form of cracked wheat"
+  ],
+  [
+    "potsticker",
+    0.8,
+    "Wrapper is a thin wheat-flour dough"
+  ],
+  [
+    "scotch egg",
+    0.8,
+    "Sausage coating is rolled in wheat breadcrumbs"
+  ],
+  [
+    "general tso",
+    0.75,
+    "Chicken is battered in flour/cornstarch and sauced with wheat-based soy sauce"
+  ],
+  [
+    "marsala",
+    0.75,
+    "Chicken/veal is typically dredged in wheat flour before searing"
+  ],
+  [
+    "moo shu",
+    0.75,
+    "Served wrapped in thin wheat-flour pancakes"
+  ],
+  [
+    "piccata",
+    0.75,
+    "Meat is typically dredged in wheat flour before pan-searing"
+  ],
+  [
+    "tabbouleh",
+    0.7,
+    "Traditional recipe includes bulgur wheat"
+  ],
+  [
+    "gumbo",
+    0.65,
+    "Often thickened with a wheat-flour roux"
+  ],
+  [
+    "empanada",
+    0.6,
+    "Dough is traditionally wheat flour, though some regional versions use corn masa"
+  ],
+  [
+    "gnocchi",
+    0.55,
+    "Commonly bound with wheat flour alongside the potato"
+  ],
+  [
+    "moussaka",
+    0.55,
+    "Often topped with a bechamel sauce thickened with wheat flour"
+  ],
+  [
+    "teriyaki",
+    0.55,
+    "Sauce is usually made with regular soy sauce, which contains wheat"
+  ],
+  [
+    "meatloaf",
+    0.5,
+    "Breadcrumbs are a common but not universal binder"
+  ],
+  [
+    "meatball",
+    0.45,
+    "Breadcrumbs are a common but not universal binder/filler"
+  ]
+]
