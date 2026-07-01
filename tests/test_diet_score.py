@@ -2,11 +2,11 @@ from safeplate.diet_score import assess_diet
 from safeplate.menu_text import MenuItemRecord
 
 
-def _item(item_name, *, allergen_terms=(), extraction_method="listed"):
+def _item(item_name, *, allergen_terms=(), extraction_method="listed", dietary_terms=()):
     return MenuItemRecord(
         restaurant_name="", restaurant_source_id="", menu_source_url="",
         category="", item_name=item_name, description="", price="",
-        dietary_terms=[], allergen_terms=list(allergen_terms),
+        dietary_terms=list(dietary_terms), allergen_terms=list(allergen_terms),
         source_type="", extraction_method=extraction_method, confidence=0.9,
         raw_text="", fetched_at="",
     )
@@ -26,7 +26,8 @@ def test_vegan_flags_meat_by_name():
 
 
 def test_vegetarian_allows_dairy():
-    items = [_item("Margherita Pizza", allergen_terms=["milk", "gluten"], extraction_method="allergen_matrix")]
+    items = [_item("Margherita Pizza", allergen_terms=["milk", "gluten"],
+                    extraction_method="allergen_matrix", dietary_terms=["vegetarian"])]
     a = assess_diet("vegetarian", menu_items=items)
     assert a.verdict in ("good_options", "limited")  # dairy is fine for lacto-veg
     assert "Margherita Pizza" in a.compatible_items
@@ -42,6 +43,15 @@ def test_all_unknown_menu_is_unknown():
     a = assess_diet("vegan", menu_items=items)
     assert a.verdict == "unknown"      # non-empty but zero informative items
     assert a.support == 0.0
+
+
+def test_unlabeled_allergen_item_not_compatible_option():
+    # Generic name, allergen label present, but NO positive dietary label and no meat hit.
+    # Allergen data alone must not be treated as evidence of vegan compatibility.
+    items = [_item("House Special", allergen_terms=["gluten"])]
+    a = assess_diet("vegan", menu_items=items)
+    assert a.verdict == "unknown"
+    assert "House Special" not in a.compatible_items
 
 
 def test_diet_summary_payload_shape():

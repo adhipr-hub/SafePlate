@@ -501,7 +501,7 @@ def _write_assessment_into_card(
     stamped onto the row AND threaded into the embedded ``menuDetail`` so the list
     card and the drawer agree, same as the risk score."""
     payload["allergenPrior"] = {
-        "allergen": "nuts",
+        "allergen": assessment.per_allergen[0].allergen if assessment.per_allergen else "nuts",
         "risk": round(assessment.overall_risk, 3),
         "confidence": round(assessment.overall_confidence, 2),
         "basis": assessment.evidence_basis,

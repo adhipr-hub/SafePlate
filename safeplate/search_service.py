@@ -275,7 +275,7 @@ def _restaurant_payload(row: Any, *, severity: str = "allergy") -> dict[str, Any
         cuisines=cuisines, region=region,
     )
     payload["allergenPrior"] = {
-        "allergen": "nuts",
+        "allergen": assessment.per_allergen[0].allergen if assessment.per_allergen else "nuts",
         "risk": round(assessment.overall_risk, 3),
         "confidence": round(assessment.overall_confidence, 2),
         "basis": assessment.evidence_basis,
