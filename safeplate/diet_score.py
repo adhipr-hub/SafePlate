@@ -1,7 +1,10 @@
 """Diet compatibility (vegetarian/vegan). A distinct concept from allergen RISK:
-ingredient membership, no severity/cross-contact. Asymmetry: unknown/unlabeled
-dishes are NOT assumed compatible; an empty/unknown menu yields 'unknown', never
-'good_options'."""
+ingredient membership, no severity/cross-contact. A non-conflict, unlabeled dish is
+ASSUMED compatible from its name, tracked by a provenance basis (labeled >
+ai_assessed > estimated); estimates are always marked 'estimated', never presented
+as confirmed. Asymmetry preserved where it matters: an empty menu yields 'unknown'
+(never 'good_options'), and a vegan verdict resting only on name-based 'estimated'
+evidence is capped at 'limited' -- a dish name can't reveal hidden dairy/egg."""
 
 from __future__ import annotations
 
