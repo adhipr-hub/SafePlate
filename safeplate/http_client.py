@@ -10,6 +10,7 @@ import threading
 import time
 import zlib
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 # Prefer requests for keep-alive connection pooling and transparent gzip when
@@ -102,6 +103,56 @@ def _session() -> "requests.Session":
     return session
 
 
+def _idna_encode(host: str) -> str:
+    """IDNA-encode a hostname label-by-label. The strict ``str.encode('idna')``
+    codec rejects all-ASCII and empty labels, so encode only the labels that
+    actually need it and leave the rest verbatim."""
+    labels = []
+    for label in host.split("."):
+        if label.isascii():
+            labels.append(label)
+        else:
+            labels.append(label.encode("idna").decode("ascii"))
+    return ".".join(labels)
+
+
+def _to_ascii_url(url: str) -> str:
+    """Return an ASCII-only equivalent of ``url`` so it survives stdlib
+    ``http.client`` request-line/header encoding (ascii + latin-1).
+
+    ``requests`` does this internally (IDNA host + percent-quoted path); the
+    urllib fallback does not, so a restaurant with an internationalised domain
+    (a CJK/Cyrillic hostname) or a non-ASCII path would otherwise raise
+    ``UnicodeEncodeError`` mid-fetch. Best-effort: on any failure the original
+    string is returned and the caller's boundary guard treats a still-unencodable
+    URL as an ordinary failed fetch."""
+    if url.isascii():
+        return url
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    netloc = parts.netloc
+    host = parts.hostname
+    if host and not host.isascii():
+        try:
+            ascii_host = _idna_encode(host)
+        except (UnicodeError, ValueError):
+            return url  # can't safely encode the host; let the guard handle it
+        userinfo = ""
+        if parts.username is not None:
+            userinfo = quote(parts.username, safe="")
+            if parts.password is not None:
+                userinfo += ":" + quote(parts.password, safe="")
+            userinfo += "@"
+        suffix = f":{parts.port}" if parts.port is not None else ""
+        netloc = f"{userinfo}{ascii_host}{suffix}"
+    path = quote(parts.path, safe="/%:@!$&'()*+,;=~-._")
+    query = quote(parts.query, safe="=&%:@!$'()*+,;/?~-._")
+    fragment = quote(parts.fragment, safe="%:@!$&'()*+,;=/?~-._")
+    return urlunsplit((parts.scheme, netloc, path, query, fragment))
+
+
 def http_get(
     url: str,
     *,
@@ -114,6 +165,10 @@ def http_get(
     SSRF guard: the URL (and every redirect hop, via ``_GuardedHTTPAdapter``) must
     target a public host over http(s); a blocked URL raises ``HttpConnectionError``
     so callers treat it as an ordinary failed fetch (no data returned)."""
+    # Normalise BEFORE the guard so it evaluates the punycode host we will actually
+    # connect to (also closes an SSRF gap where a unicode host normalises to a
+    # blocked one).
+    url = _to_ascii_url(url)
     try:
         assert_public_url(url)
     except BlockedUrlError as exc:
@@ -138,10 +193,17 @@ def http_get(
     from safeplate.timing import span
 
     with span("http_get"):
-        if _HAS_REQUESTS:
-            response = _http_get_requests(url, user_agent=user_agent, timeout=timeout)
-        else:
-            response = _http_get_urllib(url, user_agent=user_agent, timeout=timeout)
+        try:
+            if _HAS_REQUESTS:
+                response = _http_get_requests(url, user_agent=user_agent, timeout=timeout)
+            else:
+                response = _http_get_urllib(url, user_agent=user_agent, timeout=timeout)
+        except UnicodeError as exc:
+            # Belt-and-suspenders: a URL that survived normalisation still
+            # unencodable must fail as an ordinary fetch, never crash the search.
+            raise HttpConnectionError(
+                f"Could not fetch non-encodable URL {url!r}: {exc}"
+            ) from exc
 
     if cache_key is not None:
         with _CACHE_LOCK:
@@ -287,9 +349,15 @@ def http_post(
     own exceptions, so status + body are handed back as-is. Only transport
     failures raise (:class:`HttpConnectionError`).
     """
-    if _HAS_REQUESTS:
-        return _http_post_requests(url, data=data, headers=headers, timeout=timeout)
-    return _http_post_urllib(url, data=data, headers=headers, timeout=timeout)
+    url = _to_ascii_url(url)
+    try:
+        if _HAS_REQUESTS:
+            return _http_post_requests(url, data=data, headers=headers, timeout=timeout)
+        return _http_post_urllib(url, data=data, headers=headers, timeout=timeout)
+    except UnicodeError as exc:
+        raise HttpConnectionError(
+            f"Could not POST non-encodable URL {url!r}: {exc}"
+        ) from exc
 
 
 def _http_post_requests(
