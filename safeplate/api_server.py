@@ -224,6 +224,14 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             try:
                 payload = self._read_json()
                 response = run_restaurant_search(payload, demo_mode=demo_mode)
+            except UnicodeError:
+                # UnicodeEncodeError/DecodeError subclass ValueError, but they come from
+                # deep in the HTTP/library stack (e.g. a provider result whose text can't
+                # be encoded into a request header), NOT our validation. Never surface the
+                # raw codec message to the client; log the traceback so we can locate it.
+                self._log_internal_error("search")
+                self._send_json({"error": "Internal error while searching."}, status=500)
+                return
             except ValueError as exc:
                 # Our own validation/bad-input messages are safe to surface.
                 self._send_json({"error": str(exc)}, status=400)
@@ -238,6 +246,12 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             try:
                 payload = self._read_json()
                 response = run_menu_extraction(payload, demo_mode=demo_mode)
+            except UnicodeError:
+                # See _handle_search: a library encode/decode error is internal, not a
+                # user-input ValueError; log it, don't leak the raw codec message.
+                self._log_internal_error("menu")
+                self._send_json({"error": "Internal error reading the menu."}, status=500)
+                return
             except ValueError as exc:
                 self._send_json({"error": str(exc)}, status=400)
                 return
