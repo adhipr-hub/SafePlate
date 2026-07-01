@@ -179,11 +179,13 @@ def _diet_summary_payload(
     """Map each requested diet to its DietAssessment as a UI-shaped dict. A distinct
     concept from allergen risk (ingredient membership, no severity/cross-contact) --
     see ``safeplate.diet_score`` for the compatibility rules."""
+    from safeplate.allergens import DIETS
     from safeplate.diet_score import assess_diets
 
     return [
         {
             "diet": a.diet,
+            "display": DIETS[a.diet].display if a.diet in DIETS else a.diet,
             "verdict": a.verdict,
             "support": a.support,
             "rationale": a.rationale,
@@ -213,10 +215,24 @@ def _structured_menu_response(
     payload per menu-backed card -- letting the drawer open instantly with no
     /api/menu round-trip -- and so /api/menu can return it on demand for cards that
     weren't pre-extracted."""
+    from safeplate.allergens import spec_for
+
     item_payloads = _menu_item_payloads(menu_items)
     riskiest_items: list[dict[str, Any]] = []
+    per_allergen_payload: list[dict[str, Any]] = []
     for per_allergen in assessment.per_allergen:
         riskiest_items.extend(per_allergen.riskiest_items)
+        spec = spec_for(per_allergen.allergen)
+        display = spec.display if spec else per_allergen.allergen.replace("_", " ").title()
+        per_allergen_payload.append(
+            {
+                "allergen": per_allergen.allergen,
+                "display": display,
+                "tier": per_allergen.tier,
+                "risk": round(per_allergen.risk, 2),
+                "rationale": per_allergen.rationale,
+            }
+        )
     coverage_status = "menu_backed" if menu_items else "cuisine_estimate"
     region_notice = _region_notice_for(
         coverage, menu_items, address=address, website_url=website_url
@@ -237,6 +253,10 @@ def _structured_menu_response(
         "evidenceBasis": assessment.evidence_basis,
         "menuSourceErrors": errors,
         "coverageStatus": coverage_status,
+        # per-allergen breakdown (Task 9): reflects whatever allergens were scored,
+        # so it's always present -- unlike `diets` below it doesn't depend on an
+        # optional profile selection.
+        "perAllergen": per_allergen_payload,
         # legacy-compatible shapes the UI drawer reads:
         "menuBackedRisk": {
             "risk": round(assessment.overall_risk, 3),

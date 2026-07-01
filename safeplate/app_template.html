@@ -1265,6 +1265,19 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const cap = s => { s = String(s||"").replace(/_/g," "); return s.charAt(0).toUpperCase()+s.slice(1); };
 const asList = v => Array.isArray(v) ? v : v ? String(v).split(";").map(x=>x.trim()).filter(Boolean) : [];
 const isNut  = t => /nut|peanut|almond|cashew|walnut|pecan|pistachio|hazelnut|pine|macadamia|praline|nutella|gianduja/i.test(t);
+// Loose client-side match of a menu allergen-chip term against the user's OTHER
+// (non-nut) selected allergens, so those chips can share the nut chip's highlight
+// treatment. Deliberately simple (a subset of safeplate.allergens' aliasing) --
+// good enough for chip coloring, not a source of truth.
+const _ALLERGEN_ALIASES = {
+  milk: /milk|dairy|lactose/i, egg: /egg/i, soy: /soy|soya/i,
+  gluten: /gluten|cereal/i, wheat: /wheat/i, fish: /\bfish\b/i,
+  shellfish: /shellfish|crustacean/i, mollusc: /mollusc|mollusk/i,
+  sesame: /sesame/i, mustard: /mustard/i, celery: /celery/i,
+  sulphites: /sulph?ite/i, lupin: /lupin|lupine/i,
+};
+const matchesSelectedAllergen = t => state.allergens.some(a =>
+  a.allergen !== "nuts" && (_ALLERGEN_ALIASES[a.allergen] || /^$/).test(t));
 const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"", nutTypes:[], noCache:false, experienceHistory:[], allergens:[], diets:[] };
 const _HIST_KEY = "safeplate.experienceHistory";
 function loadHistory(){ try { state.experienceHistory = JSON.parse(localStorage.getItem(_HIST_KEY)||"[]")||[]; } catch { state.experienceHistory = []; } }
@@ -1580,6 +1593,20 @@ function textClr(r)    { return {"lo":"var(--lo)","md":"var(--md)","hi":"var(--h
 function stripeClr(r)  { return ringClr(r); }
 function riskWord(r)   { return {"lo":"Lower risk","md":"Moderate risk","hi":"Higher risk"}[band(r)]; }
 
+/* ── allergen label helpers (drop the hardcoded "for nuts" copy) ──
+   `perAllergen` (when given) is the response's `summary.perAllergen` (has `.display`);
+   otherwise falls back to the diner's selected profile (`state.allergens`, keyed by
+   `.allergen`). Exactly one selected -> name it; zero or several -> stay neutral. */
+function allergenDisplay(key) { return String(key||"").replace(/_/g," ").replace(/\b\w/g, c=>c.toUpperCase()); }
+function allergenPhrase(perAllergen) {
+  const list = (perAllergen && perAllergen.length) ? perAllergen : state.allergens;
+  if (list && list.length === 1) {
+    const it = list[0];
+    return `for ${it.display || allergenDisplay(it.allergen)}`;
+  }
+  return "for your allergens";
+}
+
 /* ── ring SVG ── */
 function ring(risk, px) {
   const R = px * 0.395, C = 2*Math.PI*R, off = C*(1-risk);
@@ -1859,7 +1886,7 @@ function applyUpgrade(r, prevRisk) {
   el.classList.remove("is-reading");
   const newRisk = r.allergenPrior?.risk ?? prevRisk ?? 0.3;
   el.innerHTML = cardMarkup(r);
-  el.setAttribute("aria-label", `${r.name} — ${riskWord(newRisk)} for nuts. View details.`);
+  el.setAttribute("aria-label", `${r.name} — ${riskWord(newRisk)} ${allergenPhrase()}. View details.`);
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (!reduce && prevRisk!=null) {
     const R = 56*0.395, C = 2*Math.PI*R;
@@ -1913,7 +1940,7 @@ function renderResults() {
     return;
   }
   $("#grid").innerHTML = rows.map((r,i) =>
-    `<article class="rcard" tabindex="0" role="button" aria-label="${esc(r.name)} — ${riskWord(r.allergenPrior?.risk??0.3)} for nuts. View details." style="animation-delay:${i*32}ms" data-i="${state.rows.indexOf(r)}">${cardMarkup(r)}</article>`
+    `<article class="rcard" tabindex="0" role="button" aria-label="${esc(r.name)} — ${riskWord(r.allergenPrior?.risk??0.3)} ${esc(allergenPhrase())}. View details." style="animation-delay:${i*32}ms" data-i="${state.rows.indexOf(r)}">${cardMarkup(r)}</article>`
   ).join("");
   document.querySelectorAll(".rcard").forEach(el=>{
     const open = () => openDetail(state.rows[+el.dataset.i]);
@@ -1999,7 +2026,7 @@ function explanationHtml(risk) {
   </div>`;
 }
 
-function verdictHtml(risk, coverage, basis) {
+function verdictHtml(risk, coverage, basis, perAllergen) {
   const v = risk?.risk??0.3;
   const conf = risk?.confidence!=null?Math.round(risk.confidence*100)+"% confidence":"";
   const tierLbl = {avoid:"Avoid",caution:"Caution",likely_ok:"Likely OK"}[risk?.tier]||"";
@@ -2011,7 +2038,7 @@ function verdictHtml(risk, coverage, basis) {
   return `<div class="verdict" id="riskVerdict">
     ${ring(v,68)}
     <div class="verdict-body">
-      <div class="verdict-label" style="color:${textClr(v)}">${riskWord(v)} for nuts</div>
+      <div class="verdict-label" style="color:${textClr(v)}">${riskWord(v)} ${esc(allergenPhrase(perAllergen))}</div>
       <div class="verdict-prov">${pvchip(prov)}<span class="pv-blurb">${esc(prov.blurb)}</span>${personalChip}</div>
       <div class="verdict-badges">
         ${tierLbl?`<span class="cbadge" style="border-color:${textClr(v)};color:${textClr(v)}">${esc(tierLbl)}</span>`:""}
@@ -2019,6 +2046,55 @@ function verdictHtml(risk, coverage, basis) {
       </div>
       ${explanationHtml(risk)}
     </div>
+  </div>`;
+}
+
+/* Per-allergen breakdown (Task 9): one row per scored allergen, only shown once the
+   diner has more than one -- a single-allergen profile already sees everything it
+   needs in the main verdict above. Reuses `.mi-row`/`.cbadge`/`.why-list`, no new
+   visual language. */
+function perAllergenHtml(perAllergen) {
+  const list = perAllergen || [];
+  if (list.length < 2) return "";
+  const tierLbl = {avoid:"Avoid",caution:"Caution",likely_ok:"Likely OK"};
+  const rows = list.map((pa,i) => {
+    const clr = textClr(pa.risk ?? 0);
+    const lines = asList(pa.rationale).filter(Boolean);
+    return `<div${i?' style="margin-top:16px"':''}>
+      <div class="mi-row">
+        <span class="mi-name">${esc(pa.display || allergenDisplay(pa.allergen))}</span>
+        <span class="cbadge" style="border-color:${clr};color:${clr}">${esc(tierLbl[pa.tier]||"")}</span>
+      </div>
+      ${lines.length?`<ul class="why-list">${lines.map(l=>`<li><span class="why-text">${renderClaim(l)}</span></li>`).join("")}</ul>`:""}
+    </div>`;
+  }).join("");
+  return `<div class="ds">
+    <h3 class="sec-head">Per-allergen breakdown</h3>
+    ${rows}
+  </div>`;
+}
+
+/* Diet-compatibility badges (Task 9): additive, only present when the diner selected
+   diets (`summary.diets`). Never color-alone -- the verdict-specific wording IS the
+   accessible signal; color is a reinforcing cue on top of existing `.cbadge` tokens. */
+const _DIET_VERDICT_COPY = {
+  not_compatible: d => `Not ${d}-friendly`,
+  limited:        d => `Few ${d} options`,
+  good_options:   d => `${d} options`,
+  unknown:        d => `${d}: ask staff`,
+};
+const _DIET_VERDICT_COLOR = { not_compatible:"var(--hi)", limited:"var(--md)", good_options:"var(--g0)", unknown:"var(--tx3)" };
+function dietBadgesHtml(diets) {
+  if (!diets || !diets.length) return "";
+  const chips = diets.map(d => {
+    const clr = _DIET_VERDICT_COLOR[d.verdict] || "var(--tx3)";
+    const display = d.display || allergenDisplay(d.diet);
+    const label = (_DIET_VERDICT_COPY[d.verdict] || (x=>x))(display);
+    return `<span class="cbadge" style="border-color:${clr};color:${clr}">${esc(label)}</span>`;
+  }).join("");
+  return `<div class="ds">
+    <h3 class="sec-head">Diet compatibility</h3>
+    <div class="card-badges">${chips}</div>
   </div>`;
 }
 
@@ -2106,7 +2182,7 @@ function renderMenu(m,r) {
     const _card = cardNode(r);
     if (_card) _card.innerHTML = cardMarkup(r);
     const v = $("#riskVerdict");
-    if (v) v.outerHTML = verdictHtml(menuRisk,r.coverageStatus,summary.evidenceBasis);
+    if (v) v.outerHTML = verdictHtml(menuRisk,r.coverageStatus,summary.evidenceBasis,summary.perAllergen);
   }
 
   const sig = summary.restaurantSignals||{};
@@ -2119,6 +2195,8 @@ function renderMenu(m,r) {
   /* region provenance — when the only data we found is from another country, keep it
      but say so plainly (recipes/labelling differ by region) right under the verdict. */
   let html = regionBannerHtml(summary.regionNotice);
+  html += perAllergenHtml(summary.perAllergen);
+  html += dietBadgesHtml(summary.diets);
 
   /* awareness signals */
   const sigDefs = [
@@ -2216,12 +2294,16 @@ function renderMenu(m,r) {
       return (showCatHeaders?`<h4 class="menu-cat">${esc(cat)}</h4>`:"") +
         catItems.map(it => {
           const al = asList(it.allergen_terms), di = asList(it.dietary_terms);
-          const hasNut = al.some(isNut);
-          const chips = al.map(a=>`<span class="mchip ${isNut(a)?"mchip-nut":"mchip-other"}">${esc(a)}</span>`).join("")
+          // Highlight a chip when it's a nut (existing behavior) OR matches one of the
+          // diner's other selected allergens (Task 9 generalization) -- same treatment,
+          // reusing the existing "danger" chip/name classes rather than new colors.
+          const isFlagged = a => isNut(a) || matchesSelectedAllergen(a);
+          const hasFlag = al.some(isFlagged);
+          const chips = al.map(a=>`<span class="mchip ${isFlagged(a)?"mchip-nut":"mchip-other"}">${esc(a)}</span>`).join("")
             + di.map(d=>`<span class="mchip mchip-diet">${esc(d)}</span>`).join("");
           return `<div class="mitem">
             <div class="mi-row">
-              <span class="mi-name${hasNut?" danger":""}">${esc(it.item_name||"")}</span>
+              <span class="mi-name${hasFlag?" danger":""}">${esc(it.item_name||"")}</span>
               ${it.price?`<span class="mi-price">${esc(it.price)}</span>`:""}
             </div>
             ${it.description?`<div class="mi-desc">${esc(it.description)}</div>`:""}
