@@ -66,7 +66,7 @@ DIETS: dict[str, DietSpec] = {
     "vegan": DietSpec(
         key="vegan", display="Vegan",
         excluded_allergens=frozenset({"milk", "egg", "fish", "shellfish", "mollusc"}),
-        excluded_categories=frozenset({"meat", "poultry", "gelatin", "honey"}),
+        excluded_categories=frozenset({"meat", "poultry", "gelatin", "honey", "dairy", "egg"}),
     ),
 }
 

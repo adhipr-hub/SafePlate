@@ -90,5 +90,39 @@
     "honeyed",
     "manuka honey",
     "wildflower honey"
+  ],
+  "dairy": [
+    "cheese",
+    "paneer",
+    "butter",
+    "cream",
+    "creamy",
+    "ghee",
+    "yogurt",
+    "yoghurt",
+    "custard",
+    "alfredo",
+    "parmesan",
+    "mozzarella",
+    "ricotta",
+    "feta",
+    "queso",
+    "mascarpone",
+    "gelato",
+    "milkshake",
+    "buttermilk"
+  ],
+  "egg": [
+    "omelette",
+    "omelet",
+    "frittata",
+    "quiche",
+    "meringue",
+    "aioli",
+    "mayonnaise",
+    "carbonara",
+    "scrambled egg",
+    "fried egg",
+    "egg wash"
   ]
 }
