@@ -1,0 +1,6 @@
+{
+  "meat":    ["beef", "pork", "chicken", "lamb", "bacon", "steak", "sausage", "ham", "meatball"],
+  "poultry": ["chicken", "turkey", "duck"],
+  "gelatin": ["gelatin", "gelatine"],
+  "honey":   ["honey"]
+}
