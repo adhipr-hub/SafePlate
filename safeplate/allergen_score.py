@@ -43,15 +43,18 @@ from safeplate.allergen_prior import (
     PEANUTS,
     TREE_NUTS,
     absence_inference_factor,
+    allergen_cuisine_baseline,
     clamp_risk as _clamp,
     families_for_nut_types,
     labeling_trust_for_region,
     normalize_cuisine,
     region_from_address,
+    restaurant_allergen_risk,
     restaurant_nut_risk,
     score_restaurant_prior,
     specific_tree_nuts,
 )
+from safeplate.allergens import canonical as _canonical, spec_for as _spec_for
 
 DISCLAIMER = (
     "Estimated allergen risk, not a guarantee -- always confirm directly with the "
@@ -109,6 +112,9 @@ class AllergenPref:
 @dataclass(frozen=True)
 class UserProfile:
     allergens: tuple[AllergenPref, ...] = ()
+    # Canonical diet keys (e.g. {"vegan"}), read by the diet evaluator (Task 4);
+    # defaulted so every existing caller/test is unchanged. Not used by the scorer here.
+    diets: frozenset = frozenset()
 
     @classmethod
     def for_nuts(
@@ -409,6 +415,27 @@ def _split_nut_terms(
     return contains, other
 
 
+def matrix_covers(allergen: str, terms: list[str]) -> bool:
+    """True if any of ``terms`` canonicalizes to ``allergen`` -- the generic twin of
+    ``matrix_covers_nuts``: does this chart column set actually cover the allergen?"""
+    return any(_canonical(t) == allergen for t in (terms or []))
+
+
+def _split_allergen_terms(allergen: str, terms: list[str]) -> tuple[list[str], list[str]]:
+    """(contains, cross_contact) for ONE canonical allergen -- the non-nut parallel of
+    ``_split_nut_terms``. A 'may contain' / 'traces' / 'cross' prefixed term is
+    cross-contact; any other term that canonicalizes to the allergen is a 'contains'."""
+    contains: list[str] = []
+    cross: list[str] = []
+    for raw in terms or []:
+        low = str(raw).lower()
+        is_cc = any(m in low for m in ("may contain", "traces", "trace of", "cross"))
+        core = low.replace("may contain", "").replace("traces", "").strip(" :-")
+        if _canonical(core) == allergen or _canonical(low) == allergen:
+            (cross if is_cc else contains).append(raw)
+    return contains, cross
+
+
 def _is_matrix_method(method: str) -> bool:
     return "matrix" in (method or "").lower()
 
@@ -602,6 +629,13 @@ def _score_one_allergen(
     community: Sequence[CommunitySignal],
     official_domain: str | None = None,
 ) -> AllergenAssessment:
+    # Multi-allergen dispatch: any non-nut allergen routes to the generic scorer.
+    # The nut path below is UNCHANGED (byte-identical) and owns the nut super-family.
+    if pref.allergen not in (NUTS, PEANUTS, TREE_NUTS):
+        return _score_generic_allergen(
+            pref, cuisines=cuisines, region=region, menu_items=menu_items,
+            signals=signals, community=community, official_domain=official_domain,
+        )
     # Per-nut selection: None (or 'all selected') keeps the calibrated family-level
     # behavior; a strict subset narrows the families in play and turns on the per-nut
     # term split + cross-contact allowance below.
@@ -980,6 +1014,261 @@ def _score_one_allergen(
         menu_total=parsed_count,
         menu_flagged=risky_count,
         menu_suspected=suspected_count,
+        navigable=navigable,
+    )
+
+
+def _score_generic_allergen(
+    pref: AllergenPref,
+    *,
+    cuisines: list[str] | None,
+    region: str,
+    menu_items: Sequence[Any],
+    signals: RestaurantSignals,
+    community: Sequence[CommunitySignal],
+    official_domain: str | None = None,
+) -> AllergenAssessment:
+    """Score ONE arbitrary (non-nut) allergen. Mirrors the nut branch's fusion
+    ladder -- T1(matrix) -> T2(text) -> prior -> community -- but grounds presence
+    via ``matrix_covers`` / ``_split_allergen_terms`` and priors via
+    ``restaurant_allergen_risk``. Preserves the same contract: PRIOR alone caps at
+    CAUTION, grounded presence can reach AVOID, absence never emits a bare 'safe'."""
+    allergen = pref.allergen
+    families = {allergen}
+    spec = _spec_for(allergen)
+    allergen_label = spec.display.lower() if spec else allergen.replace("_", " ")
+    severity = pref.severity
+    cross_contact = _effective_cross_contact(severity, pref.cross_contact)
+    caution_threshold, severity_floor = _SEVERITY_TUNING[severity]
+    labeling_trust = labeling_trust_for_region(region)
+
+    # Materialize each item's fields once (parallels the nut branch's ``rows``).
+    rows = []
+    for item in menu_items:
+        name_raw = _field(item, "item_name") or _field(item, "name") or ""
+        rows.append((
+            name_raw,
+            name_raw.strip(),
+            _field(item, "description") or "",
+            _field(item, "extraction_method") or "",
+            _field(item, "allergen_terms") or [],
+            _field(item, "menu_source_url") or "",
+            _field(item, "matrix_allergen_columns") or (),
+            _field(item, "cross_contact_terms") or [],
+        ))
+
+    # T4 + T5: cuisine/location floor + per-dish KB matches (generic prior twin).
+    base = restaurant_allergen_risk(
+        allergen=allergen,
+        cuisines=cuisines,
+        region=region,
+        menu_items=[{"name": name_raw} for name_raw, *_rest in rows],
+        baseline=None,
+    )
+    cuisine_floor = allergen_cuisine_baseline(allergen, cuisines, region).risk
+
+    risk = base.risk
+    confidence = base.confidence
+    rationale = list(base.rationale)
+    if base.riskiest_items and base.riskiest_items[0][1] >= 0.5:
+        basis = "dish_prior"
+    else:
+        basis = "cuisine_prior"
+
+    # T1 / T2: grounded presence from extracted allergen_terms.
+    matrix_present = False
+    matrix_hit_items: list[str] = []
+    text_hit_items: list[str] = []
+    matrix_source_urls: list[str] = []
+    matrix_columns: set[str] = set()
+    chart_cc_items: list[str] = []  # dishes the chart marks CROSS-CONTACT for this allergen
+    for _name_raw, name, _desc, method, terms, src_url, mcols, ccterms in rows:
+        contains, cross = _split_allergen_terms(allergen, terms)
+        cc_contains, _cc = _split_allergen_terms(allergen, ccterms)
+        if (cross or cc_contains) and name:
+            chart_cc_items.append(name)
+        if _is_matrix_method(method):
+            matrix_present = True
+            matrix_source_urls.append(src_url)
+            matrix_columns.update(mcols)
+            if contains and name:
+                matrix_hit_items.append(name)
+        elif contains and name:
+            text_hit_items.append(name)
+
+    # Did the chart actually have a COLUMN for this allergen? A clean chart only
+    # vouches for absence of an allergen it covers.
+    matrix_covers_allergen = matrix_covers(allergen, list(matrix_columns))
+    matrix_trust = min(
+        (_source_trust(url, official_domain) for url in set(matrix_source_urls)),
+        default=1.0,
+    )
+
+    parsed_count = sum(1 for row in rows if row[1])
+    coverage_fraction = min(1.0, parsed_count / _COVERAGE_FULL) if parsed_count else 0.0
+
+    name_risk_threshold = max(0.5, cuisine_floor + 0.1)
+    inferred_risky = {
+        d["name"] for d in base.item_details if d["risk"] >= name_risk_threshold
+    }
+    risky_names = set(matrix_hit_items) | set(text_hit_items) | inferred_risky
+    risky_count = len(risky_names)
+    safe_count = max(0, parsed_count - risky_count)
+    risky_fraction = (risky_count / parsed_count) if parsed_count else 0.0
+    trace_sensitive = cross_contact.rank >= CrossContactSensitivity.STRICT.rank
+    pervasive = parsed_count > 0 and risky_fraction >= _PERVASIVE_FRACTION
+    navigable = (
+        risky_count > 0 and safe_count >= 3 and not pervasive and not trace_sensitive
+    )
+
+    grounded_matrix = bool(matrix_hit_items)
+    grounded_text = bool(text_hit_items) and not grounded_matrix
+    presence = grounded_matrix or grounded_text
+    handling_aware = bool(
+        signals.allergy_disclaimer or signals.ask_staff or signals.allergen_menu_available
+    )
+
+    if risky_count and navigable:
+        nav = _NAV_BASE + _NAV_SLOPE * risky_fraction
+        if grounded_matrix:
+            nav *= _NAV_MATRIX_FACTOR
+            basis = "allergen_matrix"
+        elif grounded_text:
+            basis = "menu_evidence"
+        else:
+            nav = max(nav, cuisine_floor * _NAV_INFERRED_RETAIN)
+            basis = "dish_prior"
+        if handling_aware:
+            nav *= _NAV_HANDLING_FACTOR
+        risk = max(caution_threshold, min(risk, nav))
+        confidence = max(confidence, 0.8 if grounded_matrix else 0.6)
+        shown = sorted(risky_names)[:4]
+        more = risky_count - len(shown)
+        rationale.append(
+            f"{risky_count} of {parsed_count} dishes involve {allergen_label} "
+            f"({', '.join(shown)}{f' +{more} more' if more > 0 else ''}); the other "
+            f"{safe_count} don't -- avoid the flagged dishes and you can likely eat safely."
+        )
+        if handling_aware:
+            rationale.append(
+                "Restaurant shows allergy-handling awareness -- still confirm with staff."
+            )
+    elif risky_count:
+        if grounded_matrix:
+            risk = max(risk, 0.9)
+            confidence = max(confidence, 0.9)
+            basis = "allergen_matrix"
+        elif grounded_text:
+            risk = max(risk, 0.8)
+            confidence = max(confidence, 0.7)
+            basis = "menu_evidence"
+        else:
+            risk = max(risk, base.risk)
+            basis = "dish_prior"
+        if trace_sensitive and safe_count >= 3 and not pervasive:
+            rationale.append(
+                f"{safe_count} dishes look {allergen_label}-free, but you've flagged "
+                "cross-contact as a serious risk and this kitchen handles it -- treated "
+                "as high risk."
+            )
+        else:
+            shown = sorted(risky_names)[:4]
+            rationale.append(
+                f"{allergen_label.capitalize()} runs across the menu ({', '.join(shown)}) "
+                "-- hard to avoid here."
+            )
+
+    # T3: clean down-signal. Presence DOMINATES; this only applies when nothing
+    # was found present. A chart WITHOUT a column for this allergen proves nothing.
+    if not presence:
+        if matrix_present and matrix_covers_allergen:
+            risk = _pull_down(
+                risk, strength=0.75,
+                labeling_trust=labeling_trust * matrix_trust, floor=severity_floor,
+            )
+            confidence = max(confidence, 0.8 * matrix_trust)
+            basis = "allergen_matrix"
+            rationale.append(
+                f"Allergen chart present and does not list {allergen_label} "
+                "(cross-contact still possible -- verify)."
+            )
+        elif basis == "cuisine_prior" and parsed_count:
+            discount = _COVERAGE_DISCOUNT * coverage_fraction * absence_inference_factor(region)
+            lowered = max(severity_floor, risk * (1.0 - discount))
+            if lowered < risk:
+                risk = lowered
+                confidence = max(confidence, 0.5 + 0.2 * coverage_fraction)
+                basis = "menu_coverage"
+                rationale.append(
+                    f"Reviewed {parsed_count} menu items; none name {allergen_label} "
+                    "-- mild reassurance only (no allergen chart; ask staff)."
+                )
+
+    if matrix_present and matrix_covers_allergen and matrix_trust < 0.85:
+        rationale.append(
+            "Allergen data here is an off-site or older copy -- treat as indicative "
+            "and verify directly."
+        )
+
+    # 'may contain' / cross-contact floor, weighted by cross-contact sensitivity.
+    chart_cross_contact = bool(chart_cc_items)
+    if signals.cross_contact_warning or chart_cross_contact:
+        cc_floor = _CC_WARNING_FLOOR[cross_contact]
+        if cc_floor and risk < cc_floor:
+            risk = cc_floor
+            if chart_cross_contact:
+                shown = sorted(set(chart_cc_items))[:4]
+                rationale.append(
+                    f"Allergen chart marks shared-facility / cross-contact for "
+                    f"{allergen_label} ({', '.join(shown)}) -- a trace risk here."
+                )
+            else:
+                rationale.append("Cross-contact / 'may contain' warning present.")
+        if cc_floor and basis == "cuisine_prior":
+            basis = "restaurant_signal"
+
+    # Tier C: community / anecdotal adjustment (asymmetric, bounded).
+    risk, confidence, community_reported, community_notes = _apply_community(
+        risk=risk, confidence=confidence, community=community, families=families,
+    )
+    rationale.extend(community_notes)
+
+    tier = _tier_for(
+        risk=risk,
+        severity=severity,
+        caution_threshold=caution_threshold,
+        presence=presence,
+        matrix_hit=bool(matrix_hit_items),
+        navigable=navigable,
+        community_reported=community_reported,
+    )
+
+    if matrix_hit_items:
+        riskiest = [{"itemName": n, "risk": 0.95, "confidence": 0.9, "suspected": False}
+                    for n in matrix_hit_items[:8]]
+    else:
+        riskiest = []
+        for d in base.item_details[:8]:
+            if d["name"] in risky_names:
+                riskiest.append({
+                    "itemName": d["name"], "risk": round(d["risk"], 3),
+                    "confidence": round(d.get("confidence", 0.5), 2),
+                    "suspected": False,
+                })
+
+    return AllergenAssessment(
+        allergen=allergen,
+        severity=severity.name.lower(),
+        risk=round(_clamp(risk), 3),
+        confidence=round(confidence, 2),
+        tier=tier.value,
+        basis=basis,
+        rationale=rationale,
+        riskiest_items=riskiest,
+        community_reported=community_reported,
+        menu_total=parsed_count,
+        menu_flagged=risky_count,
+        menu_suspected=0,
         navigable=navigable,
     )
 
