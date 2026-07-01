@@ -68,20 +68,60 @@ def _cross_contact_from_str(value: Any):
     }.get(str(value or "").lower())
 
 
-def _user_profile_from_payload(payload: dict[str, Any]):
-    """Build a scorer UserProfile from the request. Nuts today; severity is honoured
-    so the same risk trips a worse tier for an anaphylactic user than a mild-preference
-    one, and cross-contact sensitivity is honoured INDEPENDENTLY of severity (trace
-    tolerance vs ingestion reaction). ``nutTypes`` (a list of specific nuts the user
-    reacts to) turns on per-nut scoring; absent/empty -> the family-level default."""
-    from safeplate.allergen_prior import normalize_nut_types
-    from safeplate.allergen_score import UserProfile
+def _diets_from_payload(payload: dict[str, Any]) -> tuple[frozenset, bool]:
+    """Returns (real_diet_keys, gluten_free_requested). gluten_free is NOT a diet;
+    it is consumed into a gluten allergen by the caller."""
+    from safeplate.allergens import DIETS
 
-    return UserProfile.for_nuts(
-        _severity_from_str(payload.get("severity")),
-        cross_contact=_cross_contact_from_str(payload.get("crossContact")),
-        nut_types=normalize_nut_types(payload.get("nutTypes")),
-    )
+    raw = payload.get("diets") or []
+    diets = {str(d).lower() for d in raw}
+    gf = "gluten_free" in diets
+    return frozenset(d for d in diets if d in DIETS), gf
+
+
+def _user_profile_from_payload(payload: dict[str, Any]):
+    """Build a scorer UserProfile from the request. Supports the legacy nuts-only
+    shape (``severity``/``crossContact``/``nutTypes``) as well as a multi-allergen
+    ``allergens`` list (each with its own severity/crossContact) and ``diets`` flags.
+    ``gluten_free`` is consumed into a ``gluten`` AllergenPref rather than surfaced
+    as a diet. Severity is honoured per-allergen so the same risk trips a worse tier
+    for an anaphylactic user than a mild-preference one, and cross-contact sensitivity
+    is honoured INDEPENDENTLY of severity (trace tolerance vs ingestion reaction).
+    ``nutTypes`` (a list of specific nuts the user reacts to) turns on per-nut scoring;
+    absent/empty -> the family-level default."""
+    from safeplate.allergen_prior import normalize_nut_types
+    from safeplate.allergen_score import AllergenPref, Severity, UserProfile
+    from safeplate.allergens import canonical
+
+    diets, gluten_free = _diets_from_payload(payload)
+    raw_allergens = payload.get("allergens")
+
+    if not raw_allergens and not diets and not gluten_free:
+        # legacy nuts-only path -- byte-identical to before
+        return UserProfile.for_nuts(
+            _severity_from_str(payload.get("severity")),
+            cross_contact=_cross_contact_from_str(payload.get("crossContact")),
+            nut_types=normalize_nut_types(payload.get("nutTypes")),
+        )
+
+    prefs = []
+    for entry in raw_allergens or []:
+        key = canonical(str(entry.get("allergen", "")))
+        if key is None:
+            # allow "nuts" family key through untouched
+            if str(entry.get("allergen", "")).lower() in ("nuts", "peanuts", "tree_nuts"):
+                key = str(entry.get("allergen")).lower()
+            else:
+                continue
+        prefs.append(AllergenPref(
+            allergen=key,
+            severity=_severity_from_str(entry.get("severity")),
+            cross_contact=_cross_contact_from_str(entry.get("crossContact")),
+            nut_types=normalize_nut_types(entry.get("nutTypes")) if key == "nuts" else None,
+        ))
+    if gluten_free and not any(p.allergen == "gluten" for p in prefs):
+        prefs.append(AllergenPref(allergen="gluten", severity=Severity.ALLERGY))
+    return UserProfile(allergens=tuple(prefs), diets=diets)
 
 
 def _is_gemini_model_fallback_error(message: str) -> bool:
