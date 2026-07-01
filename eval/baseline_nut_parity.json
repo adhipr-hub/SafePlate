@@ -1,0 +1,30 @@
+{
+  "Bangkok Kitchen": [
+    "avoid",
+    0.9
+  ],
+  "Bavarian Bakery": [
+    "avoid",
+    0.9
+  ],
+  "Downtown Burger Joint": [
+    "caution",
+    0.2
+  ],
+  "Green Leaf Vegan Cafe": [
+    "avoid",
+    0.95
+  ],
+  "No Menu Diner": [
+    "caution",
+    0.2
+  ],
+  "Sakura Sushi": [
+    "avoid",
+    0.97
+  ],
+  "Trattoria Milano": [
+    "caution",
+    0.2
+  ]
+}
