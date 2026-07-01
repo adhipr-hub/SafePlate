@@ -1592,20 +1592,22 @@ function ringClr(r)    { return {"lo":"var(--rl)","md":"var(--rm)","hi":"var(--r
 function textClr(r)    { return {"lo":"var(--lo)","md":"var(--md)","hi":"var(--hi)"}[band(r)]; }
 function stripeClr(r)  { return ringClr(r); }
 function riskWord(r)   { return {"lo":"Lower risk","md":"Moderate risk","hi":"Higher risk"}[band(r)]; }
+const TIER_LABELS = { avoid:"Avoid", caution:"Caution", likely_ok:"Likely OK" };
 
 /* ── allergen label helpers (drop the hardcoded "for nuts" copy) ──
    `perAllergen` (when given) is the response's `summary.perAllergen` (has `.display`);
    otherwise falls back to the diner's selected profile (`state.allergens`, keyed by
    `.allergen`). Exactly one selected -> name it; zero or several -> stay neutral. */
 function allergenDisplay(key) { return String(key||"").replace(/_/g," ").replace(/\b\w/g, c=>c.toUpperCase()); }
-function allergenPhrase(perAllergen) {
+function allergenNoun(perAllergen) {
   const list = (perAllergen && perAllergen.length) ? perAllergen : state.allergens;
   if (list && list.length === 1) {
     const it = list[0];
-    return `for ${it.display || allergenDisplay(it.allergen)}`;
+    return it.display || allergenDisplay(it.allergen);
   }
-  return "for your allergens";
+  return "your allergens";
 }
+function allergenPhrase(perAllergen) { return `for ${allergenNoun(perAllergen)}`; }
 
 /* ── ring SVG ── */
 function ring(risk, px) {
@@ -1845,7 +1847,7 @@ function cardMarkup(r) {
           <div class="card-meta">${metaParts.join('<span class="meta-sep">·</span>')}</div>
           <div class="card-tags">${cz.map(c=>`<span class="ctag">${esc(c)}</span>`).join("")}</div>
           <div class="card-badges">
-            ${p.tier?`<span class="cbadge" style="border-color:${textClr(risk)};color:${textClr(risk)}">${({likely_ok:"Likely OK",caution:"Caution",avoid:"Avoid"}[p.tier])||""}</span>`:""}
+            ${p.tier?`<span class="cbadge" style="border-color:${textClr(risk)};color:${textClr(risk)}">${TIER_LABELS[p.tier]||""}</span>`:""}
             ${pvchip(provenanceTier(p.basis, coverage))}
             ${state.demoMode?cbadge("Demo","live"):""}
             ${r._upgrading?`<span class="card-upg"><span class="dot"></span>Reading menu…</span>`:""}
@@ -2029,7 +2031,7 @@ function explanationHtml(risk) {
 function verdictHtml(risk, coverage, basis, perAllergen) {
   const v = risk?.risk??0.3;
   const conf = risk?.confidence!=null?Math.round(risk.confidence*100)+"% confidence":"";
-  const tierLbl = {avoid:"Avoid",caution:"Caution",likely_ok:"Likely OK"}[risk?.tier]||"";
+  const tierLbl = TIER_LABELS[risk?.tier]||"";
   const prov = provenanceTier(basis ?? risk?.basis, coverage);
   /* Personalized chip: client-derived so it works on both instant-open (menuDetail embedded)
      and fresh-fetch paths — the backend flag is not always in the search-card embed. */
@@ -2056,14 +2058,13 @@ function verdictHtml(risk, coverage, basis, perAllergen) {
 function perAllergenHtml(perAllergen) {
   const list = perAllergen || [];
   if (list.length < 2) return "";
-  const tierLbl = {avoid:"Avoid",caution:"Caution",likely_ok:"Likely OK"};
   const rows = list.map((pa,i) => {
     const clr = textClr(pa.risk ?? 0);
     const lines = asList(pa.rationale).filter(Boolean);
     return `<div${i?' style="margin-top:16px"':''}>
       <div class="mi-row">
         <span class="mi-name">${esc(pa.display || allergenDisplay(pa.allergen))}</span>
-        <span class="cbadge" style="border-color:${clr};color:${clr}">${esc(tierLbl[pa.tier]||"")}</span>
+        <span class="cbadge" style="border-color:${clr};color:${clr}">${esc(TIER_LABELS[pa.tier]||"")}</span>
       </div>
       ${lines.length?`<ul class="why-list">${lines.map(l=>`<li><span class="why-text">${renderClaim(l)}</span></li>`).join("")}</ul>`:""}
     </div>`;
@@ -2234,14 +2235,19 @@ function renderMenu(m,r) {
     </div>`;
   }
 
-  /* nut warnings — CONFIRMED (named / chart) shown as a firm "contains nuts" box;
-     SUSPECTED (dish-type guesses like brownie/curry) shown as a softer, amber
-     "might hide nuts" box so a low-confidence hunch never reads as a hard warning. */
+  /* riskiest-item warnings — riskiestItems is aggregated server-side across EVERY
+     scored allergen (not just nuts), so the copy must name the diner's actual
+     allergen(s) rather than hardcoding "nuts" (a non-nut diner could otherwise read
+     "contains nuts" as not-applicable and dismiss a warning about their own allergen).
+     CONFIRMED (named / chart) shown as a firm "contains X" box; SUSPECTED (dish-type
+     guesses like brownie/curry) shown as a softer, amber "might hide X" box so a
+     low-confidence hunch never reads as a hard warning. */
   const _triIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+  const _riskyNoun = allergenNoun(summary.perAllergen);
   if (nutConfirmed.length) {
     html += `<div class="ds"><div class="warning-box">
       <div class="warning-head">${_triIcon}
-        ${nutConfirmed.length} item${nutConfirmed.length>1?"s":""} contain${nutConfirmed.length>1?"":"s"} nuts <span class="wh-sub">· tap to find on menu</span>
+        ${nutConfirmed.length} item${nutConfirmed.length>1?"s":""} contain${nutConfirmed.length>1?"":"s"} ${esc(_riskyNoun)} <span class="wh-sub">· tap to find on menu</span>
       </div>
       ${nutConfirmed.map(it=>`<div class="risky-row clickable" data-dish="${esc(it.itemName)}">
         <span class="risky-name">${esc(it.itemName)}</span>
@@ -2252,7 +2258,7 @@ function renderMenu(m,r) {
   if (nutSuspected.length) {
     html += `<div class="ds"><div class="warning-box maybe">
       <div class="warning-head">${_triIcon}
-        ${nutSuspected.length} dish${nutSuspected.length>1?"es":""} might hide nuts <span class="wh-sub">· by dish type — not confirmed</span>
+        ${nutSuspected.length} dish${nutSuspected.length>1?"es":""} might hide ${esc(_riskyNoun)} <span class="wh-sub">· by dish type — not confirmed</span>
       </div>
       ${nutSuspected.map(it=>`<div class="risky-row clickable" data-dish="${esc(it.itemName)}">
         <span class="risky-name">${esc(it.itemName)}</span>
