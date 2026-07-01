@@ -87,15 +87,20 @@ SELECT_SCHEMA: dict[str, Any] = {
 _KIND_TOKENS = {
     "allergy_info": ("allergy-friendly", "allergy friendly", "allergy policy",
                      "food allergy", "allergy advice", "dietary requirement", "may contain"),
-    "allergen": ("allerg", "allergi", "allergè", "alergen", "アレルゲン", "过敏", "過敏", "알레르"),
-    "nutrition": ("nutrition", "nutritional", "nährwert", "valeurs nutri", "栄養", "营养", "영양"),
+    "allergen": ("allerg", "allergi", "allergè", "alergen", "アレルゲン", "过敏", "過敏", "알레르",
+                 "αλλεργ", "аллерг"),   # Greek / Cyrillic
+    "nutrition": ("nutrition", "nutritional", "nutri", "nährwert", "valeurs nutri",
+                  "栄養", "营养", "영양", "διατροφ"),  # "nutri" stem: nutrición/nutrição/nutrizione
     "menu": ("menu", "carte", "speisekarte", "メニュー", "菜单", "菜單", "메뉴", "carta", "speise",
              # Nordic / other European menu words the English "menu" token missed
              # (all distinctive substrings -- low false-match risk): Norwegian/Swedish/
              # Danish "meny"/"spisekart"/"matseddel", Finnish "ruokalista", Portuguese
-             # "cardapio", Polish "jadlospis", Croatian/Serbian "jelovnik".
+             # "cardapio", Polish "jadlospis", Croatian/Serbian "jelovnik", German bare
+             # "karte" (die Karte), Greek "μενου", Cyrillic "меню". Accented forms
+             # (menú/menü/menù) are handled by accent-folding in _heuristic_select.
              "meny", "spisekart", "matseddel", "ruokalista",
-             "cardapio", "cardápio", "jadlospis", "jelovnik"),
+             "cardapio", "cardápio", "jadlospis", "jelovnik",
+             "karte", "μενού", "μενου", "меню"),
 }
 
 
@@ -882,6 +887,15 @@ def _norm_locality(text: str) -> str:
     return "".join(c for c in decomposed if c.isalnum() and not unicodedata.combining(c))
 
 
+def _fold_accents(text: str) -> str:
+    """Strip diacritics but keep word structure (spaces/punct), so an accented menu
+    word matches its ASCII token: 'menú'/'menü'/'menù' -> 'menu', 'nutrición' ->
+    'nutricion', 'à la carte' -> 'a la carte'. Greek/Cyrillic/CJK are left legible."""
+    folded = text.lower().translate(_NORDIC_FOLD)
+    decomposed = unicodedata.normalize("NFKD", folded)
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
 def _address_locality_tokens(address: str) -> set[str]:
     """Normalized locality tokens from an address: each comma segment collapsed to
     one token (so 'Aker Brygge' -> 'akerbrygge') plus its individual words, accents
@@ -1108,9 +1122,12 @@ def _llm_select(
 def _heuristic_select(links: list[tuple[str, str]]) -> list[tuple[tuple[str, str], str]]:
     out: list[tuple[tuple[str, str], str]] = []
     for url, text in links:
-        haystack = f"{url} {text}".lower()
+        raw = f"{url} {text}".lower()
+        # Match tokens against BOTH the raw text and an accent-folded copy: raw keeps
+        # CJK/Cyrillic intact, folded lets an ASCII token match its accented form.
+        folded = _fold_accents(raw)
         for kind, tokens in _KIND_TOKENS.items():
-            if any(token in haystack for token in tokens):
+            if any(token in raw or token in folded for token in tokens):
                 out.append(((url, text), kind))
                 break
     return out
