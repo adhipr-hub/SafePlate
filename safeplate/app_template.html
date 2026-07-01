@@ -832,6 +832,8 @@
       padding: 10px 20px; font: 600 14px var(--sans); cursor: pointer; }
     .ob-pane { display: none; }
     .ob-pane.on { display: block; }
+    .ob-allergen-sev { margin-bottom: 18px; }
+    .ob-allergen-sev:last-child { margin-bottom: 0; }
     /* ── Comfort picker (onboarding step 2): tap-to-rate, colour-coded ── */
     .pk-intro { font: 400 13.5px/1.55 var(--sans); color: var(--tx2); margin: 0 0 13px; }
     .pk-intro strong { font-weight: 700; color: var(--tx); }
@@ -1402,9 +1404,16 @@ function _syncNutsAllergenEntry(){
   if (!e) { e = { allergen: "nuts" }; state.allergens.push(e); }
   e.severity = state.severity; e.crossContact = state.crossContact; e.nutTypes = state.nutTypes;
 }
+// There is ONE global cross-contact toggle, so every entry (nuts included) must mirror
+// state.crossContact — otherwise non-nut entries keep the stale value from the moment
+// they were selected. Severity stays per-allergen (set via each entry's own sub-panel).
+function _syncCrossContactAcrossAllergens(){
+  state.allergens.forEach(a => { a.crossContact = state.crossContact; });
+}
 function saveProfile(){
   try {
     _syncNutsAllergenEntry();
+    _syncCrossContactAcrossAllergens();
     localStorage.setItem(_PROFILE_KEY, JSON.stringify({
       severity: state.severity, crossContact: state.crossContact, nutTypes: state.nutTypes,
       allergens: state.allergens, diets: state.diets,
@@ -1477,7 +1486,14 @@ document.getElementById("obAllergenSevs").addEventListener("click", e => {
   const b = e.target.closest(".allergen-chip"); if (!b) return;
   const a = _findAllergen(b.dataset.a); if (!a) return;
   a.severity = b.dataset.asev;
+  const focusA = b.dataset.a, focusSev = b.dataset.asev;
   _obRenderAllergenSevs(); saveProfile();
+  // innerHTML rebuild above destroys the button just clicked; re-find the equivalent
+  // (same allergen + same severity) node in the fresh DOM so keyboard focus isn't lost.
+  const next = document.querySelector(
+    `#obAllergenSevs .allergen-chip[data-a="${CSS.escape(focusA)}"][data-asev="${CSS.escape(focusSev)}"]`
+  );
+  if (next) next.focus();
 });
 document.getElementById("obDiets").addEventListener("click", e => {
   const b = e.target.closest(".allergen-chip"); if (!b) return;
