@@ -1203,6 +1203,33 @@
           <button type="button" class="allergen-chip nut nut-peanut" data-nut="peanuts">Peanut</button>
         </div>
       </div>
+      <div class="ob-q">
+        <h3>Any other allergies?</h3>
+        <div class="ob-row" id="obAllergens">
+          <button type="button" class="allergen-chip" data-allergen="milk">Milk</button>
+          <button type="button" class="allergen-chip" data-allergen="egg">Egg</button>
+          <button type="button" class="allergen-chip" data-allergen="soy">Soy</button>
+          <button type="button" class="allergen-chip" data-allergen="gluten">Gluten</button>
+          <button type="button" class="allergen-chip" data-allergen="wheat">Wheat</button>
+          <button type="button" class="allergen-chip" data-allergen="fish">Fish</button>
+          <button type="button" class="allergen-chip" data-allergen="shellfish">Shellfish</button>
+          <button type="button" class="allergen-chip" data-allergen="mollusc">Mollusc</button>
+          <button type="button" class="allergen-chip" data-allergen="sesame">Sesame</button>
+          <button type="button" class="allergen-chip" data-allergen="mustard">Mustard</button>
+          <button type="button" class="allergen-chip" data-allergen="celery">Celery</button>
+          <button type="button" class="allergen-chip" data-allergen="sulphites">Sulphites</button>
+          <button type="button" class="allergen-chip" data-allergen="lupin">Lupin</button>
+        </div>
+        <div id="obAllergenSevs"></div>
+      </div>
+      <div class="ob-q">
+        <h3>Any dietary preferences?</h3>
+        <div class="ob-row" id="obDiets">
+          <button type="button" class="allergen-chip" data-diet="gluten_free">Gluten-free</button>
+          <button type="button" class="allergen-chip" data-diet="vegetarian">Vegetarian</button>
+          <button type="button" class="allergen-chip" data-diet="vegan">Vegan</button>
+        </div>
+      </div>
     </div>
 
     <div class="ob-pane" id="obStep2"><!-- Task 4 fills this picker --></div>
@@ -1236,7 +1263,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const cap = s => { s = String(s||"").replace(/_/g," "); return s.charAt(0).toUpperCase()+s.slice(1); };
 const asList = v => Array.isArray(v) ? v : v ? String(v).split(";").map(x=>x.trim()).filter(Boolean) : [];
 const isNut  = t => /nut|peanut|almond|cashew|walnut|pecan|pistachio|hazelnut|pine|macadamia|praline|nutella|gianduja/i.test(t);
-const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"", nutTypes:[], noCache:false, experienceHistory:[] };
+const state = { rows:[], sort:"risk", where:"", severity:"allergy", crossContact:"", scoringEngine:"ai", demoMode:false, defaultDemoLocation:"", nutTypes:[], noCache:false, experienceHistory:[], allergens:[], diets:[] };
 const _HIST_KEY = "safeplate.experienceHistory";
 function loadHistory(){ try { state.experienceHistory = JSON.parse(localStorage.getItem(_HIST_KEY)||"[]")||[]; } catch { state.experienceHistory = []; } }
 function saveHistory(){ try { localStorage.setItem(_HIST_KEY, JSON.stringify(state.experienceHistory)); } catch {} }
@@ -1348,13 +1375,39 @@ function loadProfile(){
       if (typeof p.severity === "string") state.severity = p.severity;
       if (typeof p.crossContact === "string") state.crossContact = p.crossContact;
       if (Array.isArray(p.nutTypes)) state.nutTypes = p.nutTypes.filter(x => typeof x === "string");
+      if (Array.isArray(p.allergens)) {
+        state.allergens = p.allergens.filter(a => a && typeof a === "object" && typeof a.allergen === "string");
+      } else {
+        // Legacy shape (pre-multi-allergen): no `allergens` array at all. Migrate the
+        // old nuts-only profile into a single "nuts" entry so returning users keep
+        // their severity/cross-contact/nut-types instead of losing them.
+        state.allergens = [{
+          allergen: "nuts",
+          severity: state.severity,
+          crossContact: state.crossContact,
+          nutTypes: state.nutTypes,
+        }];
+      }
+      if (Array.isArray(p.diets)) state.diets = p.diets.filter(x => typeof x === "string");
     }
   } catch {}
 }
+// Every save keeps a "nuts" entry in state.allergens mirroring the legacy nut fields,
+// so the moment ANY other allergen/diet is added, the backend (which reads `allergens`
+// exclusively once it or `diets` is non-empty and otherwise ignores the legacy top-level
+// severity/crossContact/nutTypes fields entirely) still scores nuts too. Without this a
+// user adding e.g. a milk allergy would silently stop being protected against nuts.
+function _syncNutsAllergenEntry(){
+  let e = state.allergens.find(a => a.allergen === "nuts");
+  if (!e) { e = { allergen: "nuts" }; state.allergens.push(e); }
+  e.severity = state.severity; e.crossContact = state.crossContact; e.nutTypes = state.nutTypes;
+}
 function saveProfile(){
   try {
+    _syncNutsAllergenEntry();
     localStorage.setItem(_PROFILE_KEY, JSON.stringify({
-      severity: state.severity, crossContact: state.crossContact, nutTypes: state.nutTypes
+      severity: state.severity, crossContact: state.crossContact, nutTypes: state.nutTypes,
+      allergens: state.allergens, diets: state.diets,
     }));
   } catch {}
 }
@@ -1377,6 +1430,63 @@ function _obRenderNuts(){
     b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
   });
 }
+const OTHER_ALLERGENS = [
+  ["milk","Milk"], ["egg","Egg"], ["soy","Soy"], ["gluten","Gluten"], ["wheat","Wheat"],
+  ["fish","Fish"], ["shellfish","Shellfish"], ["mollusc","Mollusc"], ["sesame","Sesame"],
+  ["mustard","Mustard"], ["celery","Celery"], ["sulphites","Sulphites"], ["lupin","Lupin"],
+];
+const SEV_DEFS = [
+  ["avoid_preference","Preference"], ["intolerance","Intolerance"],
+  ["allergy","Allergy"], ["anaphylaxis","Anaphylaxis"],
+];
+function _findAllergen(key){ return state.allergens.find(a => a.allergen === key); }
+function _obRenderAllergenGrid(){
+  document.querySelectorAll("#obAllergens .allergen-chip").forEach(b => {
+    const on = !!_findAllergen(b.dataset.allergen);
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  _obRenderAllergenSevs();
+}
+function _obRenderAllergenSevs(){
+  const root = document.getElementById("obAllergenSevs");
+  const selected = state.allergens.filter(a => a.allergen !== "nuts");
+  root.innerHTML = selected.map(a => {
+    const found = OTHER_ALLERGENS.find(([k]) => k === a.allergen);
+    const label = found ? found[1] : cap(a.allergen);
+    const chips = SEV_DEFS.map(([k, l]) =>
+      `<button type="button" class="allergen-chip sev${a.severity === k ? " on" : ""}" data-a="${esc(a.allergen)}" data-asev="${k}" aria-pressed="${a.severity === k}">${l}</button>`
+    ).join("");
+    return `<div class="ob-allergen-sev"><span class="allergen-label" style="display:block;margin:10px 0 6px">${esc(label)} severity</span><div class="ob-row">${chips}</div></div>`;
+  }).join("");
+}
+function _obRenderDiets(){
+  document.querySelectorAll("#obDiets .allergen-chip").forEach(b => {
+    const on = state.diets.includes(b.dataset.diet);
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+document.getElementById("obAllergens").addEventListener("click", e => {
+  const b = e.target.closest(".allergen-chip"); if (!b) return;
+  const key = b.dataset.allergen;
+  const idx = state.allergens.findIndex(a => a.allergen === key);
+  if (idx >= 0) state.allergens.splice(idx, 1);
+  else state.allergens.push({ allergen: key, severity: "allergy", crossContact: state.crossContact });
+  _obRenderAllergenGrid(); saveProfile();
+});
+document.getElementById("obAllergenSevs").addEventListener("click", e => {
+  const b = e.target.closest(".allergen-chip"); if (!b) return;
+  const a = _findAllergen(b.dataset.a); if (!a) return;
+  a.severity = b.dataset.asev;
+  _obRenderAllergenSevs(); saveProfile();
+});
+document.getElementById("obDiets").addEventListener("click", e => {
+  const b = e.target.closest(".allergen-chip"); if (!b) return;
+  const key = b.dataset.diet;
+  const set = new Set(state.diets);
+  set.has(key) ? set.delete(key) : set.add(key);
+  state.diets = [...set];
+  _obRenderDiets(); saveProfile();
+});
 function applyQuizToState(){ saveProfile(); }   // chips write to state live (handlers below)
 function goStep(n){
   _obStep = n;
@@ -1390,6 +1500,7 @@ function openOnboarding(step = 1){
   _obTrigger = document.activeElement;
   state.crossContact = state.crossContact || "strict";
   _obSync("obSev", state.severity); _obSync("obCc", state.crossContact); _obRenderNuts();
+  _obRenderAllergenGrid(); _obRenderDiets();
   if (typeof renderPicker === "function") renderPicker();   // Task 4
   goStep(step);
   const m = document.getElementById("onboard");
@@ -1532,7 +1643,7 @@ async function search(opts={}) {
       </div>
     </div>`).join("");
   try {
-    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine, nutTypes: state.nutTypes, noCache: state.noCache, experienceHistory: state.experienceHistory };
+    const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine, nutTypes: state.nutTypes, noCache: state.noCache, experienceHistory: state.experienceHistory, allergens: state.allergens, diets: state.diets };
     if (hasCoords) { req.location = opts.location||"Current location"; req.latitude=opts.latitude; req.longitude=opts.longitude; }
     else { req.location = loc; }
     req.listMode = "prior";   // progressive is the only mode: instant cuisine-prior cards, upgraded in the background
@@ -1580,12 +1691,12 @@ async function upgradeCardsProgressive(seq) {
       const prevRisk = r.allergenPrior?.risk;   // the estimate, before we overlay the menu-backed score
       let landed = false;
       try {
-        const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(","), _histHash()].join("|");
+        const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(","), JSON.stringify(state.allergens), state.diets.join(","), _histHash()].join("|");
         let m = state.noCache ? null : _menuCache.get(key);   // raw mode: skip the client memo too
         if (!m) {
           m = await (await fetch("/api/menu",{
             method:"POST",headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache,experienceHistory:state.experienceHistory})
+            body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache,experienceHistory:state.experienceHistory,allergens:state.allergens,diets:state.diets})
           })).json();
           if (!m.error && !state.noCache) _menuCache.set(key, m);
         }
@@ -1924,13 +2035,13 @@ async function openDetail(r) {
   // menu in the card -> render with NO /api/menu round-trip (no spinner, no re-read).
   // Skipped in raw mode so the drawer re-fetches live instead of using the embed.
   if (r.menuDetail && !state.noCache) { renderMenu(r.menuDetail, r); return; }
-  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(","), _histHash()].join("|");
+  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(","), JSON.stringify(state.allergens), state.diets.join(","), _histHash()].join("|");
   try {
     let m = state.noCache ? null : _menuCache.get(key);   // raw mode: skip the client memo too
     if (!m) {
       m = await (await fetch("/api/menu",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache,experienceHistory:state.experienceHistory})
+        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache,experienceHistory:state.experienceHistory,allergens:state.allergens,diets:state.diets})
       })).json();
       if (!m.error && !state.noCache) _menuCache.set(key, m);  // don't memoize errors / raw mode
     }
