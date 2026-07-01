@@ -88,11 +88,17 @@ def assess_diet(diet, *, menu_items, cuisines=None,
         return DietAssessment(diet=diet, verdict="unknown", support=0.0,
                               rationale=["no menu evidence"])
 
-    labeled, assumed, offending = [], [], []
+    judgments = llm_judgments or {}
+    labeled, assumed, ai_ok, offending = [], [], [], []
     for it in items:
         name = str(getattr(it, "item_name", "") or "")
         terms = getattr(it, "allergen_terms", []) or []
         dietary = [str(t).lower() for t in (getattr(it, "dietary_terms", []) or [])]
+        j = judgments.get(name.lower())
+        if j is not None and j.verdict == "no":
+            offending.append(name); continue
+        if j is not None and j.verdict == "yes":
+            ai_ok.append(name); continue
         kind = _classify_item_floor(spec, diet, name.lower(), terms, dietary)
         if kind == "conflict":
             offending.append(name)
@@ -102,7 +108,7 @@ def assess_diet(diet, *, menu_items, cuisines=None,
             assumed.append(name)
 
     total = len(items)
-    compatible = labeled + assumed
+    compatible = labeled + ai_ok + assumed
     n_ok, n_off = len(compatible), len(offending)
 
     if n_ok == 0:
@@ -110,18 +116,24 @@ def assess_diet(diet, *, menu_items, cuisines=None,
     else:
         share = n_ok / total
         verdict = "good_options" if share >= _GOOD_SHARE else "limited"
-        if labeled and assumed:
+        if ai_ok and not (labeled or assumed):
+            basis = "ai_assessed"
+        elif ai_ok:
+            basis = "mixed"
+        elif labeled and assumed:
             basis = "mixed"
         elif labeled:
             basis = "labeled"
         else:
             basis = "estimated"
-        # Vegan cap: name-only ('estimated') compatibility can't see hidden dairy/egg.
+        # Vegan cap applies ONLY to name-only estimates, never to ai_assessed/labeled.
         if diet == "vegan" and basis == "estimated" and verdict == "good_options":
             verdict = "limited"
 
     support = round(n_ok / total, 2) if n_ok else 0.0
     rationale = _floor_rationale(spec, diet, basis, len(labeled), len(assumed), offending, total)
+    if ai_ok:
+        rationale.insert(0, f"{len(ai_ok)}/{total} judged {spec.display.lower()}-compatible by AI menu analysis")
     return DietAssessment(diet=diet, verdict=verdict, support=support, basis=basis,
                           rationale=rationale, offending_items=offending[:10],
                           compatible_items=compatible[:10])
