@@ -1,0 +1,5 @@
+{
+  "_default": 0.15,
+  "milk":   { "_default": 0.30, "italian": 0.55, "french": 0.55, "indian": 0.50, "american": 0.45 },
+  "gluten": { "_default": 0.45, "italian": 0.75, "chinese": 0.55, "american": 0.60, "japanese": 0.55 }
+}

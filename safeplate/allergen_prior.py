@@ -23,6 +23,9 @@ not replace them: an explicit "contains walnuts" pushes risk up; a verified
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
+import json
+from pathlib import Path
 import re
 from typing import Any
 
@@ -1326,3 +1329,98 @@ def clamp_risk(value: float) -> float:
 
 
 _clamp = clamp_risk
+
+
+# --------------------------------------------------------------------------- #
+# Generic per-allergen prior (registry-driven twin of the nut-focused layer
+# above). Reads small JSON knowledge bases under data/allergen_kb/ instead of
+# the hand-tuned Python nut tables, so any allergen in the Task-1 registry gets
+# a (coarser, still non-zero) prior even before its own KB is built out.
+#
+# Do NOT edit anything above this line — the nut quality gate depends on those
+# symbols/tables staying byte-identical.
+# --------------------------------------------------------------------------- #
+
+# Defined locally (not imported from safeplate.common) to avoid a risk of an
+# import cycle: safeplate.common pulls in modules that may import back into
+# allergen_prior's package during app startup.
+_ALLERGEN_KB_DIR = Path(__file__).resolve().parents[1] / "data" / "allergen_kb"
+
+
+@lru_cache(maxsize=None)
+def _load_cuisine_baseline_table() -> dict:
+    path = _ALLERGEN_KB_DIR / "cuisine_baselines.json"
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@lru_cache(maxsize=None)
+def load_allergen_kb(allergen: str) -> tuple[tuple[str, float, str], ...]:
+    """(dish_pattern, risk, note) entries for a canonical allergen key; () if none."""
+    path = _ALLERGEN_KB_DIR / f"{allergen}.json"
+    if not path.exists():
+        return ()
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return tuple((str(p).lower(), float(r), str(n)) for p, r, n in raw)
+
+
+def allergen_cuisine_baseline(
+    allergen: str, cuisines: list[str] | None, region: str = "unknown"
+) -> "AllergenPrior":
+    """Cuisine x location baseline for an arbitrary allergen (generic twin of the
+    CUISINE_NUT_BASELINE lookup). Unknown allergen/cuisine -> low, non-zero default."""
+    table = _load_cuisine_baseline_table()
+    per_allergen = table.get(allergen, {})
+    global_default = float(table.get("_default", 0.15))
+    base = float(per_allergen.get("_default", global_default))
+    norm = normalize_cuisine(cuisines)
+    for cuisine in norm:
+        if cuisine in per_allergen:
+            base = max(base, float(per_allergen[cuisine]))
+    trust = labeling_trust_for_region(region)
+    risk = _apply_home_boost(base, norm, region, weight=0.25)
+    basis = "cuisine_baseline" if per_allergen else "default"
+    return AllergenPrior(
+        allergen=allergen, risk=clamp_risk(risk), confidence=0.5,
+        basis=basis, rationale=[f"{allergen} cuisine baseline"], labeling_trust=trust,
+    )
+
+
+def restaurant_allergen_risk(
+    *,
+    allergen: str,
+    cuisines: list[str] | None,
+    region: str = "unknown",
+    menu_items: list[dict[str, str]] | None = None,
+    risky_threshold: float = 0.5,
+    baseline: "AllergenPrior | None" = None,
+) -> RestaurantNutRisk:
+    """Combine the cuisine/location baseline (floor) with per-dish KB matches for an
+    arbitrary allergen. Mirrors restaurant_nut_risk's contract + return type."""
+    base = baseline or allergen_cuisine_baseline(allergen, cuisines, region)
+    kb = load_allergen_kb(allergen)
+    risk = base.risk
+    rationale = list(base.rationale)
+    details: list[dict[str, Any]] = []
+    riskiest: list[tuple[str, float]] = []
+    for item in menu_items or []:
+        name = str(item.get("name") or "")
+        low = name.lower()
+        best = 0.0
+        note = ""
+        for pattern, dish_risk, dish_note in kb:
+            if pattern in low and dish_risk > best:
+                best, note = dish_risk, dish_note
+        if best > 0.0:
+            boosted = clamp_risk(_apply_home_boost(best, normalize_cuisine(cuisines), region, weight=0.10))
+            details.append({"name": name, "risk": boosted, "confidence": 0.6,
+                            "basis": f"suspected_{allergen}", "note": note})
+            riskiest.append((name, boosted))
+            risk = max(risk, boosted)
+    riskiest.sort(key=lambda t: t[1], reverse=True)
+    confidence = 0.6 if details else base.confidence
+    return RestaurantNutRisk(
+        risk=clamp_risk(risk), confidence=confidence, rationale=rationale,
+        labeling_trust=base.labeling_trust, riskiest_items=riskiest[:5], item_details=details,
+    )

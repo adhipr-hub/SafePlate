@@ -1,0 +1,6 @@
+[
+  ["butter chicken", 0.95, "cream/butter based"],
+  ["alfredo", 0.95, "cream + parmesan sauce"],
+  ["cheese", 0.9, "named dairy ingredient"],
+  ["latte", 0.9, "milk-based drink"]
+]
