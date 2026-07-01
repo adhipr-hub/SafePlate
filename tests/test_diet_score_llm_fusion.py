@@ -34,3 +34,21 @@ def test_llm_unknown_falls_back_to_floor():
     # Falls back to floor -> assumed -> estimated -> vegan cap -> limited
     assert a.basis == "estimated"
     assert a.verdict == "limited"
+
+
+def test_mixed_vegan_capped_when_estimates_carry_it():
+    # 1 AI-yes + 4 name-assumed: 'mixed' basis, but confident evidence (1/5) can't
+    # clear the bar on its own -> vegan cap holds at 'limited', not good_options.
+    items = [_item("Tofu Bowl"), _item("Garden Salad"), _item("Steamed Rice"),
+             _item("Fruit Bowl"), _item("Veg Noodles")]
+    judg = {"tofu bowl": DietJudgment("yes", "no animal products", 0.8)}
+    a = assess_diet("vegan", menu_items=items, llm_judgments=judg)
+    assert a.verdict == "limited"
+
+
+def test_mixed_vegan_good_options_when_ai_carries_it():
+    # 3 AI-yes + 2 name-assumed (total 5): confident 3/5 >= 0.4 -> good_options stays.
+    items = [_item("A"), _item("B"), _item("C"), _item("D"), _item("E")]
+    judg = {n.lower(): DietJudgment("yes", "ok", 0.8) for n in ("A", "B", "C")}
+    a = assess_diet("vegan", menu_items=items, llm_judgments=judg)
+    assert a.verdict == "good_options"

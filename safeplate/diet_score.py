@@ -126,9 +126,14 @@ def assess_diet(diet, *, menu_items, cuisines=None,
             basis = "labeled"
         else:
             basis = "estimated"
-        # Vegan cap applies ONLY to name-only estimates, never to ai_assessed/labeled.
-        if diet == "vegan" and basis == "estimated" and verdict == "good_options":
-            verdict = "limited"
+        # Vegan cap: a dish name can't reveal hidden dairy/egg, so a vegan
+        # 'good_options' must be carried by CONFIDENT evidence (labeled + AI-judged)
+        # on its own. Otherwise name-only 'estimated' items sneaking in via a 'mixed'
+        # basis (one AI-yes + many assumed) would bypass the cap. When estimates are
+        # what push it over the bar, cap to 'limited'.
+        if diet == "vegan" and verdict == "good_options" and assumed:
+            if (len(labeled) + len(ai_ok)) / total < _GOOD_SHARE:
+                verdict = "limited"
 
     support = round(n_ok / total, 2) if n_ok else 0.0
     rationale = _floor_rationale(spec, diet, basis, len(labeled), len(assumed), offending, total)
