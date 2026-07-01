@@ -4,7 +4,7 @@ import unittest
 
 import safeplate.allergen_score_llm as sll
 from safeplate.allergen_score import (
-    Severity, UserProfile, Tier, _SEVERITY_TUNING, score_restaurant_for_user,
+    AllergenPref, Severity, UserProfile, Tier, _SEVERITY_TUNING, score_restaurant_for_user,
 )
 
 
@@ -189,7 +189,7 @@ class ScenarioRoutingTests(unittest.TestCase):
         self.assertEqual(b["scenario"], "labeled")
         self.assertIn("chart_summary", b)
         self.assertNotIn("menu", b)
-        self.assertEqual(b["chart_summary"]["dishes_with_nuts"], 1)
+        self.assertEqual(b["chart_summary"]["dishes_with_allergen"], 1)
 
     def test_raw_menu_bundle_has_menu_not_chart(self):
         menu = [_item(f"Dish {i}") for i in range(20)] + [_item("Peanut Butter Pie")]
@@ -228,6 +228,36 @@ class ScenarioRoutingTests(unittest.TestCase):
         self.assertEqual(captured["scenario"], "raw_menu")
         self.assertTrue(captured["has_menu"])
         self.assertGreaterEqual(out.overall_risk, ALLERGY_FLOOR)   # guardrails still applied
+
+
+class GeneralizedPromptTests(unittest.TestCase):
+    """Task 7: the prompt + bundle must name the user's ACTUAL allergen, not nuts."""
+
+    def setUp(self):
+        self._orig = sll._call_llm_scorer
+
+    def tearDown(self):
+        sll._call_llm_scorer = self._orig
+
+    def test_llm_prompt_names_actual_allergen(self):
+        captured = {}
+
+        def fake_call(bundle, *, api_key, model, system=None, **_kw):
+            captured["bundle"] = bundle
+            captured["system"] = system
+            return {"risk": 0.5, "tier": "caution", "confidence": 0.6, "rationale": []}
+
+        sll._call_llm_scorer = fake_call
+        profile = UserProfile(allergens=(AllergenPref(allergen="milk", severity=Severity.ALLERGY),))
+        sll.score_restaurant_with_llm(
+            profile, cuisines=["italian"], region="US",
+            menu_items=[], api_key="x", model="y",
+        )
+        self.assertIn("milk", str(captured["bundle"]).lower())
+        self.assertNotIn("nuts", str(captured["bundle"]["user"]).lower())
+        # The system prompt itself must name milk, not talk about nuts.
+        self.assertIn("milk", captured["system"].lower())
+        self.assertNotIn("nut", captured["system"].lower())
 
 
 if __name__ == "__main__":
