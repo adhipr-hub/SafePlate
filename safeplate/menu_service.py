@@ -173,6 +173,27 @@ def _region_notice_for(
     return region_mod.region_notice(home=home, source_region=source_region)
 
 
+def _diet_summary_payload(
+    diets: Any, menu_items: list[Any], *, cuisines: list[str] | None = None
+) -> list[dict[str, Any]]:
+    """Map each requested diet to its DietAssessment as a UI-shaped dict. A distinct
+    concept from allergen risk (ingredient membership, no severity/cross-contact) --
+    see ``safeplate.diet_score`` for the compatibility rules."""
+    from safeplate.diet_score import assess_diets
+
+    return [
+        {
+            "diet": a.diet,
+            "verdict": a.verdict,
+            "support": a.support,
+            "rationale": a.rationale,
+            "offendingItems": a.offending_items,
+            "compatibleItems": a.compatible_items,
+        }
+        for a in assess_diets(diets, menu_items=menu_items, cuisines=cuisines)
+    ]
+
+
 def _structured_menu_response(
     *,
     restaurant_name: str,
@@ -185,6 +206,7 @@ def _structured_menu_response(
     errors: list[dict[str, str]],
     scoring_engine: str = "rules",
     personalized: bool = False,
+    diets: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build the structured drawer payload (menuItems + allergySignals + assessment + the
     legacy-shaped summary the UI drawer reads). Shared so the SEARCH can embed this exact
@@ -199,6 +221,46 @@ def _structured_menu_response(
     region_notice = _region_notice_for(
         coverage, menu_items, address=address, website_url=website_url
     )
+    summary: dict[str, Any] = {
+        "engine": "structured",
+        "scoringEngine": scoring_engine,
+        "personalized": personalized,
+        "regionNotice": region_notice,
+        "itemCount": len(item_payloads),
+        "allergenItemCount": sum(
+            1 for item in menu_items if getattr(item, "allergen_terms", None)
+        ),
+        "allergySignalCount": len(allergy_signals),
+        "tier": assessment.tier,
+        "overallRisk": round(assessment.overall_risk, 3),
+        "overallConfidence": round(assessment.overall_confidence, 2),
+        "evidenceBasis": assessment.evidence_basis,
+        "menuSourceErrors": errors,
+        "coverageStatus": coverage_status,
+        # legacy-compatible shapes the UI drawer reads:
+        "menuBackedRisk": {
+            "risk": round(assessment.overall_risk, 3),
+            "confidence": round(assessment.overall_confidence, 2),
+            "rationale": assessment.rationale,
+            "isMenuBacked": bool(menu_items),
+            "tier": assessment.tier,
+            "riskiestItems": riskiest_items,
+            "scoringEngine": scoring_engine,
+            # Citable evidence (id -> source url/quote) so the UI can deep-link each
+            # [E#] chip in the rationale to exactly where the claim came from.
+            "evidence": getattr(assessment, "evidence", []) or [],
+        },
+        "restaurantSignals": {
+            "has_allergy_disclaimer": assessment.handling.allergy_aware,
+            "has_cross_contact_warning": assessment.handling.cross_contact_warning,
+            "mentions_staff_allergy_instruction": assessment.handling.ask_staff,
+            "has_nut_free_claim": assessment.handling.nut_free_claim,
+        },
+    }
+    if diets:
+        # Only attached when the profile actually selected diets, so existing
+        # responses (no diets picked) stay byte-unchanged.
+        summary["diets"] = diets
     return {
         "engine": "structured",
         "restaurantName": restaurant_name,
@@ -209,42 +271,7 @@ def _structured_menu_response(
         "coverage": [asdict(report) for report in coverage],
         "coverageStatus": coverage_status,
         "regionNotice": region_notice,
-        "summary": {
-            "engine": "structured",
-            "scoringEngine": scoring_engine,
-            "personalized": personalized,
-            "regionNotice": region_notice,
-            "itemCount": len(item_payloads),
-            "allergenItemCount": sum(
-                1 for item in menu_items if getattr(item, "allergen_terms", None)
-            ),
-            "allergySignalCount": len(allergy_signals),
-            "tier": assessment.tier,
-            "overallRisk": round(assessment.overall_risk, 3),
-            "overallConfidence": round(assessment.overall_confidence, 2),
-            "evidenceBasis": assessment.evidence_basis,
-            "menuSourceErrors": errors,
-            "coverageStatus": coverage_status,
-            # legacy-compatible shapes the UI drawer reads:
-            "menuBackedRisk": {
-                "risk": round(assessment.overall_risk, 3),
-                "confidence": round(assessment.overall_confidence, 2),
-                "rationale": assessment.rationale,
-                "isMenuBacked": bool(menu_items),
-                "tier": assessment.tier,
-                "riskiestItems": riskiest_items,
-                "scoringEngine": scoring_engine,
-                # Citable evidence (id -> source url/quote) so the UI can deep-link each
-                # [E#] chip in the rationale to exactly where the claim came from.
-                "evidence": getattr(assessment, "evidence", []) or [],
-            },
-            "restaurantSignals": {
-                "has_allergy_disclaimer": assessment.handling.allergy_aware,
-                "has_cross_contact_warning": assessment.handling.cross_contact_warning,
-                "mentions_staff_allergy_instruction": assessment.handling.ask_staff,
-                "has_nut_free_claim": assessment.handling.nut_free_claim,
-            },
-        },
+        "summary": summary,
         "files": {},
     }
 
@@ -334,6 +361,16 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:  # community is best-effort; never break the drawer
         errors.append({"source": "community_signals", "error": str(exc)})
 
+    # Diet compatibility (vegan/vegetarian/etc.) is a distinct concept from allergen
+    # risk -- attach only when the diner actually selected diets, on the FINAL
+    # menu_items (the community layer above may have seeded dish-context items when
+    # no menu was found), so unchanged (no-diet) responses stay byte-identical.
+    diets_payload = (
+        _diet_summary_payload(profile.diets, menu_items, cuisines=cuisines)
+        if profile.diets
+        else None
+    )
+
     response = _structured_menu_response(
         restaurant_name=restaurant_name,
         website_url=website_url,
@@ -345,6 +382,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         errors=errors,
         scoring_engine=scoring_engine,
         personalized=bool(experience_history) and _is_ai_engine(scoring_engine),
+        diets=diets_payload,
     )
     response["communityQuotes"] = community_quotes
     return response
@@ -432,11 +470,16 @@ def _write_assessment_into_card(
     prior: Any, cuisines: list[str], region: str, name: str, website_url: str,
     menu_items: list[Any], allergy_signals: list[Any], coverage: list[Any],
     errors: list[dict[str, str]], scoring_engine: str = "rules", address: str = "",
+    diets: list[dict[str, Any]] | None = None,
 ) -> None:
     """Write an assessment (and its menu-backed detail) into a result card. Used for
     both the deterministic build and the ai_assisted batched re-score, so the two stay in
     lockstep -- the only thing that changes between them is ``assessment`` (and which
-    scoring engine produced it, surfaced so the drawer can label the explanation)."""
+    scoring engine produced it, surfaced so the drawer can label the explanation).
+    ``diets`` (precomputed by the caller, since it only depends on the profile +
+    menu_items which don't change between the deterministic and re-scored write) is
+    stamped onto the row AND threaded into the embedded ``menuDetail`` so the list
+    card and the drawer agree, same as the risk score."""
     payload["allergenPrior"] = {
         "allergen": "nuts",
         "risk": round(assessment.overall_risk, 3),
@@ -450,6 +493,8 @@ def _write_assessment_into_card(
         "scoringEngine": scoring_engine,
     }
     payload["coverageStatus"] = "menu_backed" if menu_items else "cuisine_estimate"
+    if diets:
+        payload["diets"] = diets
     # We just extracted the full menu to score the card -- carry it along so opening
     # the drawer is INSTANT (no /api/menu round-trip). Only for menu-backed cards;
     # cuisine-estimate ones have nothing to embed and fetch fresh on open.
@@ -464,6 +509,7 @@ def _write_assessment_into_card(
             coverage=coverage,
             errors=errors,
             scoring_engine=scoring_engine,
+            diets=diets,
         )
     else:
         payload.pop("menuDetail", None)
@@ -532,10 +578,19 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
             region=region,
             scoring_engine="rules",  # ai_assisted re-scores the whole list in ONE batched call
         )
+    # Diet compatibility: only when the diner selected diets, on the menu_items we
+    # just extracted for this row (empty menu_items -> assess_diets reports "unknown"
+    # per diet, which is the honest answer, never "good_options").
+    diets_payload = (
+        _diet_summary_payload(profile.diets, menu_items, cuisines=cuisines)
+        if profile.diets
+        else None
+    )
     rebuild = dict(
         prior=prior, cuisines=cuisines, region=region, name=name,
         website_url=website_url, address=address, menu_items=menu_items,
         allergy_signals=allergy_signals, coverage=coverage, errors=errors,
+        diets=diets_payload,
     )
     _write_assessment_into_card(payload, assessment, scoring_engine="rules", **rebuild)
     if isinstance(row.raw_payload, dict) and row.raw_payload.get("demo_scenario"):

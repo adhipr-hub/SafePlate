@@ -42,3 +42,14 @@ def test_all_unknown_menu_is_unknown():
     a = assess_diet("vegan", menu_items=items)
     assert a.verdict == "unknown"      # non-empty but zero informative items
     assert a.support == 0.0
+
+
+def test_diet_summary_payload_shape():
+    from safeplate.menu_service import _diet_summary_payload
+
+    items = [_item("Beef Burger")]
+    out = _diet_summary_payload(frozenset({"vegan"}), items, cuisines=["american"])
+    assert out[0]["diet"] == "vegan"
+    assert out[0]["verdict"] == "not_compatible"
+    assert "offendingItems" in out[0]
+    assert "compatibleItems" in out[0]
