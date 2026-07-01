@@ -35,3 +35,10 @@ def test_vegetarian_allows_dairy():
 def test_empty_menu_is_unknown_not_good():
     a = assess_diet("vegan", menu_items=[])
     assert a.verdict == "unknown"  # never assume compatible with no evidence
+
+
+def test_all_unknown_menu_is_unknown():
+    items = [_item("Mystery Dish A"), _item("Mystery Dish B"), _item("House Special")]
+    a = assess_diet("vegan", menu_items=items)
+    assert a.verdict == "unknown"      # non-empty but zero informative items
+    assert a.support == 0.0

@@ -53,21 +53,46 @@ def assess_diet(diet: str, *, menu_items: list, cuisines: list[str] | None = Non
         return DietAssessment(diet=diet, verdict="unknown", support=0.0,
                               rationale=["no menu evidence"])
     offending, compatible = [], []
+    unknown_count = 0
     for it in items:
         name = str(getattr(it, "item_name", "") or "")
+        name_low = name.lower()
         terms = list(getattr(it, "allergen_terms", []) or [])
-        if _item_conflicts(spec, name.lower(), terms):
+        dietary = getattr(it, "dietary_terms", []) or []
+        conflict = _item_conflicts(spec, name_low, terms)
+        informative = conflict or bool(terms) or bool(dietary)
+        if conflict:
             offending.append(name)
-        else:
+        elif informative:
             compatible.append(name)
-    share = len(compatible) / len(items)
-    if not compatible:
-        verdict = "not_compatible"
-    elif share >= 0.4:
-        verdict = "good_options"
+        else:
+            unknown_count += 1
+
+    informative_count = len(offending) + len(compatible)
+    if informative_count == 0:
+        verdict = "unknown"
+        share = 0.0
     else:
-        verdict = "limited"
-    rationale = [f"{len(compatible)}/{len(items)} menu items appear {spec.display.lower()}-compatible"]
+        share = len(compatible) / len(items)
+        if not compatible:
+            verdict = "not_compatible"
+        elif share >= 0.4:
+            verdict = "good_options"
+        else:
+            verdict = "limited"
+
+    if informative_count == 0:
+        rationale = [
+            f"0/{len(items)} menu items gave any {spec.display.lower()}-relevant signal "
+            "(no allergen chart data, dietary labels, or ingredient-name hits)"
+        ]
+    else:
+        rationale = [
+            f"{len(compatible)}/{len(items)} menu items show no conflicting evidence for "
+            f"{spec.display.lower()}"
+        ]
+        if unknown_count:
+            rationale.append(f"{unknown_count} item(s) gave no usable signal either way")
     if offending:
         rationale.append(f"{len(offending)} contain excluded ingredients (e.g. {offending[0]})")
     return DietAssessment(diet=diet, verdict=verdict, support=round(share, 2),
