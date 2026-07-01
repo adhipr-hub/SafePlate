@@ -483,6 +483,7 @@ def _result_cache_path(website_url: str, model: str, discriminator: str = ""):
 
 
 def _load_result_cache(website_url: str, model: str, discriminator: str = ""):
+    from safeplate.diet_score import DietSignal
     from safeplate.extraction2.schema import (
         AllergySignal,
         CoverageReport,
@@ -506,6 +507,8 @@ def _load_result_cache(website_url: str, model: str, discriminator: str = ""):
             items=[MenuItemRecord(**i) for i in blob["items"]],
             coverage=[CoverageReport(**c) for c in blob["coverage"]],
             allergy_signals=[AllergySignal(**s) for s in blob["signals"]],
+            # Older cache blobs predate diet signals -- default to [] rather than KeyError.
+            diet_signals=[DietSignal(**d) for d in blob.get("diet_signals", [])],
             llm_calls=0,
         )
     except (KeyError, TypeError):
@@ -524,6 +527,7 @@ def _save_result_cache(website_url: str, model: str, result, discriminator: str 
                 "items": [asdict(i) for i in result.items],
                 "coverage": [asdict(c) for c in result.coverage],
                 "signals": [asdict(s) for s in result.allergy_signals],
+                "diet_signals": [asdict(s) for s in result.diet_signals],
             }),
             encoding="utf-8",
         )
@@ -782,7 +786,10 @@ def discover_and_extract(
     # pages to keep cost down; grounded quotes only. Skipped if the overall budget is
     # already spent.
     if api_key and time.monotonic() < overall_deadline:
-        from safeplate.extraction2.allergy_signals import extract_allergy_signals
+        from safeplate.extraction2.allergy_signals import (
+            extract_allergy_signals,
+            extract_diet_signals,
+        )
 
         signal_payloads: list[Any] = []
         # 1) Narrative allergy/nutrition pages (richest allergy-handling prose).
@@ -826,6 +833,21 @@ def discover_and_extract(
             if sig_key not in seen_sig:
                 seen_sig.add(sig_key)
                 result.allergy_signals.append(signal)
+
+        # Diet accommodation ("dishes can be made vegan/vegetarian") -- reuses the
+        # SAME cached page-LLM call above (no extra network request); feeds diet
+        # compatibility only, never allergen risk.
+        seen_diet: set[tuple] = set()
+        for diet_sigs in map_concurrent(
+            lambda p: extract_diet_signals(p, api_key=api_key, model=model),
+            signal_payloads,
+            max_workers=2,
+        ):
+            for sig in diet_sigs or []:
+                diet_key = (sig.diet, sig.quote, sig.url)
+                if diet_key not in seen_diet:
+                    seen_diet.add(diet_key)
+                    result.diet_signals.append(sig)
 
     # Don't cache a deadline-truncated extraction: it may be missing an allergen
     # source and would wrongly look safer on the next (cache-hit) open.

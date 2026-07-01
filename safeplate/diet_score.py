@@ -27,6 +27,19 @@ def _meat_terms() -> dict[str, tuple[str, ...]]:
 
 
 @dataclass(frozen=True)
+class DietSignal:
+    """A grounded website statement that dishes CAN be made vegetarian/vegan on
+    request (distinct from a menu item already labeled that way). Feeds diet
+    compatibility only -- never allergen risk. `quote` must be a verbatim
+    substring of the source page text; ungrounded quotes are dropped upstream."""
+
+    diet: str          # vegetarian | vegan
+    quote: str
+    url: str
+    source: str        # website | community
+
+
+@dataclass(frozen=True)
 class DietAssessment:
     diet: str
     verdict: str            # not_compatible | limited | good_options | unknown

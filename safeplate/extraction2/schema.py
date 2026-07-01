@@ -6,6 +6,7 @@ from typing import Any
 
 # Reuse v1's record so v2 output plugs straight into the allergen prior / scoring
 # layer and is directly comparable in the eval harness.
+from safeplate.diet_score import DietSignal
 from safeplate.menu_text import MenuItemRecord
 
 
@@ -89,6 +90,9 @@ class MenuExtractionResult:
     coverage: list[CoverageReport]
     llm_calls: int = 0                    # cost accounting for hybrid-vs-llm-first
     allergy_signals: list[AllergySignal] = field(default_factory=list)
+    # Grounded website statements that dishes CAN be made vegetarian/vegan on
+    # request. Diet compatibility only -- never feeds allergen risk scoring.
+    diet_signals: list[DietSignal] = field(default_factory=list)
     diagnostics: dict[str, Any] = field(default_factory=dict)
     # True when a transient LLM failure left the extraction knowingly partial (e.g. one
     # chunk of a multi-chunk menu failed). Callers must NOT cache an incomplete result
