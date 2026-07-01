@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+import unicodedata
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -134,6 +135,21 @@ def discover_sources(
             if url not in seen_link_urls:
                 seen_link_urls.add(url)
                 links.append((url, text))
+
+    # Multi-location brands: the per-location menu lives on a subdomain the apex only
+    # links to as a place. Follow the subdomain matching the diner's address so its
+    # menu links get harvested too (the apex alone yields no menu otherwise).
+    location_seeds = _address_matched_subdomain_seeds(
+        links, website_url=website_url, address=address or ""
+    )
+    if location_seeds:
+        for harvested in map_concurrent(
+            _fetch_seed_links, location_seeds, max_workers=max(1, len(location_seeds))
+        ):
+            for url, text in harvested:
+                if url not in seen_link_urls:
+                    seen_link_urls.add(url)
+                    links.append((url, text))
 
     for (url, text), kind in _select_links(links[:max_links], api_key=api_key, model=model):
         candidates.append(Candidate(url=url, anchor_text=text, kind=kind, source="link"))
@@ -846,6 +862,89 @@ def _seed_urls(website_url: str) -> list[str]:
         if root != website_url:
             seeds.append(root)
     return seeds
+
+
+# Multi-location brands host each location's menu on its own subdomain
+# (radhusplassen.derpepperngror.no). Seeded on the brand apex, the menu is two hops
+# away behind a location link the classifier reads as a place, not a menu -- so
+# discovery finds nothing. Follow the subdomain whose label matches the diner's
+# address locality (which we already have) as an extra seed, so that location's menu
+# links get harvested. Bounded (a couple of matches) so a brand can't fan us out.
+_NORDIC_FOLD = str.maketrans({
+    "ø": "o", "æ": "ae", "å": "a", "ä": "a", "ö": "o", "ü": "u",
+    "ð": "d", "þ": "th", "ß": "ss",
+})
+
+
+def _norm_locality(text: str) -> str:
+    folded = text.lower().translate(_NORDIC_FOLD)
+    decomposed = unicodedata.normalize("NFKD", folded)
+    return "".join(c for c in decomposed if c.isalnum() and not unicodedata.combining(c))
+
+
+def _address_locality_tokens(address: str) -> set[str]:
+    """Normalized locality tokens from an address: each comma segment collapsed to
+    one token (so 'Aker Brygge' -> 'akerbrygge') plus its individual words, accents
+    folded ('Rådhusplassen' -> 'radhusplassen'). Short tokens are dropped to avoid
+    spurious subdomain matches."""
+    tokens: set[str] = set()
+    for segment in address.split(","):
+        collapsed = _norm_locality(segment)
+        if len(collapsed) >= 4:
+            tokens.add(collapsed)
+        for word in segment.split():
+            normalized = _norm_locality(word)
+            if len(normalized) >= 4:
+                tokens.add(normalized)
+    return tokens
+
+
+def _subdomain_label(host: str, base_reg: str) -> str:
+    host = host.lower().split(":")[0]
+    if host.startswith("www."):
+        host = host[4:]
+    if host.endswith("." + base_reg) and host != base_reg:
+        return host[: -len("." + base_reg)]
+    return ""
+
+
+def _address_matched_subdomain_seeds(
+    links: list[tuple[str, str]], *, website_url: str, address: str, limit: int = 2
+) -> list[str]:
+    """Same-registrable-domain subdomains (from the harvested links) whose label
+    matches the address locality -> extra seed home URLs. The current host, the apex,
+    www, and off-site hosts are never seeded; unmatched locations are ignored."""
+    if not address.strip():
+        return []
+    base_reg = registrable_domain(urlparse(website_url).netloc)
+    if not base_reg:
+        return []
+    current = urlparse(website_url).netloc.lower().split(":")[0]
+    if current.startswith("www."):
+        current = current[4:]
+    tokens = _address_locality_tokens(address)
+    if not tokens:
+        return []
+    matched: list[str] = []
+    seen_hosts: set[str] = set()
+    for url, _text in links:
+        host = urlparse(url).netloc.lower().split(":")[0]
+        if host.startswith("www."):
+            host = host[4:]
+        if host == current or host in seen_hosts:
+            continue
+        label = _norm_locality(_subdomain_label(host, base_reg))
+        if not label:
+            continue
+        hit = label in tokens or any(
+            len(token) >= 6 and (token in label or label in token) for token in tokens
+        )
+        if hit:
+            seen_hosts.add(host)
+            matched.append(f"https://{host}/")
+            if len(matched) >= limit:
+                break
+    return matched
 
 
 def _harvest_links(html: str, base_url: str) -> list[tuple[str, str]]:
