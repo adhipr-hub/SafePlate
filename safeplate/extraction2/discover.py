@@ -131,21 +131,27 @@ def discover_sources(
         except PageFetchError:
             return []
 
+    # If Places handed us a social / Maps link instead of a real site, there is no
+    # menu to harvest there: skip the seed (and below, blank the Brave domain) so the
+    # menu is recovered by NAME instead of chasing an Instagram profile.
+    own_site = "" if is_noise_website(website_url) else website_url
+
     # The seeds (given URL + site root) are independent fetches; run them concurrently.
     # map_concurrent preserves input order and the dedupe is reapplied in that same
     # order, so the harvested `links` list is identical to the old sequential version.
-    seeds = list(_seed_urls(website_url))
-    for harvested in map_concurrent(_fetch_seed_links, seeds, max_workers=max(1, len(seeds))):
-        for url, text in harvested:
-            if url not in seen_link_urls:
-                seen_link_urls.add(url)
-                links.append((url, text))
+    seeds = list(_seed_urls(own_site)) if own_site else []
+    if seeds:
+        for harvested in map_concurrent(_fetch_seed_links, seeds, max_workers=max(1, len(seeds))):
+            for url, text in harvested:
+                if url not in seen_link_urls:
+                    seen_link_urls.add(url)
+                    links.append((url, text))
 
     # Multi-location brands: the per-location menu lives on a subdomain the apex only
     # links to as a place. Follow the subdomain matching the diner's address so its
     # menu links get harvested too (the apex alone yields no menu otherwise).
     location_seeds = _address_matched_subdomain_seeds(
-        links, website_url=website_url, address=address or ""
+        links, website_url=own_site, address=address or ""
     )
     if location_seeds:
         for harvested in map_concurrent(
@@ -179,7 +185,7 @@ def discover_sources(
         # off-domain page) -- replaces two overlapping helpers that fired ~6 queries.
         candidates.extend(
             _brave_allergen_sources(
-                website_url=website_url,
+                website_url=own_site,
                 restaurant_name=restaurant_name,
                 address=address,
                 api_key=brave_api_key,
@@ -854,6 +860,37 @@ def _mentions_nut_free(text: str) -> bool:
 # Shared canonical eTLD+1 helper (re-exported under the old private name so existing
 # callers/tests are unchanged).
 _registrable_domain = registrable_domain
+
+
+# A place's Google-Places "website" is sometimes a social profile or a Maps link,
+# not a real site with a menu. Seeding those wastes a fetch, pollutes provenance
+# (an Instagram URL is not the official domain), and sends a useless `site:instagram`
+# query to Brave. Flag them so discovery skips the seed and recovers the menu by name.
+# Delivery / menu aggregators (Uber Eats, e-food, Zomato, TripAdvisor) are deliberately
+# NOT here: they carry menu content and stay usable as sources.
+_SOCIAL_DOMAINS = (
+    "instagram.com", "facebook.com", "fb.com", "fb.me", "tiktok.com",
+    "twitter.com", "x.com", "youtube.com", "youtu.be", "linkedin.com",
+    "pinterest.com", "snapchat.com", "threads.net", "wa.me", "t.me",
+    "vk.com", "weibo.com",
+)
+_MAPS_HINTS = ("maps.google.", "google.com/maps", "goo.gl/maps", "maps.app.goo.gl")
+
+
+def is_noise_website(url: str) -> bool:
+    """True when a Places "website" is a social-media or Maps link (no menu to read),
+    so discovery should skip seeding it and recover the menu by name instead. Delivery
+    / menu aggregators are NOT noise -- they carry menus and stay usable as sources."""
+    if not url or not url.strip():
+        return False
+    parsed = urlparse(url if "//" in url else "http://" + url.strip())
+    host = parsed.netloc.lower().split(":")[0].strip(".")
+    if not host:
+        return False
+    if any(host == d or host.endswith("." + d) for d in _SOCIAL_DOMAINS):
+        return True
+    full = (host + parsed.path).lower()
+    return any(hint in full for hint in _MAPS_HINTS)
 
 
 def _seed_urls(website_url: str) -> list[str]:
