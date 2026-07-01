@@ -1393,11 +1393,10 @@ def restaurant_allergen_risk(
     cuisines: list[str] | None,
     region: str = "unknown",
     menu_items: list[dict[str, str]] | None = None,
-    risky_threshold: float = 0.5,
     baseline: "AllergenPrior | None" = None,
 ) -> RestaurantNutRisk:
     """Combine the cuisine/location baseline (floor) with per-dish KB matches for an
-    arbitrary allergen. Mirrors restaurant_nut_risk's contract + return type."""
+    arbitrary allergen. Generic twin of restaurant_nut_risk."""
     base = baseline or allergen_cuisine_baseline(allergen, cuisines, region)
     kb = load_allergen_kb(allergen)
     risk = base.risk
