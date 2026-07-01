@@ -88,7 +88,13 @@ _KIND_TOKENS = {
                      "food allergy", "allergy advice", "dietary requirement", "may contain"),
     "allergen": ("allerg", "allergi", "allergè", "alergen", "アレルゲン", "过敏", "過敏", "알레르"),
     "nutrition": ("nutrition", "nutritional", "nährwert", "valeurs nutri", "栄養", "营养", "영양"),
-    "menu": ("menu", "carte", "speisekarte", "メニュー", "菜单", "菜單", "메뉴", "carta", "speise"),
+    "menu": ("menu", "carte", "speisekarte", "メニュー", "菜单", "菜單", "메뉴", "carta", "speise",
+             # Nordic / other European menu words the English "menu" token missed
+             # (all distinctive substrings -- low false-match risk): Norwegian/Swedish/
+             # Danish "meny"/"spisekart"/"matseddel", Finnish "ruokalista", Portuguese
+             # "cardapio", Polish "jadlospis", Croatian/Serbian "jelovnik".
+             "meny", "spisekart", "matseddel", "ruokalista",
+             "cardapio", "cardápio", "jadlospis", "jelovnik"),
 }
 
 
