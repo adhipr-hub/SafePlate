@@ -90,7 +90,8 @@ _KIND_TOKENS = {
     "allergen": ("allerg", "allergi", "allergè", "alergen", "アレルゲン", "过敏", "過敏", "알레르",
                  "αλλεργ", "аллерг"),   # Greek / Cyrillic
     "nutrition": ("nutrition", "nutritional", "nutri", "nährwert", "valeurs nutri",
-                  "栄養", "营养", "영양", "διατροφ"),  # "nutri" stem: nutrición/nutrição/nutrizione
+                  "栄養", "营养", "영양", "διατροφ",  # "nutri" stem: nutrición/nutrição/nutrizione
+                  "naering"),  # Nordic "næring[sberegner/sinnhold]" (folds æ->ae)
     "menu": ("menu", "carte", "speisekarte", "メニュー", "菜单", "菜單", "메뉴", "carta", "speise",
              # Nordic / other European menu words the English "menu" token missed
              # (all distinctive substrings -- low false-match risk): Norwegian/Swedish/
@@ -100,7 +101,14 @@ _KIND_TOKENS = {
              # (menú/menü/menù) are handled by accent-folding in _heuristic_select.
              "meny", "spisekart", "matseddel", "ruokalista",
              "cardapio", "cardápio", "jadlospis", "jelovnik",
-             "karte", "μενού", "μενου", "меню"),
+             "karte", "μενού", "μενου", "меню",
+             # Menu words found in a 47-country live sweep: Romanian "meniu" (two
+             # Bucharest sites the heuristic missed entirely), Dutch "menukaart",
+             # Hungarian "étlap" (folds to "etlap"), Czech "jídelní [lístek]" (folds to
+             # "jidelni"), plus distinctive native-script menu words for Hebrew / Arabic
+             # / Thai / Hindi. All are collision-free substrings (no English false-match).
+             "meniu", "menukaart", "etlap", "jidelni",
+             "תפריט", "منيو", "เมนู", "मेन्यू", "मेनू"),
 }
 
 
