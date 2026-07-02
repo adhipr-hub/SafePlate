@@ -1795,9 +1795,40 @@ function useBrowserLocation() {
 }
 
 /* ── sort & render cards ── */
+/* @sort-core:start — PURE sort logic, unit-tested in tests/test_diet_sort_tiebreak.py.
+   Keep self-contained: no globals (state is passed in), so the test can extract and
+   run just this block under node. Diet only breaks EXACT allergen-risk ties. */
+const _DIET_VERDICT_RANK = { good_options:3, limited:2, unknown:1, not_compatible:0 };
+const _DIET_BASIS_RANK   = { labeled:4, ai_assessed:3, mixed:2, estimated:1, none:0 };
+
+// Worst diet fit across the selected diets, as a comparable number (higher = better fit).
+// verdict dominates (×10); basis (max 4) breaks verdict ties. Rows with no diet data
+// return -1 so a confirmed verdict never loses its slot to an un-assessed card.
+function dietSortKey(row, diets) {
+  const entries = row?.menuDetail?.summary?.diets;
+  if (!Array.isArray(entries) || !diets?.length) return -1;
+  let worst = Infinity;
+  for (const d of diets) {
+    const e = entries.find(x => x?.diet === d);            // missing -> unknown/none
+    const v = _DIET_VERDICT_RANK[e?.verdict] ?? 1;
+    const b = _DIET_BASIS_RANK[e?.basis] ?? 0;
+    worst = Math.min(worst, v*10 + b);
+  }
+  return worst === Infinity ? -1 : worst;
+}
+
+// Allergen risk is primary; diet fit breaks EXACT ties only when diets are selected.
+function compareByRisk(a, b, diets) {
+  const ra = a.allergenPrior?.risk ?? 1, rb = b.allergenPrior?.risk ?? 1;
+  if (ra !== rb) return ra - rb;
+  if (!diets?.length) return 0;                            // default-equivalence
+  return dietSortKey(b, diets) - dietSortKey(a, diets);    // higher key sorts earlier
+}
+/* @sort-core:end */
+
 function sortRows(rows) {
   return [...rows].sort((a,b)=>{
-    if (state.sort==="risk")     return (a.allergenPrior?.risk??1)-(b.allergenPrior?.risk??1);
+    if (state.sort==="risk")     return compareByRisk(a, b, state.diets);
     if (state.sort==="distance") return (a.distance_meters??9e9)-(b.distance_meters??9e9);
     if (state.sort==="rating")   return (b.rating??0)-(a.rating??0);
     return 0;
