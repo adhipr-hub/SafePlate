@@ -184,5 +184,9 @@ def _floor_rationale(spec, diet, basis, n_lab, n_asm, offending, total):
     return out
 
 
-def assess_diets(diets, *, menu_items, cuisines=None) -> list[DietAssessment]:
-    return [assess_diet(d, menu_items=menu_items, cuisines=cuisines) for d in sorted(diets)]
+def assess_diets(diets, *, menu_items, cuisines=None, llm_judgments=None,
+                 accommodation_signals=None) -> list[DietAssessment]:
+    judg = llm_judgments or {}
+    return [assess_diet(d, menu_items=menu_items, cuisines=cuisines,
+                        llm_judgments=judg.get(d), accommodation_signals=accommodation_signals)
+            for d in sorted(diets)]

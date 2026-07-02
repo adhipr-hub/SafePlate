@@ -71,7 +71,7 @@ def _extract_and_assess_structured(
     caller (whichever fires later) pays nothing. ``cuisines`` / ``region`` are
     derived by the scorer when not supplied; callers that already have them (the
     search card renders the prior first) pass them in to skip the re-derivation.
-    Returns (assessment, menu_items, allergy_signals, coverage, errors)."""
+    Returns (assessment, menu_items, allergy_signals, coverage, errors, diet_signals)."""
     from safeplate.allergen_score import assess_restaurant_record
     from safeplate.extraction2.discover import discover_and_extract
 
@@ -79,6 +79,7 @@ def _extract_and_assess_structured(
     menu_items: list[Any] = []
     allergy_signals: list[Any] = []
     coverage: list[Any] = []
+    diet_signals: list[Any] = []  # grounded website "can be made vegan/veg" statements
 
     if website_url:
         try:
@@ -98,6 +99,7 @@ def _extract_and_assess_structured(
             menu_items = result.items
             allergy_signals = result.allergy_signals
             coverage = result.coverage
+            diet_signals = list(getattr(result, "diet_signals", []) or [])
         except Exception as exc:  # never let extraction break the response
             errors.append({"source": "extraction2", "error": str(exc)})
     else:
@@ -128,7 +130,7 @@ def _extract_and_assess_structured(
             record, profile, menu_items=menu_items, signals=signals,
             cuisines=cuisines, region=region,
         )
-    return assessment, menu_items, allergy_signals, coverage, errors
+    return assessment, menu_items, allergy_signals, coverage, errors, diet_signals
 
 
 def _region_notice_for(
@@ -174,11 +176,15 @@ def _region_notice_for(
 
 
 def _diet_summary_payload(
-    diets: Any, menu_items: list[Any], *, cuisines: list[str] | None = None
+    diets: Any, menu_items: list[Any], *, cuisines: list[str] | None = None,
+    llm_judgments: dict[str, Any] | None = None,
+    diet_signals: list[Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Map each requested diet to its DietAssessment as a UI-shaped dict. A distinct
     concept from allergen risk (ingredient membership, no severity/cross-contact) --
-    see ``safeplate.diet_score`` for the compatibility rules."""
+    see ``safeplate.diet_score`` for the compatibility rules. ``llm_judgments`` is the
+    ``{diet: {name: DietJudgment}}`` map from the diet LLM judge; ``diet_signals`` are
+    grounded accommodation statements ("can be made vegan on request")."""
     from safeplate.allergens import DIETS
     from safeplate.diet_score import assess_diets
 
@@ -188,11 +194,16 @@ def _diet_summary_payload(
             "display": DIETS[a.diet].display if a.diet in DIETS else a.diet,
             "verdict": a.verdict,
             "support": a.support,
+            "basis": a.basis,
             "rationale": a.rationale,
             "offendingItems": a.offending_items,
             "compatibleItems": a.compatible_items,
+            "notes": a.notes,
         }
-        for a in assess_diets(diets, menu_items=menu_items, cuisines=cuisines)
+        for a in assess_diets(
+            diets, menu_items=menu_items, cuisines=cuisines,
+            llm_judgments=llm_judgments, accommodation_signals=diet_signals,
+        )
     ]
 
 
@@ -320,7 +331,8 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
 
     cuisines = cuisines_for(categories, restaurant_name)
     region = region_from_address(address, latitude=latitude, longitude=longitude)
-    assessment, menu_items, allergy_signals, coverage, errors = _extract_and_assess_structured(
+    api_key = get_gemini_api_key()
+    assessment, menu_items, allergy_signals, coverage, errors, diet_signals = _extract_and_assess_structured(
         name=restaurant_name,
         website_url=website_url,
         address=address,
@@ -329,7 +341,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         longitude=longitude,
         profile=profile,
         user_agent=get_user_agent(),
-        api_key=get_gemini_api_key(),
+        api_key=api_key,
         cuisines=cuisines,
         region=region,
         scoring_engine=scoring_engine,
@@ -342,6 +354,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     # when NO menu was found, diner-mentioned dishes seed the dish-name prior so even a
     # menu-less place beats a bare cuisine guess. Never grounded allergen evidence.
     community_quotes: list[str] = []
+    cres = None
     try:
         from safeplate.allergen_score import assess_restaurant_record
         from safeplate.community_signals import fetch_community_signals
@@ -384,9 +397,28 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     # Diet compatibility (vegan/vegetarian/etc.) is a distinct concept from allergen
     # risk -- attach only when the diner actually selected diets, on the FINAL
     # menu_items (the community layer above may have seeded dish-context items when
-    # no menu was found), so unchanged (no-diet) responses stay byte-identical.
+    # no menu was found), so unchanged (no-diet) responses stay byte-identical. The
+    # diet LLM judge is a SEPARATE call from the allergen judge, fired only when the
+    # AI engine + a key + selected diets + menu_items are ALL present (never on the
+    # no-diet default path, keeping it byte-identical to today).
+    diet_judgments: dict[str, Any] = {}
+    if _is_ai_engine(scoring_engine) and api_key and profile.diets and menu_items:
+        from safeplate.diet_llm import judge_diet_compatibility
+
+        try:
+            diet_judgments = judge_diet_compatibility(
+                menu_items, list(profile.diets), api_key=api_key, model=get_gemini_model(),
+            )
+        except Exception:
+            diet_judgments = {}
+    diet_signals = list(diet_signals)
+    if cres is not None:
+        diet_signals.extend(cres.diet_signals)
     diets_payload = (
-        _diet_summary_payload(profile.diets, menu_items, cuisines=cuisines)
+        _diet_summary_payload(
+            profile.diets, menu_items, cuisines=cuisines,
+            llm_judgments=diet_judgments, diet_signals=diet_signals,
+        )
         if profile.diets
         else None
     )
@@ -584,7 +616,7 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
     website_url = str(row.website_url or "").strip()
     address = str(row.address or "")
     with span("card_extract_assess"):
-        assessment, menu_items, allergy_signals, coverage, errors = _extract_and_assess_structured(
+        assessment, menu_items, allergy_signals, coverage, errors, diet_signals = _extract_and_assess_structured(
             name=name,
             website_url=website_url,
             address=address,
@@ -600,9 +632,25 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
         )
     # Diet compatibility: only when the diner selected diets, on the menu_items we
     # just extracted for this row (empty menu_items -> assess_diets reports "unknown"
-    # per diet, which is the honest answer, never "good_options").
+    # per diet, which is the honest answer, never "good_options"). The diet LLM judge
+    # (a SEPARATE call from the allergen judge) only fires when the AI engine + a key
+    # + selected diets + menu_items are ALL present -- never on the default (no-diet
+    # or rules-engine) path, keeping those responses byte-identical to today.
+    diet_judgments: dict[str, Any] = {}
+    if _is_ai_engine(scoring_engine) and api_key and profile.diets and menu_items:
+        from safeplate.diet_llm import judge_diet_compatibility
+
+        try:
+            diet_judgments = judge_diet_compatibility(
+                menu_items, list(profile.diets), api_key=api_key, model=get_gemini_model(),
+            )
+        except Exception:
+            diet_judgments = {}
     diets_payload = (
-        _diet_summary_payload(profile.diets, menu_items, cuisines=cuisines)
+        _diet_summary_payload(
+            profile.diets, menu_items, cuisines=cuisines,
+            llm_judgments=diet_judgments, diet_signals=diet_signals,
+        )
         if profile.diets
         else None
     )

@@ -34,7 +34,7 @@ def _fake_extract(*, name, website_url, address, categories, latitude, longitude
                   scoring_engine="rules"):
     # Stand in for the network extraction: deterministic cuisine-prior score, no menu.
     det = score_restaurant_for_user(profile, cuisines=cuisines, region=region or "US")
-    return det, [], [], [], []
+    return det, [], [], [], [], []
 
 
 class BatchScoringWiringTests(unittest.TestCase):
