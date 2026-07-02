@@ -1716,7 +1716,7 @@ async function search(opts={}) {
    upgrade the nearest cards to menu-backed scores one /api/menu call at a time and
    swap each in place as it lands. Bounded (N + concurrency) to stay under the
    per-IP rate limit; a failed card simply stays a cuisine estimate. */
-const _PROG_UPGRADE_N = 8;
+const _PROG_UPGRADE_N = 12;
 const _PROG_CONCURRENCY = 3;
 async function upgradeCardsProgressive(seq) {
   const targets = [...state.rows]
@@ -1736,15 +1736,7 @@ async function upgradeCardsProgressive(seq) {
       const prevRisk = r.allergenPrior?.risk;   // the estimate, before we overlay the menu-backed score
       let landed = false;
       try {
-        const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(","), JSON.stringify(state.allergens), state.diets.join(","), _histHash()].join("|");
-        let m = state.noCache ? null : _menuCache.get(key);   // raw mode: skip the client memo too
-        if (!m) {
-          m = await (await fetch("/api/menu",{
-            method:"POST",headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache,experienceHistory:state.experienceHistory,allergens:state.allergens,diets:state.diets})
-          })).json();
-          if (!m.error && !state.noCache) _menuCache.set(key, m);
-        }
+        const m = await fetchMenu(r);   // single-flight: shares any in-flight drawer read
         if (seq !== _searchSeq) return;
         const summary = (m && m.summary) || {};
         const menuRisk = summary.menuBackedRisk;
@@ -2160,7 +2152,30 @@ function dietBadgesHtml(diets) {
 
 let _menuSeq = 0;             // monotonic id of the latest drawer open
 let _lastFocused = null;      // element to restore focus to when the drawer closes
-const _menuCache = new Map(); // memoize /api/menu by restaurant + preferences
+const _menuCache = new Map(); // memoize /api/menu by restaurant + preferences (stores the in-flight promise)
+
+/* Single-flight /api/menu. Shared by the progressive list pass and the drawer:
+   opening a card whose background read is still in flight JOINS that request
+   instead of firing a duplicate (double API spend + rate-limit pressure).
+   The promise is memoized, so concurrent callers share one fetch; error
+   responses/rejections are evicted so a later open can retry. Raw mode
+   (noCache) always fetches live and never memoizes. */
+function fetchMenu(r) {
+  const post = () => fetch("/api/menu",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache,experienceHistory:state.experienceHistory,allergens:state.allergens,diets:state.diets})
+  }).then(res=>res.json());
+  if (state.noCache) return post();   // raw mode: skip the client memo too
+  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(","), JSON.stringify(state.allergens), state.diets.join(","), _histHash()].join("|");
+  let p = _menuCache.get(key);
+  if (!p) {
+    p = post();
+    _menuCache.set(key, p);
+    // don't memoize errors: evict so the next open retries live
+    p.then(m => { if (m && m.error) _menuCache.delete(key); }, () => _menuCache.delete(key));
+  }
+  return p;
+}
 
 async function openDetail(r) {
   _lastFocused = document.activeElement;
@@ -2187,16 +2202,8 @@ async function openDetail(r) {
   // menu in the card -> render with NO /api/menu round-trip (no spinner, no re-read).
   // Skipped in raw mode so the drawer re-fetches live instead of using the embed.
   if (r.menuDetail && !state.noCache) { renderMenu(r.menuDetail, r); return; }
-  const key = [r.website_url||"", r.source_id||"", state.severity, state.crossContact, state.scoringEngine, state.nutTypes.join(","), JSON.stringify(state.allergens), state.diets.join(","), _histHash()].join("|");
   try {
-    let m = state.noCache ? null : _menuCache.get(key);   // raw mode: skip the client memo too
-    if (!m) {
-      m = await (await fetch("/api/menu",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:r.name,sourceId:r.source_id,websiteUrl:r.website_url,address:r.address,phoneNumber:r.phone_number,categories:r.categories,severity:state.severity,crossContact:state.crossContact,scoringEngine:state.scoringEngine,nutTypes:state.nutTypes,noCache:state.noCache,experienceHistory:state.experienceHistory,allergens:state.allergens,diets:state.diets})
-      })).json();
-      if (!m.error && !state.noCache) _menuCache.set(key, m);  // don't memoize errors / raw mode
-    }
+    const m = await fetchMenu(r);   // single-flight: joins an in-flight progressive read
     if (seq !== _menuSeq) return;            // a newer open superseded this one
     renderMenu(m,r);
   } catch {

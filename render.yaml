@@ -26,7 +26,7 @@ services:
         sync: false
       # Abuse/cost backstop: max paid (search/menu) requests per IP per minute.
       - key: SAFEPLATE_RATE_LIMIT_PER_MIN
-        value: "20"
+        value: "30"
       # Provider API keys -- live mode spends real money on these. All optional
       # (the app falls back to free OpenStreetMap data), but better with them.
       - key: GOOGLE_PLACES_API_KEY

@@ -147,7 +147,7 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
     # of an attacker-spoofable header.
     trust_xff = _truthy(os.environ.get("SAFEPLATE_TRUST_XFF"))
     rate_limiter = _RateLimiter(
-        max_requests=_int_env("SAFEPLATE_RATE_LIMIT_PER_MIN", 20),
+        max_requests=_int_env("SAFEPLATE_RATE_LIMIT_PER_MIN", 30),
         window_seconds=60.0,
     )
     # Throttle repeated auth FAILURES per client so the password can't be brute-forced.

@@ -46,7 +46,7 @@ Your `.env` and `data/` are gitignored, so no secrets or local outputs are pushe
    | --- | --- |
    | `SAFEPLATE_PASSWORD` | a strong password — **REQUIRED**, gates the whole site |
    | `SAFEPLATE_USERNAME` | optional, defaults to `safeplate` |
-   | `SAFEPLATE_RATE_LIMIT_PER_MIN` | `20` (paid requests per visitor per minute) |
+   | `SAFEPLATE_RATE_LIMIT_PER_MIN` | `30` (paid requests per visitor per minute) |
    | `GOOGLE_PLACES_API_KEY` | your key (optional) |
    | `GEMINI_API_KEY` | your key (optional) |
    | `BRAVE_SEARCH_API_KEY` | your key (optional) |
