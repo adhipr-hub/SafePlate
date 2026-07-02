@@ -152,9 +152,20 @@ def assess_diet(diet, *, menu_items, cuisines=None,
     rationale = _floor_rationale(spec, diet, basis, len(labeled), len(assumed), offending, total)
     if ai_ok:
         rationale.insert(0, f"{len(ai_ok)}/{total} judged {spec.display.lower()}-compatible by AI menu analysis")
+
+    # Accommodation signals (grounded "can be made vegan/vegetarian" statements)
+    # only ever IMPROVE the verdict by one step, and only for a matching diet.
+    # They never override a 'not_compatible' real conflict.
+    notes = []
+    for s in (accommodation_signals or []):
+        if getattr(s, "diet", None) == diet and getattr(s, "quote", ""):
+            notes.append({"quote": s.quote, "url": s.url, "source": s.source})
+    if notes and verdict in ("unknown", "limited"):
+        verdict = "good_options" if verdict == "limited" else "limited"
+
     return DietAssessment(diet=diet, verdict=verdict, support=support, basis=basis,
                           rationale=rationale, offending_items=offending[:10],
-                          compatible_items=compatible[:10])
+                          compatible_items=compatible[:10], notes=notes)
 
 
 def _floor_rationale(spec, diet, basis, n_lab, n_asm, offending, total):
