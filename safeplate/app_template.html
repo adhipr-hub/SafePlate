@@ -1009,8 +1009,8 @@
         <div class="cap">major allergens the chart reads</div>
       </div>
       <div class="stat reveal" style="--i:2">
-        <div class="num"><em>Every</em></div>
-        <div class="cap">score shows how it knows</div>
+        <div class="num" data-count="100" data-suffix="%">100%</div>
+        <div class="cap">of scores show how we know</div>
       </div>
     </div>
   </div>
@@ -2616,21 +2616,21 @@ $("#cacheToggle").onclick = () => {
    is always visible otherwise). */
 (function auroraReveal() {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const fmt = n => n >= 1000 ? n.toLocaleString("en-US") : String(n);
+  const fmt = (n, el) => (n >= 1000 ? n.toLocaleString("en-US") : String(n)) + (el?.dataset.suffix || "");
   function countTo(el, to, ms) {
-    if (reduce) { el.textContent = fmt(to); return; }
+    if (reduce) { el.textContent = fmt(to, el); return; }
     const t0 = performance.now();
     (function step(t) {
       const k = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - k, 3);
-      el.textContent = fmt(Math.round(to * e));
-      if (k < 1) requestAnimationFrame(step); else el.textContent = fmt(to);
+      el.textContent = fmt(Math.round(to * e), el);
+      if (k < 1) requestAnimationFrame(step); else el.textContent = fmt(to, el);
     })(t0);
   }
   const reveals = [...document.querySelectorAll(".reveal")];
   const stats = [...document.querySelectorAll("[data-count]")];
   if (reduce || !("IntersectionObserver" in window)) {
     reveals.forEach(el => el.classList.add("in-view"));
-    stats.forEach(el => el.textContent = fmt(+el.dataset.count));
+    stats.forEach(el => el.textContent = fmt(+el.dataset.count, el));
     return;
   }
   const io = new IntersectionObserver((entries) => {
