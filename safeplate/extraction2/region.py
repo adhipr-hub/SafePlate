@@ -91,6 +91,30 @@ _CCTLD_COUNTRY = {
 # not positively detected, so absence -> "unknown", never "foreign".
 _DOMAIN_RE = re.compile(r"[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}")
 
+# For HTML sources the pipeline hands us the RAW page markup (acquire.py routes
+# html as payload.text). Markup is full of domain-SHAPED junk that says nothing
+# about the menu's region: CSS class chains ("gallery-item-hover.no" -> Norway,
+# seen on a Wix site), font-license credits inside <style> blocks
+# ("hi@typemade.mx" -> Mexico -- the Yaba's Pittsburgh false positive), and
+# minified-script property tokens ("t.hk"). So before scanning, HTML is reduced
+# to its VISIBLE text: drop comments and <script>/<style> bodies, then all tags
+# (attributes go with them). Regex, not a soup parse, to keep this module
+# dependency-free (see module docstring) -- good enough for tell-scanning.
+_HTML_HINT_RE = re.compile(r"<(?:!doctype|html|head|body|script|style|meta|link|div)[\s>]", re.I)
+_HTML_DROP_RE = re.compile(
+    r"<!--.*?-->|<script\b[^>]*>.*?</script\s*>|<style\b[^>]*>.*?</style\s*>",
+    re.I | re.S,
+)
+_HTML_TAG_RE = re.compile(r"<[^>]*>")
+
+
+def _visible_text(text: str) -> str:
+    """The human-visible text of ``text`` when it looks like HTML; unchanged
+    otherwise (PDF/plain text passes straight through)."""
+    if not _HTML_HINT_RE.search(text):
+        return text
+    return _HTML_TAG_RE.sub(" ", _HTML_DROP_RE.sub(" ", text))
+
 _STRONG_NAME_SIGNALS: dict[str, tuple[str, ...]] = {
     "GB": ("united kingdom", "great britain"),
     "NZ": ("new zealand", "aotearoa"),
@@ -160,7 +184,9 @@ def is_foreign_source(url: str, home: str | None) -> bool:
 def detect_source_region(text: str, url: str = "") -> str | None:
     """Best-effort ISO2 region of an extracted source: its URL ccTLD first
     (decisive), then reliable in-content tells -- ccTLD-bearing domains mentioned
-    in the text and unambiguous multiword country names. Conservative: returns None
+    in the VISIBLE text (HTML is stripped of markup/scripts/styles first, so CSS
+    classes and font-license credits can't vote) and unambiguous multiword
+    country names. Conservative: returns None
     unless a single country clearly wins, so we never falsely brand home-region
     data as foreign. This is the content-locale check the benchmark called for --
     it catches a wrong-country chart hosted on a country-NEUTRAL CDN (e.g. a NZ
@@ -169,7 +195,7 @@ def detect_source_region(text: str, url: str = "") -> str | None:
     cc = host_country(urlparse(url or "").netloc)
     if cc:
         return cc
-    low = (text or "").lower()
+    low = _visible_text(text or "").lower()
     if not low:
         return None
     scores: dict[str, int] = {}

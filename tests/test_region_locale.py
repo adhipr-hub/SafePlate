@@ -65,6 +65,52 @@ def test_detect_incidental_mention_does_not_beat_domain_tell():
     assert R.detect_source_region(text, "https://cdn.x.com/n.pdf") == "GB"
 
 
+# --- raw-HTML markup must not vote (the "Yaba's is from Mexico" regression) ---
+# For HTML sources the pipeline hands detect_source_region the RAW page markup
+# (acquire.py routes html as payload.text). Markup is full of domain-SHAPED junk
+# that says nothing about the menu's region: CSS class chains ("gallery-item-
+# hover.no" -> Norway, seen on a Wix site), font-license credits inside <style>
+# blocks ("hi@typemade.mx" -> Mexico, the Yaba's Pittsburgh false positive), and
+# minified-script tokens. Only the VISIBLE page text may vote.
+
+def test_detect_ignores_css_class_tokens_in_html():
+    # Wix-style CSS class chain whose final label collides with a ccTLD (.no).
+    html = ("<html><head><style>.gallery-item-hover.no{opacity:0}</style></head>"
+            "<body><p>Falafel, shawarma, hummus bowls.</p></body></html>")
+    assert R.detect_source_region(html, "https://example.com/menu") is None
+
+
+def test_detect_ignores_font_license_credit_in_style_block():
+    # The literal Yaba's case: a Typemade font license comment inside <style>.
+    html = ("<html><head><style>/*\n"
+            "Copyright (c) 2010 by Typemade (hi@typemade.mx). All rights reserved.\n"
+            "Licensed under the SIL Open Font License.\n"
+            "*/ body{font-family:x}</style></head>"
+            "<body><p>Shawarma wrap. Falafel bowl.</p></body></html>")
+    assert R.detect_source_region(html, "https://yabas412.com/") is None
+
+
+def test_detect_ignores_html_comments_and_scripts():
+    html = ("<html><!-- site by webdev.mx --><body>"
+            "<script>var a={}; a.no=1; t.hk=2;</script>"
+            "<p>Menu: hummus, baba ganoush.</p></body></html>")
+    assert R.detect_source_region(html, "https://example.com/") is None
+
+
+def test_detect_visible_footer_citation_survives_html_stripping():
+    # The recall case the tell exists for: a footer VISIBLY citing the .co.nz site.
+    html = ("<html><head><style>.gallery-item-hover.no{opacity:0}</style></head>"
+            "<body><p>Whopper, fries.</p>"
+            "<footer>Visit burgerking.co.nz for the full allergen guide.</footer>"
+            "</body></html>")
+    assert R.detect_source_region(html, "https://cdn.x.com/page") == "NZ"
+
+
+def test_detect_url_cctld_still_decisive_for_html():
+    html = "<html><body><style>.gallery-item-hover.no{}</style>Menu</body></html>"
+    assert R.detect_source_region(html, "https://burgerking.com.mt/menu") == "MT"
+
+
 # --- home country ------------------------------------------------------------
 
 def test_home_country_from_address_and_cctld():

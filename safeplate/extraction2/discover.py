@@ -443,7 +443,10 @@ def _is_structured_matrix(method: str | None) -> bool:
 # v4: matrix early-exit (stop once a menu-covering allergen matrix is found).
 # v5: per-source region stamp on coverage (content-locale provenance) -- old
 # entries lack it and would skip the from-another-region notice.
-_RESULT_CACHE_VERSION = "5"
+# v6: region stamps in cached coverage were computed from RAW html (CSS classes /
+# font-license credits could vote a false foreign region, e.g. "from Mexico" via a
+# typemade.mx font credit) -- invalidate so every result is re-stamped from visible text.
+_RESULT_CACHE_VERSION = "6"
 _RESULT_CACHE_TTL = 7 * 24 * 60 * 60
 # "Nothing found" (no items + no signals) is cached too -- so a dead/empty site
 # doesn't re-run discovery + the Brave fallback every search -- but with a SHORTER
