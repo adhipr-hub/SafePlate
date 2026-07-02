@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- Only the weights actually used: Playfair 400 + italic-400 (display), Hanken
        400/500/600/700 (UI), Spline 500/600 (figures). Trimmed from 9 Playfair cuts. -->
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet" />
   <style>
     /* ════════════════════════════════════════════════════════════════════════
        SafePlate — "Editorial Aurora" (live app reskin)
@@ -57,6 +57,7 @@
       --ai-bd:      #DDD0F7;   /* AI/call-ahead chip border (tint of --ai) */
       --callahead:  #7C3AED;
       --star:       #FBBF24;
+      --scrim:      rgba(20,14,8,0.34);
       /* Primary CTA gradient — AA-safe for white text at BOTH stops */
       --brand-grad: linear-gradient(150deg, #15803D, #0F4A2E);
       /* Menu-chip tints */
@@ -227,10 +228,6 @@
     .go-btn:active { transform: translateY(0); }
     .go-btn:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
 
-    .allergen-row {
-      display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
-      margin-top: 16px; padding: 0 2px;
-    }
     .allergen-label {
       font: 700 11px/1.2 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--tx3);
     }
@@ -247,22 +244,11 @@
     }
     .allergen-chip.locked { color: var(--tx3); border-style: dashed; cursor: not-allowed; transform: none; }
     .allergen-chip.locked:hover { border-color: var(--border); transform: none; }
-    /* Per-nut picker: peanut sits a touch apart (it's a legume, its own toggle). */
-    .nut-row .allergen-chip.nut { font-size: 13px; padding: 7px 13px; }
-    .nut-row .nut-all { font-weight: 700; }
-    .nut-row .nut-peanut { margin-left: 13px; position: relative; }
-    .nut-row .nut-peanut::before {
-      content: ""; position: absolute; left: -8px; top: 5px; bottom: 5px;
-      width: 1.5px; background: var(--border);
-    }
     .allergen-chip.locked .soon {
       font: 700 9px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase;
       margin-left: 2px; padding: 3px 6px; border-radius: var(--pill);
       background: var(--page); border: 1px solid var(--border); color: var(--tx3);
     }
-    .cc-hint { position: relative; font-size: 12px; color: var(--tx3); cursor: help; opacity: .75;
-      background: none; border: none; padding: 0; line-height: 1; font-family: inherit; }
-    .cc-hint::before { content: ""; position: absolute; inset: -16px; }  /* ~44px touch target */
     .profile-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
       margin-top: 14px; font: 500 13.5px/1.4 var(--sans); color: var(--tx2, var(--tx)); }
     .profile-summary .ps-text { color: var(--tx); }
@@ -287,9 +273,11 @@
     }
     .sort-btn:hover { border-color: var(--border2); color: var(--tx); }
     .sort-btn.on { background: var(--tx); border-color: var(--tx); color: var(--page); }
-    /* Cache toggle: a separate control; when OFF it warns you're fetching live (raw). */
+    /* Cache toggle: a developer/testing control — only revealed with ?debug in the URL.
+       Neutral inks when off (the risk palette is reserved for grading allergen risk). */
     .cache-toggle { margin-left: 10px; }
-    .cache-toggle.off { background: var(--rh); border-color: var(--rh); color: #fff; }
+    .cache-toggle[hidden] { display: none !important; }
+    .cache-toggle.off { background: var(--page); border-color: var(--border2); border-style: dashed; color: var(--tx); }
     .card-upg {
       font: 600 11px/1 var(--sans); color: var(--tx2);
       display: inline-flex; align-items: center; gap: 6px;
@@ -299,6 +287,9 @@
       animation: upgpulse 1s ease-in-out infinite;
     }
     @keyframes upgpulse { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
+
+    /* One-line legend so a first-time user knows what the ring number means. */
+    .score-hint { font: 400 12.5px/1.5 var(--sans); color: var(--tx3); margin: -14px 0 18px; }
 
     /* ── perceived-speed: progressive load ── */
     .prog { display: flex; align-items: center; gap: 14px; margin: 2px 0 18px; }
@@ -329,6 +320,9 @@
       transition: transform .22s var(--ease-io), box-shadow .22s var(--ease-io), border-color .22s var(--ease-io);
     }
     @keyframes riseIn { to { opacity: 1; transform: none; } }
+    /* Re-renders (sort change, post-upgrade re-sort) skip the entrance animation —
+       motion marks NEW results, not a reshuffle of ones already on screen. */
+    .rcard.no-anim { animation: none; opacity: 1; transform: none; }
     .rcard:hover { transform: translateY(-3px); box-shadow: var(--e3); border-color: var(--border2); }
     .rcard:focus-visible { outline: 2.5px solid var(--g1); outline-offset: 3px; box-shadow: var(--e3); }
 
@@ -361,6 +355,14 @@
     .cbadge.nomenu { color: var(--md); border-color: color-mix(in srgb, var(--md) 26%, transparent); background: color-mix(in srgb, var(--md) 7%, transparent); }
     .cbadge.live   { color: var(--signal); border-color: color-mix(in srgb, var(--signal) 26%, transparent); background: color-mix(in srgb, var(--signal) 6%, transparent); }
 
+    /* diet-compatibility rows (Task 9): one row per selected diet -- verdict chip,
+       muted provenance phrase, and any grounded accommodation note beneath it. */
+    .diet-row { margin-bottom: 10px; }
+    .diet-row:last-child { margin-bottom: 0; }
+    .diet-basis { font: 500 12px/1 var(--sans); color: var(--tx3); margin-left: 2px; }
+    .diet-note { font: 400 13px/1.5 var(--sans); color: var(--tx3); margin-top: 5px; }
+    .diet-note a { color: var(--g0); font-weight: 500; }
+
     /* provenance / "how we know" chips */
     .pvchip { display: inline-flex; align-items: center; gap: 6px;
               font: 600 11px/1 var(--sans); padding: 5px 10px; border-radius: 6px;
@@ -385,7 +387,7 @@
     .risk-word {
       font: 700 11.5px/1.1 var(--sans); text-align: center; letter-spacing: -.01em;
     }
-    .risk-conf { font: 500 10.5px/1 var(--mono); color: var(--tx3); text-align: center; }
+    .risk-conf { font: 500 10.5px/1.35 var(--mono); color: var(--tx3); text-align: center; max-width: 76px; }
 
     /* ─── Ring ─── */
     .ring { position: relative; flex: none; }
@@ -398,12 +400,12 @@
 
     /* ─── Drawer ─── */
     .scrim {
-      position: fixed; inset: 0; background: rgba(20,14,8,0.34);
+      position: fixed; inset: 0; background: var(--scrim);
       opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 40;
     }
     .scrim.open { opacity: 1; pointer-events: auto; }
     .drawer {
-      position: fixed; top: 0; right: 0; height: 100vh; width: min(580px, 96vw);
+      position: fixed; top: 0; right: 0; height: 100vh; height: 100dvh; width: min(580px, 96vw);
       z-index: 50; background: var(--page); display: flex; flex-direction: column;
       border-left: 1px solid var(--border);
       transform: translateX(100%); transition: transform .3s cubic-bezier(.22,.9,.22,1);
@@ -513,9 +515,12 @@
        low-confidence hunch never reads as a hard "contains nuts" warning. */
     .warning-box.maybe { background: var(--tm); border-color: var(--bm); }
     .warning-box.maybe .warning-head { color: var(--md); }
-    .warning-head .wh-sub { font-weight: 400; opacity: .7; }
-    .risky-maybe { font: 700 10px/1 var(--sans); color: var(--md); opacity: .85;
+    /* Weight (not opacity) carries the de-emphasis — dimming dropped these below AA. */
+    .warning-head .wh-sub { font-weight: 400; }
+    .risky-maybe { font: 700 10px/1 var(--sans); color: var(--md);
       text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+    /* Quote attribution: italic differentiates; full-strength ink keeps AA contrast. */
+    .attr-note { font-style: italic; color: var(--tx3); }
 
     /* Region provenance notice — amber (uncertainty, not danger); icon + text so it
        never relies on colour alone (WCAG 2.2 AA + safety-aware colour). */
@@ -586,7 +591,7 @@
       transform: translateX(-50%) translateY(14px); opacity: 0; pointer-events: none;
       background: var(--tx); color: var(--page); padding: 12px 18px; border-radius: 12px;
       font: 600 14px/1.3 var(--sans); box-shadow: var(--e3);
-      white-space: nowrap; transition: all .22s ease;
+      max-width: min(92vw, 480px); text-align: center; transition: all .22s ease;
     }
     .toast.show { opacity: 1; transform: translateX(-50%); }
     .toast.err  { background: var(--hi); color: #fff; }
@@ -712,6 +717,9 @@
       .allergen-chip, .sort-btn, .nav-link { min-height: 44px; }
       .allergen-chip, .sort-btn { display: inline-flex; align-items: center; }
       .d-close { width: 44px; height: 44px; }
+      .cite { padding: 5px 8px; }
+      .hist-remove { min-width: 32px; min-height: 32px; font-size: 17px; }
+      .hist-input { font-size: 16px; }   /* ≥16px stops iOS focus-zoom */
     }
 
     /* ─── Hero product preview (the signature, shown up front) ─── */
@@ -763,8 +771,7 @@
       .sort-btn { flex: 1; text-align: center; }
     }
 
-    /* ─── Experience history profile editor ─── */
-    .hist-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+    /* ─── Experience history (drawer note field + rated-places list) ─── */
     .hist-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
     .hist-input {
       background: var(--page); border: 1.5px solid var(--border); border-radius: var(--rM);
@@ -773,17 +780,7 @@
     }
     .hist-input::placeholder { color: var(--tx3); font-weight: 400; }
     .hist-input:focus { border-color: var(--g1); box-shadow: 0 0 0 3px rgba(22,163,74,.14); }
-    .hist-name-input { flex: 2; min-width: 140px; }
-    .hist-rating-input { width: 70px; flex: none; }
     .hist-note-input { flex: 3; min-width: 120px; }
-    .hist-add-btn {
-      padding: 9px 18px; border: none; cursor: pointer; background: var(--brand-grad);
-      color: #fff; font: 700 13.5px/1 var(--sans); border-radius: var(--rM); white-space: nowrap;
-      box-shadow: 0 6px 18px -6px rgba(21,128,61,.45); flex: none;
-      transition: transform .2s var(--ease-io), box-shadow .2s var(--ease-io);
-    }
-    .hist-add-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -8px rgba(21,128,61,.55); }
-    .hist-add-btn:active { transform: none; }
     .hist-list { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
     .hist-entry {
       display: flex; align-items: center; gap: 8px; padding: 7px 12px;
@@ -812,14 +809,14 @@
     .rate-save-btn:hover { transform: translateY(-1px); }
 
     /* ── Onboarding modal ── */
-    .ob-scrim { position: fixed; inset: 0; background: rgba(20,30,24,.46); backdrop-filter: blur(2px);
-      display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+    .ob-scrim { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(2px);
+      display: none; align-items: center; justify-content: center; z-index: 70; padding: 20px; }
     .ob-scrim.show { display: flex; }
-    .ob-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
-      width: min(620px, 100%); max-height: 90vh; overflow-y: auto; padding: 26px 26px 22px;
-      box-shadow: 0 30px 80px -28px rgba(20,40,30,.45); }
+    .ob-modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--rL);
+      width: min(620px, 100%); max-height: 90vh; max-height: 90dvh; overflow-y: auto; padding: 26px 26px 22px;
+      box-shadow: var(--e4); }
     .ob-progress { display: flex; gap: 6px; margin-bottom: 18px; }
-    .ob-dot { height: 4px; flex: 1; border-radius: 2px; background: var(--border); }
+    .ob-dot { height: 4px; flex: 1; border-radius: var(--pill); background: var(--border); }
     .ob-dot.on { background: var(--g1); }
     .ob-q { margin: 0 0 18px; }
     .ob-q h3 { font: 600 16px/1.3 var(--sans); color: var(--tx); margin: 0 0 9px; }
@@ -927,9 +924,10 @@
       <a class="nav-link" href="/faq">FAQ</a>
       <a class="nav-link" href="/contact">Contact</a>
     </nav>
-    <div class="topbar-pill" title="Data source">
+    <!-- Internal plumbing: only shown when it matters to the user (demo mode / offline). -->
+    <div class="topbar-pill" id="cfgPill" hidden>
       <span class="s-dot" id="cfgDot"></span>
-      <span id="cfgText">Connecting…</span>
+      <span id="cfgText"></span>
     </div>
     <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -1047,13 +1045,14 @@
       <span class="results-title" id="resCount" role="status" aria-live="polite"></span>
       <span class="results-where" id="resWhere"></span>
       <div class="sort-row">
-        <button class="sort-btn on" data-sort="risk">Safest first</button>
-        <button class="sort-btn" data-sort="distance">Nearest</button>
-        <button class="sort-btn" data-sort="rating">Top rated</button>
-        <button class="sort-btn cache-toggle on" id="cacheToggle" type="button" aria-pressed="true"
+        <button class="sort-btn on" data-sort="risk" aria-pressed="true">Safest first</button>
+        <button class="sort-btn" data-sort="distance" aria-pressed="false">Nearest</button>
+        <button class="sort-btn" data-sort="rating" aria-pressed="false">Top rated</button>
+        <button class="sort-btn cache-toggle on" id="cacheToggle" type="button" aria-pressed="true" hidden
           title="Cache on: reuse stored extractions for speed. Turn off to bypass every cache and re-read each restaurant LIVE from its website (slower; for testing extraction).">Cache: on</button>
       </div>
     </div>
+    <p class="score-hint">Scores estimate allergen risk from 0 to 100 — <strong>lower is safer</strong>. Every score shows how we know.</p>
     <div class="prog hidden" id="progStrip">
       <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
       <span class="prog-label" id="progLabel"></span>
@@ -1573,18 +1572,8 @@ document.getElementById("onboard").addEventListener("keydown", e => {
 const _histHash = () => state.experienceHistory.map(e=>`${e.name}:${e.rating}:${e.note||""}`).join("|");
 let _searchSeq = 0;  // guards background progressive upgrades against a newer search
 
-/* Cross-contact defaults to a severity-derived level until the user overrides it
-   (mirrors _CC_DEFAULT_BY_SEVERITY server-side). state.crossContact "" == auto. */
-const CC_DEFAULT_BY_SEV = { avoid_preference:"not_concerned", intolerance:"moderate", allergy:"moderate", anaphylaxis:"strict" };
-function effectiveCC() { return state.crossContact || CC_DEFAULT_BY_SEV[state.severity] || "moderate"; }
-function paintCC() {
-  const eff = effectiveCC();
-  document.querySelectorAll("#search .allergen-chip.cc").forEach(x => {
-    const on = x.dataset.cc === eff;
-    x.classList.toggle("on", on);
-    x.setAttribute("aria-pressed", on ? "true" : "false");
-  });
-}
+/* Developer/testing affordances (the cache toggle) only appear with ?debug in the URL. */
+const DEBUG = new URLSearchParams(location.search).has("debug");
 
 /* ── risk helpers ── */
 function band(r)       { return r < 0.30 ? "lo" : r < 0.55 ? "md" : "hi"; }
@@ -1592,6 +1581,8 @@ function ringClr(r)    { return {"lo":"var(--rl)","md":"var(--rm)","hi":"var(--r
 function textClr(r)    { return {"lo":"var(--lo)","md":"var(--md)","hi":"var(--hi)"}[band(r)]; }
 function stripeClr(r)  { return ringClr(r); }
 function riskWord(r)   { return {"lo":"Lower risk","md":"Moderate risk","hi":"Higher risk"}[band(r)]; }
+/* Confidence in plain words — "82% conf." is stats jargon to a hungry diner. */
+function confWord(c)   { return c >= 0.7 ? "High" : c >= 0.45 ? "Medium" : "Low"; }
 const TIER_LABELS = { avoid:"Avoid", caution:"Caution", likely_ok:"Likely OK" };
 
 /* ── allergen label helpers (drop the hardcoded "for nuts" copy) ──
@@ -1645,19 +1636,28 @@ function provenanceTier(basis, coverage) {
 }
 function pvchip(t) { return `<span class="pvchip ${t.cls}">${esc(t.label)}</span>`; }
 
-/* ── config ── */
+/* ── config ──
+   The topbar pill only surfaces states a diner should act on (demo data / offline);
+   which places-provider is wired up is internal plumbing and stays hidden. */
 async function loadConfig() {
+  const pill = $("#cfgPill");
   try {
     const c = await (await fetch("/api/config")).json();
     state.demoMode = !!c.demoMode;
     state.defaultDemoLocation = c.defaultDemoLocation || "";
     if (state.demoMode && !$("#loc").value) $("#loc").value = state.defaultDemoLocation;
-    const ok = c.googleConfigured || c.geoapifyConfigured;
-    $("#cfgDot").classList.toggle("live", ok || state.demoMode);
-    $("#cfgText").textContent = state.demoMode ? "Demo mode"
-      : ok ? (c.googleConfigured ? "Google Places" : "Geoapify")
-      : "OpenStreetMap";
-  } catch { $("#cfgText").textContent = "Offline"; }
+    if (state.demoMode) {
+      $("#cfgDot").classList.add("live");
+      $("#cfgText").textContent = "Demo mode";
+      pill.hidden = false;
+    } else {
+      pill.hidden = true;
+    }
+  } catch {
+    $("#cfgDot").classList.remove("live");
+    $("#cfgText").textContent = "Offline";
+    pill.hidden = false;
+  }
 }
 
 /* ── toast ── */
@@ -1697,7 +1697,7 @@ async function search(opts={}) {
     if (seq !== _searchSeq) return;                  // a newer search superseded this one
     state.rows = (data.rows||[]).filter(r=>r.name);
     state.where = data.location || req.location || loc;
-    renderResults();
+    renderResults(true);   // a NEW result set — the one render that earns the entrance animation
     upgradeCardsProgressive(seq);   // fire-and-forget menu-backed upgrades
   } catch(e) {
     toast(e.message||"Search failed",true);
@@ -1836,7 +1836,7 @@ function cardMarkup(r) {
   const dist = r.distance_meters
     ? (r.distance_meters<1000?Math.round(r.distance_meters)+" m":(r.distance_meters/1000).toFixed(1)+" km")
     : "";
-  const conf = p.confidence!=null?Math.round(p.confidence*100)+"%":"";
+  const conf = p.confidence!=null?confWord(p.confidence):"";
   const metaParts=[];
   if (r.rating) metaParts.push(`<span class="rating" aria-label="Rated ${r.rating} out of 5${r.review_count?`, ${r.review_count} reviews`:""}"><span class="star" aria-hidden="true">★</span> ${r.rating}${r.review_count?` (${r.review_count})`:""}</span>`);
   if (dist) metaParts.push(dist);
@@ -1849,14 +1849,14 @@ function cardMarkup(r) {
           <div class="card-badges">
             ${p.tier?`<span class="cbadge" style="border-color:${textClr(risk)};color:${textClr(risk)}">${TIER_LABELS[p.tier]||""}</span>`:""}
             ${pvchip(provenanceTier(p.basis, coverage))}
-            ${state.demoMode?cbadge("Demo","live"):""}
+            ${state.demoMode?cbadge("Demo",""):""}
             ${r._upgrading?`<span class="card-upg"><span class="dot"></span>Reading menu…</span>`:""}
           </div>
         </div>
         <div class="card-risk">
           ${ring(risk,56)}
           <div class="risk-word" style="color:${textClr(risk)}">${riskWord(risk)}</div>
-          ${conf?`<div class="risk-conf">${conf} conf.</div>`:""}
+          ${conf?`<div class="risk-conf">${conf} confidence</div>`:""}
         </div>
       </div>`;
 }
@@ -1932,17 +1932,17 @@ function endProg(seq) {
 }
 function hideProg() { const s = $("#progStrip"); if (s) { clearTimeout(s._t); s.classList.add("hidden"); } }
 
-function renderResults() {
+function renderResults(animate = false) {
   const rows = sortRows(state.rows);
   const n = rows.length;
   $("#resCount").textContent = `${n} place${n!==1?"s":""}`;
   $("#resWhere").textContent = state.where ? `near ${state.where}` : "";
   if (!n) {
-    $("#grid").innerHTML = `<div class="empty-msg" style="grid-column:1/-1"><p>No restaurants found here.</p></div>`;
+    $("#grid").innerHTML = `<div class="empty-msg" style="grid-column:1/-1"><p>No restaurants found here.<br/>Try a nearby neighbourhood or a city-centre address — we search about a 20-minute walk around the spot you name.</p></div>`;
     return;
   }
   $("#grid").innerHTML = rows.map((r,i) =>
-    `<article class="rcard" tabindex="0" role="button" aria-label="${esc(r.name)} — ${riskWord(r.allergenPrior?.risk??0.3)} ${esc(allergenPhrase())}. View details." style="animation-delay:${i*32}ms" data-i="${state.rows.indexOf(r)}">${cardMarkup(r)}</article>`
+    `<article class="rcard${animate?"":" no-anim"}" tabindex="0" role="button" aria-label="${esc(r.name)} — ${riskWord(r.allergenPrior?.risk??0.3)} ${esc(allergenPhrase())}. View details."${animate?` style="animation-delay:${i*32}ms"`:""} data-i="${state.rows.indexOf(r)}">${cardMarkup(r)}</article>`
   ).join("");
   document.querySelectorAll(".rcard").forEach(el=>{
     const open = () => openDetail(state.rows[+el.dataset.i]);
@@ -2030,7 +2030,7 @@ function explanationHtml(risk) {
 
 function verdictHtml(risk, coverage, basis, perAllergen) {
   const v = risk?.risk??0.3;
-  const conf = risk?.confidence!=null?Math.round(risk.confidence*100)+"% confidence":"";
+  const conf = risk?.confidence!=null?`${confWord(risk.confidence)} confidence (${Math.round(risk.confidence*100)}%)`:"";
   const tierLbl = TIER_LABELS[risk?.tier]||"";
   const prov = provenanceTier(basis ?? risk?.basis, coverage);
   /* Personalized chip: client-derived so it works on both instant-open (menuDetail embedded)
@@ -2077,25 +2077,53 @@ function perAllergenHtml(perAllergen) {
 
 /* Diet-compatibility badges (Task 9): additive, only present when the diner selected
    diets (`summary.diets`). Never color-alone -- the verdict-specific wording IS the
-   accessible signal; color is a reinforcing cue on top of existing `.cbadge` tokens. */
+   accessible signal; color is a reinforcing cue on top of existing `.cbadge` tokens.
+   Each diet also carries a `basis` (labeled/ai_assessed/estimated/mixed) -- spelled
+   out next to the verdict so an estimated call never *reads* as confirmed (a prior
+   review flagged that raw estimated support==1.0 looked identical to a real label) --
+   and optional `notes` (grounded accommodation quotes) rendered as 🌱 lines beneath
+   the chip, with a clickable source link when the payload has a real http(s) url. */
 const _DIET_VERDICT_COPY = {
   not_compatible: d => `Not ${d}-friendly`,
   limited:        d => `Few ${d} options`,
   good_options:   d => `${d} options`,
   unknown:        d => `${d}: ask staff`,
 };
-const _DIET_VERDICT_COLOR = { not_compatible:"var(--hi)", limited:"var(--md)", good_options:"var(--g0)", unknown:"var(--tx3)" };
+/* Diet verdicts stay OUT of the risk palette (reserved for allergen risk): green =
+   positive/confirmed is a brand meaning, everything else is graded in neutral inks —
+   the verdict wording itself carries the signal. */
+const _DIET_VERDICT_COLOR = { not_compatible:"var(--tx)", limited:"var(--tx2)", good_options:"var(--g0)", unknown:"var(--tx3)" };
+const _DIET_BASIS_COPY = {
+  labeled:     "confirmed from menu labels",
+  ai_assessed: "AI-assessed from the menu",
+  estimated:   "estimated from dish names",
+  mixed:       "labels + estimates",
+};
 function dietBadgesHtml(diets) {
   if (!diets || !diets.length) return "";
-  const chips = diets.map(d => {
+  const rows = diets.map(d => {
     const clr = _DIET_VERDICT_COLOR[d.verdict] || "var(--tx3)";
     const display = d.display || allergenDisplay(d.diet);
     const label = (_DIET_VERDICT_COPY[d.verdict] || (x=>x))(display);
-    return `<span class="cbadge" style="border-color:${clr};color:${clr}">${esc(label)}</span>`;
+    const basisText = _DIET_BASIS_COPY[d.basis] || "";
+    // Note links: only ever emit an href for a real http(s) url -- same guard as
+    // openSource() elsewhere in this file -- so a malformed/hostile url in the
+    // payload can never become a javascript:/data: link.
+    const notesHtml = (d.notes || []).filter(n => n && n.quote).map(n => {
+      const url = String(n.url || "");
+      const link = /^https?:\/\//i.test(url)
+        ? ` <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">source</a>` : "";
+      const attr = n.source === "community" ? ` <span class="attr-note">— from reviews</span>` : "";
+      return `<div class="diet-note">🌱 “${esc(n.quote)}”${attr}${link}</div>`;
+    }).join("");
+    return `<div class="diet-row">
+      <span class="cbadge" style="border-color:${clr};color:${clr}">${esc(label)}</span>${basisText ? ` <span class="diet-basis">${esc(basisText)}</span>` : ""}
+      ${notesHtml}
+    </div>`;
   }).join("");
   return `<div class="ds">
     <h3 class="sec-head">Diet compatibility</h3>
-    <div class="card-badges">${chips}</div>
+    ${rows}
   </div>`;
 }
 
@@ -2231,7 +2259,7 @@ function renderMenu(m,r) {
   if (communityQuotes.length) {
     html += `<div class="ds">
       <h3 class="sec-head">What diners report</h3>
-      ${communityQuotes.map(q=>`<div class="mi-desc" style="margin:6px 0 0">“${esc(q)}” <span style="opacity:.55">— from reviews</span></div>`).join("")}
+      ${communityQuotes.map(q=>`<div class="mi-desc" style="margin:6px 0 0">“${esc(q)}” <span class="attr-note">— from reviews</span></div>`).join("")}
     </div>`;
   }
 
@@ -2330,45 +2358,65 @@ function renderMenu(m,r) {
   if (summary.geminiValidationEnabled) extras.push(cbadge("Gemini validation","live"));
   if (extras.length) html += `<div class="ds"><div class="card-badges">${extras.join("")}</div></div>`;
 
-  /* Rate your experience — pre-filled with the current restaurant's name */
+  /* Rate your experience — the SAME 4-level comfort scale as the onboarding picker
+     (one mental model, not a competing 1–10 number). Tap a level to save instantly;
+     tap it again to clear. */
+  const _curHist = _findHist(r.name);
+  const _curLvl = _curHist ? _ratingToLevel(_curHist.rating) : 0;
   html += `<div class="ds">
     <h3 class="sec-head">How comfortable are you eating here?</h3>
     <div class="rate-widget">
-      <div class="hist-row">
-        <input id="drawerRateName" class="hist-input hist-name-input" type="text" value="${esc(r.name)}" aria-label="Restaurant name" readonly />
-        <input id="drawerRateScore" class="hist-input hist-rating-input" type="number" min="1" max="10" placeholder="1–10" aria-label="How comfortable, 1 to 10" />
-        <input id="drawerRateNote" class="hist-input hist-note-input" type="text" placeholder="Note (optional)" autocomplete="off" aria-label="Optional note" />
-        <button type="button" class="rate-save-btn" id="drawerRateSaveBtn">Save</button>
+      <div class="ob-row" id="drawerComfort" role="group" aria-label="Your comfort level at ${esc(r.name)}">
+        ${[1,2,3,4].map(l=>`<button type="button" class="allergen-chip${_curLvl===l?" on":""}" data-lvl="${l}" aria-pressed="${_curLvl===l?"true":"false"}">${COMFORT_LEVELS[l].label}</button>`).join("")}
       </div>
-      <p class="hist-privacy">1 = avoid · 10 = totally comfortable</p>
+      <div class="hist-row">
+        <input id="drawerRateNote" class="hist-input hist-note-input" type="text" placeholder="Note (optional)" value="${esc(_curHist?.note || "")}" autocomplete="off" aria-label="Optional note" />
+        <button type="button" class="rate-save-btn" id="drawerRateSaveBtn">Save note</button>
+      </div>
+      <p class="hist-privacy">Saved to your history — stays in your browser and personalizes your scores.</p>
     </div>
   </div>`;
 
   $("#menuZone").outerHTML = html;
 
-  // Drawer "Rate your experience" save handler
+  // Drawer comfort chips: tap = save instantly (tap the active one again to clear);
+  // the note is optional and saves separately.
+  const comfortRow = document.querySelector("#dBody #drawerComfort");
+  if (comfortRow) {
+    comfortRow.onclick = e => {
+      const b = e.target.closest(".allergen-chip"); if (!b) return;
+      const lvl = +b.dataset.lvl;
+      const clearing = b.classList.contains("on");
+      if (clearing) _removeHistory(r.name);
+      else _upsertHistory(r.name, COMFORT_LEVELS[lvl].rating, null);   // null = keep any note
+      comfortRow.querySelectorAll(".allergen-chip").forEach(x => {
+        const sel = !clearing && x === b;
+        x.classList.toggle("on", sel); x.setAttribute("aria-pressed", sel ? "true" : "false");
+      });
+      renderHistoryList(); renderProfileSummary();
+      toast(clearing ? "Removed from your history" : `Saved: ${COMFORT_LEVELS[lvl].label}`);
+    };
+  }
   const rateSaveBtn = document.querySelector("#dBody #drawerRateSaveBtn");
   if (rateSaveBtn) {
     rateSaveBtn.onclick = () => {
-      const nameEl  = document.querySelector("#dBody #drawerRateName");
-      const scoreEl = document.querySelector("#dBody #drawerRateScore");
-      const noteEl  = document.querySelector("#dBody #drawerRateNote");
-      const name   = (nameEl?.value || "").trim();
-      const rating = parseInt(scoreEl?.value || "");
-      const note   = (noteEl?.value || "").trim();
-      if (!name)                             { toast("Restaurant name is required", true); return; }
-      if (!rating || rating < 1 || rating > 10) { toast("Enter a rating 1–10", true); return; }
-      const idx = state.experienceHistory.findIndex(e => e.name.toLowerCase() === name.toLowerCase());
-      if (idx >= 0) state.experienceHistory[idx] = { name, rating, note };
-      else state.experienceHistory.push({ name, rating, note });
-      saveHistory();
-      renderHistoryList();
-      if (typeof renderProfileSummary === "function") renderProfileSummary();
-      if (scoreEl) scoreEl.value = "";
-      if (noteEl)  noteEl.value  = "";
-      toast("Saved to your history");
+      const note = (document.querySelector("#dBody #drawerRateNote")?.value || "").trim();
+      const entry = _findHist(r.name);
+      if (!entry) { toast("Pick a comfort level first", true); return; }
+      entry.note = note;
+      saveHistory(); renderHistoryList();
+      toast("Note saved");
     };
   }
+
+  // Every "tap to inspect" affordance must also work from the keyboard (WCAG 2.1.1):
+  // focusable, announced as a button, and activatable with Enter/Space.
+  const activate = (el, fn) => {
+    el.onclick = fn;
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(e); } };
+  };
 
   // Clickable evidence: tap a flagged dish -> jump to + flash that item in the menu.
   const flashItem = hit => {
@@ -2376,7 +2424,7 @@ function renderMenu(m,r) {
     hit.classList.remove("flash"); void hit.offsetWidth; hit.classList.add("flash");
   };
   const menuItemEls = () => [...document.querySelectorAll("#dBody .mitem")];
-  document.querySelectorAll("#dBody .risky-row.clickable").forEach(el => el.onclick = () => {
+  document.querySelectorAll("#dBody .risky-row.clickable").forEach(el => activate(el, () => {
     const want = (el.dataset.dish || "").toLowerCase();
     if (!want) return;
     const hit = menuItemEls().find(m => {
@@ -2384,7 +2432,7 @@ function renderMenu(m,r) {
       return nm && (nm.includes(want) || want.includes(nm));
     });
     if (hit) flashItem(hit);
-  });
+  }));
 
   // ── AI explanation → exact source ──
   // Every tag in "Why this score" opens, in a NEW TAB, exactly where it came from:
@@ -2421,7 +2469,7 @@ function renderMenu(m,r) {
     const target = dish || (haveRealSource ? { url: primary, snippet: "" } : null);
     if (target) {
       el.classList.add("srclink");
-      el.onclick = () => openSource(target.url, target.snippet);
+      activate(el, () => openSource(target.url, target.snippet));
     } else {
       el.classList.remove("tappable");
     }
@@ -2476,16 +2524,26 @@ function trapModalTab(e) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
 
-/* ── profile summary ── */
+/* ── profile summary ──
+   Everything the scorer protects against must be visible here — a diner who added a
+   milk allergy or a vegan diet has to be able to verify, at a glance, that it's active. */
 const _SEV_LABEL = { avoid_preference: "Preference", intolerance: "Intolerance", allergy: "Allergy", anaphylaxis: "Anaphylaxis" };
 const _CC_LABEL = { not_concerned: "not concerned", moderate: "somewhat careful", strict: "very careful", "": "very careful" };
+const _DIET_LABEL = { gluten_free: "Gluten-free", vegetarian: "Vegetarian", vegan: "Vegan" };
 function renderProfileSummary(){
   const el = document.getElementById("profileSummary"); if (!el) return;
   const nuts = state.nutTypes.length === 0 ? "all nuts" : `${state.nutTypes.length} nut${state.nutTypes.length > 1 ? "s" : ""}`;
+  const parts = [`Nuts (${_SEV_LABEL[state.severity] || "Allergy"}, ${nuts})`];
+  state.allergens.filter(a => a.allergen !== "nuts").forEach(a => {
+    const found = OTHER_ALLERGENS.find(([k]) => k === a.allergen);
+    parts.push(`${found ? found[1] : cap(a.allergen)}${a.severity ? ` (${_SEV_LABEL[a.severity] || cap(a.severity)})` : ""}`);
+  });
+  state.diets.forEach(d => parts.push(_DIET_LABEL[d] || cap(d)));
+  parts.push(`cross-contact: ${_CC_LABEL[state.crossContact] ?? "very careful"}`);
   const places = state.experienceHistory.length;
-  const placesTxt = places ? ` · ${places} place${places > 1 ? "s" : ""} rated` : "";
-  const parts = `${_SEV_LABEL[state.severity] || "Allergy"} · ${nuts} · ${esc(_CC_LABEL[state.crossContact] ?? "very careful")}${placesTxt}`;
-  el.innerHTML = `<span class="ps-text">${parts}</span><button type="button" class="ps-edit" id="psEdit">Edit profile</button>`;
+  if (places) parts.push(`${places} place${places > 1 ? "s" : ""} rated`);
+  const editLabel = hasOnboarded() ? "Edit profile" : "Set up profile";
+  el.innerHTML = `<span class="ps-text">${esc(parts.join(" · "))}</span><button type="button" class="ps-edit" id="psEdit">${editLabel}</button>`;
   document.getElementById("psEdit").addEventListener("click", () => openOnboarding(1));
 }
 
@@ -2531,12 +2589,15 @@ document.querySelectorAll("#navLinks .nav-link").forEach(a => a.addEventListener
   $("#navToggle").setAttribute("aria-label","Open menu");
 }));
 document.querySelectorAll(".sort-btn[data-sort]").forEach(b => b.onclick=()=>{
-  document.querySelectorAll(".sort-btn[data-sort]").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on"); state.sort=b.dataset.sort; renderResults();
+  document.querySelectorAll(".sort-btn[data-sort]").forEach(x=>{ x.classList.remove("on"); x.setAttribute("aria-pressed","false"); });
+  b.classList.add("on"); b.setAttribute("aria-pressed","true");
+  state.sort=b.dataset.sort; renderResults();
 });
 
 /* Cache toggle (testing): off = bypass EVERY cache (client memo + server result/HTTP/
-   vision/text-LLM) and re-read each restaurant live from its website. */
+   vision/text-LLM) and re-read each restaurant live from its website.
+   Debug-only: end users never need it, and its jargon eroded the results toolbar. */
+if (DEBUG) $("#cacheToggle").hidden = false;
 $("#cacheToggle").onclick = () => {
   state.noCache = !state.noCache;
   const btn = $("#cacheToggle");
@@ -2585,7 +2646,10 @@ $("#cacheToggle").onclick = () => {
 loadConfig();
 loadHistory();
 loadProfile();
-if (!hasOnboarded()) openOnboarding(1);
+/* First visit: no blocking modal — the diner sees the product and can search
+   immediately on the safe default profile (nut allergy, very careful about
+   cross-contact). The summary under the search box shows exactly what's active,
+   with a "Set up profile" button that opens the full editor when THEY choose. */
 renderHistoryList();
 renderProfileSummary();
 </script>
