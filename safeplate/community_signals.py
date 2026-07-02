@@ -45,6 +45,8 @@ _CLASSIFY_SYSTEM = (
     "allergen if stated. Copy a VERBATIM quote for each.\n"
     "2) DISHES: list dish names diners mention by name (e.g. 'Cashew Chicken'). Names "
     "only, no commentary.\n"
+    "3) DIET FLEXIBILITY: statements that dishes can be made / are available "
+    "vegetarian or vegan; copy a VERBATIM quote and name the diet.\n"
     "Never invent restaurants, dishes, allergens, or quotes. If a snippet is about a "
     "different restaurant or has nothing relevant, ignore it. Empty arrays are fine."
 )
@@ -67,6 +69,17 @@ _CLASSIFY_SCHEMA = {
             },
         },
         "dishes": {"type": "array", "items": {"type": "string"}},
+        "diet_flexibility": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "diet": {"type": "string", "enum": ["vegetarian", "vegan"]},
+                    "quote": {"type": "string"},
+                },
+                "required": ["diet", "quote"],
+            },
+        },
     },
     "required": ["handling", "dishes"],
 }
@@ -77,6 +90,7 @@ class CommunityResult:
     signals: list[CommunitySignal] = field(default_factory=list)
     dishes: list[MenuItemRecord] = field(default_factory=list)
     quotes: list[str] = field(default_factory=list)  # grounded handling quotes, for display
+    diet_signals: list = field(default_factory=list)  # list[DietSignal], source="community"
 
 
 def fetch_community_signals(
@@ -259,6 +273,20 @@ def _build_result(
                 extraction_method="community_mention", confidence=_DISH_CONFIDENCE,
                 raw_text="", fetched_at=now,
             ))
+
+    from safeplate.diet_score import DietSignal
+
+    for entry in parsed.get("diet_flexibility", []):
+        if not isinstance(entry, dict):
+            continue
+        diet = str(entry.get("diet", "")).lower()
+        quote = str(entry.get("quote", "")).strip()
+        if diet not in ("vegetarian", "vegan") or not quote:
+            continue
+        if _normalize(quote) not in grounded:  # same grounding guard as handling quotes
+            continue
+        out.diet_signals.append(DietSignal(diet=diet, quote=quote[:240],
+                                           url=primary_url, source="community"))
     return out
 
 
@@ -277,11 +305,14 @@ def _load_cache(restaurant_name: str, address: str | None, want_dishes: bool) ->
         return None
     if time.time() - blob.get("at", 0) > _CACHE_TTL:
         return None
+    from safeplate.diet_score import DietSignal
+
     try:
         return CommunityResult(
             signals=[CommunitySignal(**s) for s in blob.get("signals", [])],
             dishes=[MenuItemRecord(**d) for d in blob.get("dishes", [])],
             quotes=list(blob.get("quotes", [])),
+            diet_signals=[DietSignal(**d) for d in blob.get("diet_signals", [])],
         )
     except (TypeError, KeyError):
         return None
@@ -298,6 +329,7 @@ def _save_cache(restaurant_name: str, address: str | None, want_dishes: bool, re
             "signals": [asdict(s) for s in result.signals],
             "dishes": [asdict(d) for d in result.dishes],
             "quotes": result.quotes,
+            "diet_signals": [asdict(d) for d in result.diet_signals],
         }), encoding="utf-8")
     except OSError:
         pass
