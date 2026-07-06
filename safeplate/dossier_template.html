@@ -73,6 +73,17 @@
       border:1px solid var(--border); border-radius:var(--rM); padding:12px 13px; width:100%; }
     input::placeholder{ color:var(--tx3); }
     .hint{ font-size:13px; color:var(--tx3); }
+    .loc-hint{ text-transform:none; letter-spacing:0; font-weight:500; color:var(--tx3); font-size:11px; }
+    .ac{ position:absolute; top:100%; left:0; right:0; z-index:20; margin-top:6px; background:var(--surface);
+         border:1px solid var(--border2); border-radius:var(--rM); box-shadow:var(--e3); max-height:320px; overflow-y:auto; }
+    .ac[hidden]{ display:none; }
+    .ac-item{ display:flex; flex-direction:column; gap:2px; padding:10px 13px; cursor:pointer; border-bottom:1px solid var(--border); }
+    .ac-item:last-child{ border-bottom:0; }
+    .ac-item:hover, .ac-item.active{ background:var(--paper2); }
+    .ac-name{ font:600 15px/1.2 var(--sans); color:var(--tx); }
+    .ac-meta{ font-size:13px; color:var(--tx3); display:flex; gap:8px; align-items:baseline; }
+    .ac-dist{ font:500 12px/1 var(--mono); color:var(--g0); flex:none; }
+    .ac-empty{ padding:12px 13px; color:var(--tx3); font-size:14px; font-style:italic; }
     .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; grid-column:1 / -1; }
     .cta{ grid-column:1 / -1; display:flex; align-items:center; gap:14px; margin-top:2px; }
     button.go{ font:700 15px/1 var(--sans); color:#fff; background:var(--brand-grad); border:0; border-radius:var(--rM);
@@ -177,13 +188,14 @@
 
       <div class="card">
         <form id="form" autocomplete="off">
-          <div class="field full">
+          <div class="field full" style="position:relative">
             <label for="name">Restaurant</label>
-            <input id="name" name="name" placeholder="e.g. Wagamama" />
+            <input id="name" name="name" placeholder="e.g. Taco Bell" autocomplete="off" aria-autocomplete="list" aria-controls="ac" />
+            <div class="ac" id="ac" role="listbox" hidden></div>
           </div>
           <div class="field">
-            <label for="location">Location</label>
-            <input id="location" name="location" placeholder="City or address" />
+            <label for="location">Location <span class="loc-hint" id="locHint"></span></label>
+            <input id="location" name="location" placeholder="City or address" autocomplete="off" />
           </div>
           <div class="field">
             <label for="url">…or website URL</label>
@@ -243,6 +255,62 @@
     const form = $("form"), go = $("go"), errbox = $("errbox");
     const crawl = $("crawl"), stagesEl = $("stages"), timerEl = $("timer");
     const dossierEl = $("dossier");
+    const nameEl = $("name"), locEl = $("location"), acEl = $("ac"), locHint = $("locHint");
+    let deviceCoords = null, chosen = null, acItems = [], acIndex = -1;
+
+    // Geolocation defines the "presumed area"; a typed Location overrides it.
+    function setLocHint(t){ if(locHint) locHint.textContent = t ? "· " + t : ""; }
+    if(navigator.geolocation){
+      setLocHint("locating…");
+      navigator.geolocation.getCurrentPosition(
+        pos => { deviceCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude }; setLocHint("using your location"); },
+        () => { setLocHint("type a city to set the area"); },
+        { timeout: 8000, maximumAge: 600000 }
+      );
+    }
+
+    function debounce(fn, ms){ let h; return function(){ const a = arguments; clearTimeout(h); h = setTimeout(() => fn.apply(null, a), ms); }; }
+    function closeAc(){ acEl.hidden = true; acEl.innerHTML = ""; acItems = []; acIndex = -1; }
+    function pick(c){ if(!c) return; chosen = c; nameEl.value = c.name; if(c.address) locEl.value = c.address; closeAc(); }
+    function renderAc(list){
+      acItems = list; acIndex = -1;
+      if(!list.length){ acEl.innerHTML = '<div class="ac-empty">No matches in this area. Try adding a city.</div>'; acEl.hidden = false; return; }
+      acEl.innerHTML = list.map((c,i) => {
+        const dist = (c.distanceKm != null) ? '<span class="ac-dist">'+c.distanceKm+' km</span>' : '';
+        const noweb = c.website ? '' : ' · no website';
+        return '<div class="ac-item" role="option" data-i="'+i+'"><span class="ac-name">'+esc(c.name)+'</span>'
+             + '<span class="ac-meta">'+dist+'<span>'+esc(c.address||'')+noweb+'</span></span></div>';
+      }).join("");
+      acEl.hidden = false;
+      Array.prototype.forEach.call(acEl.querySelectorAll('.ac-item'), el => {
+        el.addEventListener('mousedown', e => { e.preventDefault(); pick(acItems[+el.dataset.i]); });
+      });
+    }
+    const searchCandidates = debounce(async function(){
+      const q = nameEl.value.trim();
+      if(q.length < 3){ closeAc(); return; }
+      const p = new URLSearchParams(); p.set("name", q);
+      const loc = locEl.value.trim();
+      if(loc) p.set("location", loc);
+      else if(deviceCoords){ p.set("lat", deviceCoords.lat); p.set("lon", deviceCoords.lon); }
+      try {
+        const r = await fetch("/dossier/candidates?" + p.toString());
+        const j = await r.json();
+        if(nameEl.value.trim() === q) renderAc(j.candidates || []);
+      } catch(e){ closeAc(); }
+    }, 350);
+    nameEl.addEventListener("input", () => { chosen = null; searchCandidates(); });
+    nameEl.addEventListener("keydown", e => {
+      if(acEl.hidden || !acItems.length) return;
+      const items = Array.prototype.slice.call(acEl.querySelectorAll('.ac-item'));
+      if(e.key === "ArrowDown"){ e.preventDefault(); acIndex = Math.min(acIndex + 1, items.length - 1); }
+      else if(e.key === "ArrowUp"){ e.preventDefault(); acIndex = Math.max(acIndex - 1, 0); }
+      else if(e.key === "Enter" && acIndex >= 0){ e.preventDefault(); pick(acItems[acIndex]); return; }
+      else if(e.key === "Escape"){ closeAc(); return; }
+      else return;
+      items.forEach((el,i) => el.classList.toggle("active", i === acIndex));
+    });
+    document.addEventListener("click", e => { if(!acEl.contains(e.target) && e.target !== nameEl) closeAc(); });
 
     const STAGES = [
       { key:"resolve",      label:"Finding the restaurant" },
@@ -413,9 +481,13 @@
     // ── Submit → open the SSE stream ───────────────────────────────────
     form.addEventListener("submit", function(ev){
       ev.preventDefault();
-      const name = $("name").value.trim(), location = $("location").value.trim(), url = $("url").value.trim();
-      if(!name && !url){ showError("Enter a restaurant name (with a city) or a website URL."); return; }
-      if(name && !location && !url){ showError("Add a city or location so we can find the right place, or paste the website URL."); return; }
+      const name = nameEl.value.trim(), location = locEl.value.trim(), url = $("url").value.trim();
+      const useChosen = !!(chosen && chosen.name && name === chosen.name);
+      if(!name && !url){ showError("Enter a restaurant name, or a website URL."); return; }
+      if(!useChosen && name && !location && !url && !deviceCoords){
+        showError("Pick a location from the list, add a city, or paste the website URL."); return;
+      }
+      closeAc();
 
       errbox.classList.remove("show");
       dossierEl.classList.remove("show"); dossierEl.innerHTML = "";
@@ -424,9 +496,19 @@
       startTimer();
 
       const p = new URLSearchParams();
-      if(name) p.set("name", name);
-      if(location) p.set("location", location);
-      if(url) p.set("url", url);
+      if(useChosen){
+        p.set("name", chosen.name);
+        if(chosen.website) p.set("website", chosen.website);
+        if(chosen.address) p.set("address", chosen.address);
+        if(chosen.lat != null) p.set("lat", chosen.lat);
+        if(chosen.lon != null) p.set("lon", chosen.lon);
+        if(chosen.rating != null) p.set("rating", chosen.rating);
+        if(chosen.reviewCount != null) p.set("reviewCount", chosen.reviewCount);
+      } else {
+        if(name) p.set("name", name);
+        if(location) p.set("location", location);
+        if(url) p.set("url", url);
+      }
       p.set("severity", $("severity").value);
       p.set("crossContact", $("crossContact").value);
       const nt = $("nutTypes").value.trim(); if(nt) p.set("nutTypes", nt);

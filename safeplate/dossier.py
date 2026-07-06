@@ -24,9 +24,28 @@ from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import parse_qs, urljoin, urlparse
 
-from safeplate.config import get_gemini_api_key, get_gemini_model, get_user_agent
+from safeplate.config import (
+    get_gemini_api_key,
+    get_gemini_model,
+    get_google_places_api_key,
+    get_user_agent,
+)
 from safeplate.menu_service import run_menu_extraction
 from safeplate.search_service import run_restaurant_search
+
+
+def _f(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _i(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 # ── SSE framing ────────────────────────────────────────────────────────────────
@@ -66,7 +85,107 @@ def params_from_query(query: str) -> dict[str, Any]:
     radius = one("radius")
     if radius:
         params["radius"] = radius
+    # Chosen-candidate / device-location extras (the dropdown supplies these so we
+    # deep-dive the EXACT place picked, skipping a second ambiguous resolve).
+    for key in ("website", "address", "lat", "lon", "phone", "rating", "reviewCount"):
+        val = one(key)
+        if val:
+            params[key] = val
     return params
+
+
+# ── Candidate lookup (the pick-a-location dropdown) ──────────────────────────────
+
+def find_candidates(params: dict[str, Any], *, demo_mode: bool = False, limit: int = 8) -> list[dict[str, Any]]:
+    """Return matching restaurants for a typed name within the presumed area, for the
+    dropdown. Prefers Google Places Text Search (finds a specific chain like "Taco
+    Bell" reliably); falls back to nearby-prior + name filter for other providers.
+    Area = a typed ``location`` (geocoded) if given, else device ``lat``/``lon``."""
+    name = str(params.get("name") or "").strip()
+    if len(name) < 2:
+        return []
+    location = str(params.get("location") or "").strip()
+    lat = _f(params.get("lat"))
+    lon = _f(params.get("lon"))
+    user_agent = get_user_agent()
+
+    if location:  # a typed area overrides device location
+        try:
+            from safeplate.geo import geocode_location
+
+            coord = geocode_location(location, user_agent=user_agent)
+            lat, lon = coord.latitude, coord.longitude
+        except Exception:
+            pass
+
+    api_key = get_google_places_api_key()
+    if api_key:
+        try:
+            from safeplate.providers.google_places import text_search_restaurants
+
+            records = text_search_restaurants(
+                query=name, latitude=lat, longitude=lon,
+                api_key=api_key, user_agent=user_agent, limit=limit,
+            )
+            if records:
+                return [_candidate_from_record(r) for r in records][:limit]
+        except Exception:
+            pass  # fall through to the nearby filter
+
+    return _nearby_candidates(name, location=location, lat=lat, lon=lon,
+                              demo_mode=demo_mode, limit=limit)
+
+
+def _candidate_from_record(rec: Any) -> dict[str, Any]:
+    dm = getattr(rec, "distance_meters", None)
+    return {
+        "name": rec.name or "",
+        "address": rec.address or "",
+        "website": rec.website_url or "",
+        "lat": rec.latitude,
+        "lon": rec.longitude,
+        "distanceKm": round(dm / 1000, 1) if isinstance(dm, (int, float)) and dm == dm and dm != float("inf") else None,
+        "rating": rec.rating,
+        "reviewCount": rec.review_count,
+        "sourceId": rec.source_id or "",
+    }
+
+
+def _nearby_candidates(name: str, *, location: str, lat: float | None, lon: float | None,
+                       demo_mode: bool, limit: int) -> list[dict[str, Any]]:
+    """Fallback for non-Google providers: nearby-prior search + name filter."""
+    payload: dict[str, Any] = {"provider": "auto", "listMode": "prior", "limit": 20, "radius": 8000}
+    if location:
+        payload["location"] = location
+    elif lat is not None and lon is not None:
+        payload["latitude"] = lat
+        payload["longitude"] = lon
+    else:
+        return []
+    try:
+        search = run_restaurant_search(payload, demo_mode=demo_mode)
+    except Exception:
+        return []
+    target = _norm(name)
+    out: list[dict[str, Any]] = []
+    for row in search.get("rows") or []:
+        rn = _norm(row.get("name") or "")
+        if not rn:
+            continue
+        if target in rn or rn in target or rn.startswith(target) or target.startswith(rn):
+            dm = row.get("distance_meters")
+            out.append({
+                "name": row.get("name") or "",
+                "address": row.get("address") or "",
+                "website": row.get("website_url") or "",
+                "lat": row.get("latitude"),
+                "lon": row.get("longitude"),
+                "distanceKm": round(dm / 1000, 1) if isinstance(dm, (int, float)) else None,
+                "rating": row.get("rating"),
+                "reviewCount": row.get("review_count"),
+                "sourceId": row.get("source_id") or "",
+            })
+    return out[:limit]
 
 
 # ── Stage 1: resolve one restaurant ─────────────────────────────────────────────
@@ -138,14 +257,28 @@ def build_target(params: dict[str, Any], *, demo_mode: bool = False) -> Target |
     the result. A direct URL bypasses resolution entirely."""
     name = str(params.get("name") or "").strip()
     location = str(params.get("location") or "").strip()
-    url = _ensure_scheme(str(params.get("url") or params.get("websiteUrl") or "").strip())
+    url = _ensure_scheme(str(params.get("url") or params.get("website") or params.get("websiteUrl") or "").strip())
+    address = str(params.get("address") or "").strip()
 
-    # Direct URL with no location: skip Places entirely.
-    if url and not location:
-        return Target(name=name or _name_from_url(url), website_url=url, resolved_via="url")
+    # A chosen candidate (rich details from the dropdown) OR a pasted URL short-circuits
+    # resolution -- we already know the exact place, so trust it and skip a second Places
+    # call. A candidate carries an address; a bare URL does not.
+    if url or address:
+        return Target(
+            name=name or (_name_from_url(url) if url else "Restaurant"),
+            website_url=url,
+            address=address,
+            categories=list(params.get("categories") or []),
+            latitude=_f(params.get("lat")),
+            longitude=_f(params.get("lon")),
+            phone=str(params.get("phone") or ""),
+            rating=_f(params.get("rating")),
+            review_count=_i(params.get("reviewCount")),
+            resolved_via="places" if address else "url",
+        )
 
     if not location:
-        return None  # need a location or a URL to go on
+        return None  # need a location, a candidate, or a URL to go on
 
     try:
         radius = int(str(params.get("radius") or "2000"))
@@ -421,10 +554,10 @@ def iter_dossier_events(params: dict[str, Any], *, demo_mode: bool = False) -> I
         except Exception as exc:
             yield _sse("error", {"message": f"Couldn't resolve the restaurant ({type(exc).__name__})."})
             return
-        if target is None or not target.website_url:
+        if target is None or not (target.website_url or target.name):
             yield _sse(
                 "error",
-                {"message": "Couldn't find that restaurant or its website. Add the city, or paste the website URL."},
+                {"message": "Couldn't find that restaurant. Pick one from the list, add the city, or paste the website URL."},
             )
             return
         yield _sse(

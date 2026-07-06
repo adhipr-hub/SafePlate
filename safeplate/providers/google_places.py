@@ -15,6 +15,7 @@ from safeplate.schemas import RestaurantRecord
 
 
 GOOGLE_NEARBY_SEARCH_URL = "https://places.googleapis.com/v1/places:searchNearby"
+GOOGLE_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 
 GOOGLE_INCLUDED_TYPES = [
     "restaurant",
@@ -182,6 +183,70 @@ def _fetch_google_places_payload(
         ) from exc
     except (URLError, TimeoutError) as exc:
         raise GooglePlacesError(f"Google Places request failed: {exc}") from exc
+
+
+def text_search_restaurants(
+    *,
+    query: str,
+    latitude: float | None,
+    longitude: float | None,
+    api_key: str,
+    user_agent: str,
+    limit: int = 8,
+    radius_meters: int = 35000,
+) -> list[RestaurantRecord]:
+    """Resolve a TYPED name ("Taco Bell") to matching places via Places Text Search,
+    biased to the given area. Unlike searchNearby (the nearest N of a type), this finds
+    a specific place/chain even when many other restaurants are closer -- exactly what
+    the dossier's pick-a-location dropdown needs. Bias is optional; without coordinates
+    Google ranks by relevance globally."""
+    body: dict[str, Any] = {
+        "textQuery": query,
+        "maxResultCount": min(max(limit, 1), 20),
+    }
+    if latitude is not None and longitude is not None:
+        body["locationBias"] = {
+            "circle": {
+                "center": {"latitude": latitude, "longitude": longitude},
+                "radius": float(radius_meters),
+            }
+        }
+    request = Request(
+        GOOGLE_TEXT_SEARCH_URL,
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": user_agent,
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": _google_field_mask(include_atmosphere_fields=False),
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=60) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        with exc:
+            details = exc.read().decode("utf-8", errors="replace")
+        raise GooglePlacesError(
+            f"Google Places text search failed with HTTP {exc.code}: {details}"
+        ) from exc
+    except (URLError, TimeoutError) as exc:
+        raise GooglePlacesError(f"Google Places text search failed: {exc}") from exc
+
+    origin_lat = latitude if latitude is not None else 0.0
+    origin_lon = longitude if longitude is not None else 0.0
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    rows = [
+        _normalize_place(
+            place, origin_latitude=origin_lat, origin_longitude=origin_lon, fetched_at=fetched_at
+        )
+        for place in payload.get("places", [])
+        if _has_coordinates(place)
+    ]
+    if latitude is not None and longitude is not None:
+        rows.sort(key=lambda row: row.distance_meters)
+    return rows[:limit]
 
 
 def _normalize_place(

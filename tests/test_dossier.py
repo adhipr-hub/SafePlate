@@ -195,5 +195,80 @@ class StreamTests(unittest.TestCase):
         self.assertNotIn("done", types)
 
 
+class CandidateExtrasParamTests(unittest.TestCase):
+    def test_parses_chosen_candidate_fields(self):
+        p = params_from_query(
+            "name=Taco%20Bell&website=http://tb.com&address=1%20Main%20St"
+            "&lat=37.0&lon=-122.0&rating=3.5&reviewCount=200"
+        )
+        self.assertEqual(p["website"], "http://tb.com")
+        self.assertEqual(p["address"], "1 Main St")
+        self.assertEqual(p["lat"], "37.0")
+        self.assertEqual(p["rating"], "3.5")
+        self.assertEqual(p["reviewCount"], "200")
+
+
+class BuildTargetCandidateTests(unittest.TestCase):
+    def test_chosen_candidate_is_places_and_rich(self):
+        t = build_target({
+            "name": "Taco Bell", "website": "http://tb.com", "address": "1 Main St",
+            "lat": "37.0", "lon": "-122.0", "phone": "555-0100", "rating": "3.5", "reviewCount": "200",
+        })
+        self.assertEqual(t.resolved_via, "places")  # a candidate (has address), not a bare URL
+        self.assertEqual(t.website_url, "http://tb.com")
+        self.assertEqual(t.address, "1 Main St")
+        self.assertEqual(t.phone, "555-0100")
+        self.assertEqual(t.latitude, 37.0)
+        self.assertEqual(t.review_count, 200)
+
+    def test_url_only_is_url(self):
+        t = build_target({"url": "tb.com"})
+        self.assertEqual(t.resolved_via, "url")
+        self.assertEqual(t.website_url, "https://tb.com")
+
+    def test_candidate_without_website_still_builds(self):
+        t = build_target({"name": "Sweet Maple", "address": "2101 Sutter St", "lat": "37.7", "lon": "-122.4"})
+        self.assertIsNotNone(t)
+        self.assertEqual(t.website_url, "")  # deep-extract will run community/prior only
+        self.assertEqual(t.resolved_via, "places")
+
+
+class FindCandidatesTests(unittest.TestCase):
+    def _rec(self, **kw):
+        from types import SimpleNamespace
+        base = dict(name="Taco Bell", address="1 Main St", website_url="http://tb.com",
+                    latitude=37.0, longitude=-122.0, distance_meters=1500.0,
+                    rating=3.5, review_count=200, source_id="abc")
+        base.update(kw)
+        return SimpleNamespace(**base)
+
+    def test_short_name_returns_empty(self):
+        self.assertEqual(dossier.find_candidates({"name": "a"}), [])
+
+    def test_text_search_path(self):
+        rec = self._rec()
+        with patch.object(dossier, "get_google_places_api_key", lambda: "KEY"), \
+             patch("safeplate.providers.google_places.text_search_restaurants",
+                   lambda **kw: [rec]):
+            out = dossier.find_candidates({"name": "Taco Bell", "lat": "37.0", "lon": "-122.0"})
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["name"], "Taco Bell")
+        self.assertEqual(out[0]["website"], "http://tb.com")
+        self.assertEqual(out[0]["distanceKm"], 1.5)
+
+    def test_fallback_to_nearby_when_no_key(self):
+        rows = {"rows": [
+            {"name": "Taco Bell #22", "address": "9 Elm", "website_url": "http://x",
+             "latitude": 1.0, "longitude": 2.0, "distance_meters": 800, "rating": 3.0,
+             "review_count": 10, "source_id": "z"},
+            {"name": "Sushi Zone", "address": "", "website_url": "", "distance_meters": 100},
+        ]}
+        with patch.object(dossier, "get_google_places_api_key", lambda: ""), \
+             patch.object(dossier, "run_restaurant_search", lambda payload, demo_mode=False: rows):
+            out = dossier.find_candidates({"name": "Taco Bell", "lat": "1.0", "lon": "2.0"})
+        self.assertEqual([c["name"] for c in out], ["Taco Bell #22"])  # name-filtered
+        self.assertEqual(out[0]["distanceKm"], 0.8)
+
+
 if __name__ == "__main__":
     unittest.main()

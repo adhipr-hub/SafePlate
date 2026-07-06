@@ -179,6 +179,9 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             if path == "/dossier/stream":
                 self._handle_dossier_stream()
                 return
+            if path == "/dossier/candidates":
+                self._handle_dossier_candidates()
+                return
             static_page = get_page(path)
             if static_page is not None:
                 self._send_html(static_page)
@@ -269,6 +272,20 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
                 self._send_json({"error": "Internal error reading the menu."}, status=500)
                 return
             self._send_json(response)
+
+        def _handle_dossier_candidates(self) -> None:
+            """Return matching restaurants for the pick-a-location dropdown (JSON, not
+            SSE). Best-effort: any failure yields an empty list rather than a 500 so a
+            keystroke can't error the box."""
+            from safeplate.dossier import find_candidates, params_from_query
+
+            params = params_from_query(urlparse(self.path).query)
+            try:
+                candidates = find_candidates(params, demo_mode=demo_mode)
+            except Exception:
+                self._log_internal_error("dossier_candidates")
+                candidates = []
+            self._send_json({"candidates": candidates})
 
         def _handle_dossier_stream(self) -> None:
             """Stream the Deep-Dive Dossier (prototype) as Server-Sent Events. GET-only
