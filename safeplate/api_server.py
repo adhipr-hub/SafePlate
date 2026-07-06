@@ -170,6 +170,15 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             if path == "/":
                 self._send_html(app_html())
                 return
+            # Deep-Dive Dossier (prototype) -- additive routes; the production
+            # search/menu paths above and below are untouched.
+            if path == "/dossier":
+                from safeplate.dossier import dossier_html
+                self._send_html(dossier_html())
+                return
+            if path == "/dossier/stream":
+                self._handle_dossier_stream()
+                return
             static_page = get_page(path)
             if static_page is not None:
                 self._send_html(static_page)
@@ -260,6 +269,31 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
                 self._send_json({"error": "Internal error reading the menu."}, status=500)
                 return
             self._send_json(response)
+
+        def _handle_dossier_stream(self) -> None:
+            """Stream the Deep-Dive Dossier (prototype) as Server-Sent Events. GET-only
+            (EventSource can't POST), so the target + profile ride as query params. The
+            generator runs the real stages and yields SSE frames; a client disconnect
+            mid-crawl surfaces as a broken pipe, which we swallow like the other paths."""
+            from safeplate.dossier import iter_dossier_events, params_from_query
+
+            params = params_from_query(urlparse(self.path).query)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Accel-Buffering", "no")  # ask proxies not to buffer the stream
+            self.send_header("Connection", "close")
+            self._apply_security_headers()
+            self.end_headers()
+            try:
+                for chunk in iter_dossier_events(params, demo_mode=demo_mode):
+                    self._write_body(chunk.encode("utf-8"))
+                    try:
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                        return  # client navigated away mid-crawl
+            except Exception:
+                self._log_internal_error("dossier")
 
         def _log_internal_error(self, where: str) -> None:
             # Log the detail server-side; never echo raw exception/upstream text to the

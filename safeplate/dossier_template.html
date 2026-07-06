@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SafePlate · Deep-Dive Dossier</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23166534'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <script>document.documentElement.classList.add('js');</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --page:#F7F3EA; --paper2:#FAF7F0; --surface:#FDFBF6; --border:#E6DECF; --border2:#CFC4B2;
+      --tx:#211B16; --tx2:#4A4039; --tx3:#5E544B;
+      --g0:#166534; --g1:#16A34A; --g2:#22C55E; --gt:#DCFCE7;
+      --lo:#15803D; --md:#92400E; --hi:#991B1B;
+      --rl:#22C55E; --rm:#FBBF24; --rh:#F87171;
+      --tl:#F0FDF4; --tm:#FFFBEB; --th:#FEF2F2;
+      --bl:#BBF7D0; --bm:#FDE68A; --bh:#FECACA;
+      --signal:#2563EB; --ai:#6D28D9; --ai-tint:#EDE9FE; --ai-bd:#DDD0F7; --star:#FBBF24;
+      --brand-grad:linear-gradient(150deg,#15803D,#0F4A2E);
+      --aur-forest:#0F4A2E; --aur-mid:#16A34A; --aur-mint:#86EFAC; --aur-gold:rgba(214,178,120,.10);
+      --e1:0 1px 3px rgba(40,28,16,.06),0 1px 2px rgba(40,28,16,.04);
+      --e2:0 6px 22px -6px rgba(40,28,16,.10),0 2px 6px rgba(40,28,16,.05);
+      --e3:0 16px 44px -10px rgba(40,28,16,.16),0 4px 12px rgba(40,28,16,.07);
+      --e4:0 30px 80px -16px rgba(20,40,28,.24),0 8px 26px rgba(40,28,16,.10);
+      --rXS:8px; --rS:12px; --rM:14px; --rL:18px; --rXL:24px; --pill:999px;
+      --serif:"Playfair Display",Georgia,serif;
+      --sans:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+      --mono:"Spline Sans Mono",ui-monospace,Menlo,monospace;
+      --ease-out:cubic-bezier(.16,1,.3,1); --ease-io:cubic-bezier(.4,0,.2,1);
+    }
+    *,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+    :focus-visible{ outline:2.5px solid var(--g1); outline-offset:3px; border-radius:4px; }
+    body{ background:var(--page); color:var(--tx2); font-family:var(--sans); font-size:16px; line-height:1.6;
+          -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; overflow-x:clip; }
+    .wrap{ max-width:1020px; margin:0 auto; padding:0 24px; }
+    a{ color:var(--g0); }
+
+    /* Topbar */
+    .topbar{ position:sticky; top:0; z-index:30; background:color-mix(in srgb,var(--page) 82%,transparent);
+             backdrop-filter:blur(16px) saturate(1.4); border-bottom:1px solid var(--border); }
+    .topbar-inner{ display:flex; align-items:center; height:64px; gap:12px; }
+    .brand{ display:flex; align-items:center; gap:10px; font:700 17px/1 var(--sans); color:var(--tx); text-decoration:none; }
+    .brand .mk{ width:30px; height:30px; border-radius:8px; background:var(--brand-grad); display:grid; place-items:center; color:#fff; }
+    .eyebrow{ font:700 11px/1 var(--sans); letter-spacing:.14em; text-transform:uppercase; color:var(--tx3); }
+    .topbar .spacer{ flex:1; }
+    .backlink{ font:600 13px/1 var(--sans); color:var(--tx3); text-decoration:none; padding:8px 12px; border-radius:9px; }
+    .backlink:hover{ color:var(--tx); background:rgba(33,27,22,.05); }
+
+    /* Hero + search */
+    .hero{ position:relative; padding:54px 0 30px; overflow:clip; }
+    .aurora{ position:absolute; inset:-40% -10% auto -10%; height:420px; z-index:-1; filter:blur(46px); opacity:.5;
+      background:
+        radial-gradient(40% 60% at 25% 30%, var(--aur-forest), transparent 70%),
+        radial-gradient(40% 55% at 70% 25%, var(--aur-mid), transparent 70%),
+        radial-gradient(35% 50% at 55% 55%, var(--aur-mint), transparent 70%),
+        radial-gradient(60% 60% at 50% 40%, var(--aur-gold), transparent 70%);
+      animation:drift 22s var(--ease-io) infinite alternate; }
+    @keyframes drift{ to{ transform:translate3d(3%,4%,0) scale(1.08); } }
+    @media (prefers-reduced-motion:reduce){ .aurora{ animation:none; } }
+    h1.display{ font:400 clamp(34px,5.2vw,54px)/1.03 var(--serif); letter-spacing:-.02em; color:var(--tx); max-width:16ch; }
+    h1.display em{ font-style:italic; color:var(--g0); }
+    .lede{ margin-top:14px; max-width:60ch; color:var(--tx2); font-size:17px; }
+
+    .card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--rXL); box-shadow:var(--e4); padding:20px; margin-top:26px; }
+    form{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .field{ display:flex; flex-direction:column; gap:6px; }
+    .field.full{ grid-column:1 / -1; }
+    label{ font:700 11px/1 var(--sans); letter-spacing:.12em; text-transform:uppercase; color:var(--tx3); }
+    input,select{ font:400 15px/1.3 var(--sans); color:var(--tx); background:var(--surface);
+      border:1px solid var(--border); border-radius:var(--rM); padding:12px 13px; width:100%; }
+    input::placeholder{ color:var(--tx3); }
+    .hint{ font-size:13px; color:var(--tx3); }
+    .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; grid-column:1 / -1; }
+    .cta{ grid-column:1 / -1; display:flex; align-items:center; gap:14px; margin-top:2px; }
+    button.go{ font:700 15px/1 var(--sans); color:#fff; background:var(--brand-grad); border:0; border-radius:var(--rM);
+      height:50px; padding:0 22px; cursor:pointer; box-shadow:0 10px 24px -10px rgba(15,74,46,.7); transition:transform .16s var(--ease-out),box-shadow .16s; }
+    button.go:hover{ transform:translateY(-1px); box-shadow:0 14px 30px -10px rgba(15,74,46,.8); }
+    button.go[disabled]{ opacity:.5; cursor:default; transform:none; box-shadow:none; }
+
+    /* Crawl log */
+    .crawl{ margin-top:26px; display:none; }
+    .crawl.show{ display:block; }
+    .crawl-head{ display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+    .crawl-head h2{ font:400 22px/1.1 var(--serif); color:var(--tx); }
+    .timer{ font:500 13px/1 var(--mono); color:var(--tx3); }
+    .stages{ list-style:none; display:flex; flex-direction:column; gap:2px; }
+    .stage{ display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border-radius:var(--rM);
+      background:var(--surface); border:1px solid var(--border); box-shadow:var(--e1); }
+    .stage .dot{ width:20px; height:20px; flex:none; margin-top:1px; border-radius:50%; border:2px solid var(--border2);
+      display:grid; place-items:center; color:#fff; font-size:12px; }
+    .stage.active .dot{ border-color:var(--g1); animation:pulse 1.1s ease-in-out infinite; }
+    @keyframes pulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(22,163,74,.35); } 50%{ box-shadow:0 0 0 6px rgba(22,163,74,0); } }
+    @media (prefers-reduced-motion:reduce){ .stage.active .dot{ animation:none; } }
+    .stage.done .dot{ background:var(--g0); border-color:var(--g0); }
+    .stage.warn .dot{ background:var(--md); border-color:var(--md); }
+    .stage .body{ flex:1; }
+    .stage .label{ font:600 15px/1.3 var(--sans); color:var(--tx); }
+    .stage .sub{ font-size:13px; color:var(--tx3); margin-top:2px; }
+    .stage.pending{ opacity:.55; }
+
+    /* Dossier */
+    .dossier{ margin-top:30px; display:none; }
+    .dossier.show{ display:block; }
+    .head-row{ display:flex; align-items:flex-start; gap:18px; flex-wrap:wrap; }
+    .head-row h2{ font:400 30px/1.05 var(--serif); color:var(--tx); }
+    .head-meta{ font-size:14px; color:var(--tx3); margin-top:6px; }
+    .head-meta a{ color:var(--g0); }
+    .pill{ display:inline-flex; align-items:center; gap:6px; font:600 12px/1 var(--sans); padding:6px 10px;
+      border-radius:var(--pill); border:1px solid var(--border); color:var(--tx3); background:var(--surface); }
+
+    .verdict{ display:flex; align-items:center; gap:22px; margin-top:20px; padding:20px; border-radius:var(--rL);
+      border:1px solid var(--border); background:var(--surface); box-shadow:var(--e2); }
+    .ring{ flex:none; width:104px; height:104px; position:relative; }
+    .ring svg{ transform:rotate(-90deg); }
+    .ring .num{ position:absolute; inset:0; display:grid; place-items:center; font:600 26px/1 var(--mono); color:var(--tx); }
+    .verdict .vb{ flex:1; }
+    .vword{ display:inline-flex; align-items:center; gap:8px; font:700 13px/1 var(--sans); letter-spacing:.1em; text-transform:uppercase; padding:6px 11px; border-radius:var(--pill); }
+    .vword .ic{ font-size:13px; }
+    .v-low{ color:var(--lo); background:var(--tl); border:1px solid var(--bl); }
+    .v-med{ color:var(--md); background:var(--tm); border:1px solid var(--bm); }
+    .v-high{ color:var(--hi); background:var(--th); border:1px solid var(--bh); }
+    .v-unknown{ color:var(--tx3); background:var(--paper2); border:1px solid var(--border); }
+    .vrat{ margin-top:10px; color:var(--tx2); font-size:15px; }
+    .vconf{ margin-top:8px; font:500 13px/1.4 var(--mono); color:var(--tx3); }
+
+    .region{ margin-top:14px; display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:var(--rM);
+      background:var(--tm); border:1px solid var(--bm); color:var(--md); font-size:14px; }
+
+    .sec{ margin-top:26px; }
+    .sec h3{ font:700 11px/1 var(--sans); letter-spacing:.14em; text-transform:uppercase; color:var(--tx3); margin-bottom:12px; }
+    .dish{ display:flex; gap:10px; align-items:flex-start; padding:11px 13px; border-radius:var(--rM);
+      border:1px solid var(--bh); background:var(--th); margin-bottom:8px; }
+    .dish .dn{ font:600 15px/1.3 var(--sans); color:var(--tx); }
+    .dish .dr{ font-size:13px; color:var(--hi); margin-top:2px; }
+    .safe-note{ font-size:14px; color:var(--tx2); padding:10px 13px; border-radius:var(--rM); background:var(--tl); border:1px solid var(--bl); }
+    .sig{ padding:12px 14px; border-radius:var(--rM); border:1px solid var(--border); background:var(--surface); margin-bottom:8px; box-shadow:var(--e1); }
+    .sig .flags{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+    .flag{ font:600 11px/1 var(--sans); padding:5px 9px; border-radius:var(--pill); background:var(--gt); color:var(--g0); border:1px solid var(--bl); }
+    .flag.warn{ background:var(--tm); color:var(--md); border-color:var(--bm); }
+    .flag.nf{ background:var(--ai-tint); color:var(--ai); border-color:var(--ai-bd); }
+    .quote{ font-size:14px; color:var(--tx2); border-left:2px solid var(--border2); padding-left:12px; margin:6px 0; }
+    .qsrc{ display:block; font-size:12px; color:var(--tx3); margin-top:4px; }
+    .socials{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .empty{ font-size:14px; color:var(--tx3); font-style:italic; }
+    .provlist{ display:flex; flex-direction:column; gap:6px; }
+    .prov{ font-size:13px; color:var(--tx3); display:flex; gap:8px; }
+    .prov .ok{ color:var(--g0); } .prov .no{ color:var(--tx3); }
+    .errbox{ margin-top:20px; padding:16px 18px; border-radius:var(--rM); background:var(--th); border:1px solid var(--bh); color:var(--hi); display:none; }
+    .errbox.show{ display:block; }
+    .foot{ margin:44px 0 30px; font-size:13px; color:var(--tx3); text-align:center; }
+
+    @media (max-width:720px){
+      form{ grid-template-columns:1fr; } .row3{ grid-template-columns:1fr; }
+      .verdict{ flex-direction:column; align-items:flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar"><div class="wrap topbar-inner">
+    <a class="brand" href="/dossier">
+      <span class="mk"><svg width="18" height="18" viewBox="0 0 32 32"><path d="M9 16.5l4.5 4.5L23 11" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      SafePlate
+    </a>
+    <span class="eyebrow">Deep-Dive Dossier</span>
+    <span class="spacer"></span>
+    <a class="backlink" href="/">← Nearby search</a>
+  </div></header>
+
+  <main class="wrap">
+    <section class="hero">
+      <div class="aurora" aria-hidden="true"></div>
+      <h1 class="display">One restaurant, <em>every</em> shred of evidence.</h1>
+      <p class="lede">Point at a single place. SafePlate crawls its site, allergen chart, and what diners say, in real time, then lays the findings on the desk.</p>
+
+      <div class="card">
+        <form id="form" autocomplete="off">
+          <div class="field full">
+            <label for="name">Restaurant</label>
+            <input id="name" name="name" placeholder="e.g. Wagamama" />
+          </div>
+          <div class="field">
+            <label for="location">Location</label>
+            <input id="location" name="location" placeholder="City or address" />
+          </div>
+          <div class="field">
+            <label for="url">…or website URL</label>
+            <input id="url" name="url" placeholder="restaurant.com (optional)" />
+          </div>
+          <div class="row3">
+            <div class="field">
+              <label for="severity">Reaction</label>
+              <select id="severity" name="severity">
+                <option value="allergy">Allergy</option>
+                <option value="anaphylaxis">Anaphylaxis</option>
+                <option value="preference">Preference</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="crossContact">Cross-contact</label>
+              <select id="crossContact" name="crossContact">
+                <option value="moderate">Standard care</option>
+                <option value="strict">Very sensitive (traces)</option>
+                <option value="none">Not concerned</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="nutTypes">Specific nuts <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>
+              <input id="nutTypes" name="nutTypes" placeholder="peanut, cashew…" />
+            </div>
+          </div>
+          <div class="cta">
+            <button class="go" id="go" type="submit">Deep dive →</button>
+            <span class="hint">Nut allergy by default. Live crawl; give it 20 to 40 seconds.</span>
+          </div>
+        </form>
+      </div>
+
+      <div class="errbox" id="errbox"></div>
+    </section>
+
+    <!-- Crawl log -->
+    <section class="crawl" id="crawl">
+      <div class="crawl-head">
+        <h2>Working the case…</h2>
+        <span class="timer" id="timer">0.0s</span>
+      </div>
+      <ul class="stages" id="stages"></ul>
+    </section>
+
+    <!-- Dossier -->
+    <section class="dossier" id="dossier"></section>
+
+    <p class="foot">Prototype · Deep-Dive Dossier. Reuses the SafePlate extraction, scoring and community pipeline. Evidence over opinion; a missed risk is worse than a false alarm.</p>
+  </main>
+
+  <script>
+  (function(){
+    "use strict";
+    const $ = (id) => document.getElementById(id);
+    const form = $("form"), go = $("go"), errbox = $("errbox");
+    const crawl = $("crawl"), stagesEl = $("stages"), timerEl = $("timer");
+    const dossierEl = $("dossier");
+
+    const STAGES = [
+      { key:"resolve",      label:"Finding the restaurant" },
+      { key:"deep_extract", label:"Reading the menu, allergen chart & community mentions" },
+      { key:"deeper_site",  label:"Scanning about / FAQ / allergy pages & socials" },
+    ];
+
+    let es = null, t0 = 0, timerInt = null, finished = false;
+
+    function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+    function resetStages(){
+      stagesEl.innerHTML = "";
+      STAGES.forEach(s => {
+        const li = document.createElement("li");
+        li.className = "stage pending";
+        li.id = "st-" + s.key;
+        li.innerHTML = '<span class="dot"></span><div class="body"><div class="label">'+esc(s.label)+'</div><div class="sub"></div></div>';
+        stagesEl.appendChild(li);
+      });
+    }
+    function setStage(key, cls, sub){
+      const li = $("st-"+key); if(!li) return;
+      li.className = "stage " + cls;
+      if(cls === "done") li.querySelector(".dot").textContent = "✓";
+      if(cls === "warn") li.querySelector(".dot").textContent = "!";
+      if(sub != null) li.querySelector(".sub").textContent = sub;
+    }
+    function startTimer(){
+      t0 = performance.now();
+      timerInt = setInterval(() => { timerEl.textContent = ((performance.now()-t0)/1000).toFixed(1) + "s"; }, 100);
+    }
+    function stopTimer(ms){
+      if(timerInt){ clearInterval(timerInt); timerInt = null; }
+      if(ms != null) timerEl.textContent = (ms/1000).toFixed(1) + "s";
+    }
+    function showError(msg){
+      errbox.textContent = msg; errbox.classList.add("show");
+      go.disabled = false;
+    }
+
+    // ── Verdict rendering ──────────────────────────────────────────────
+    const TIER = {
+      likely_ok: { word:"Lower risk", cls:"v-low",  ic:"✓", ring:"var(--rl)" },
+      caution:   { word:"Caution",    cls:"v-med",  ic:"!", ring:"var(--rm)" },
+      avoid:     { word:"Avoid",      cls:"v-high", ic:"✕", ring:"var(--rh)" },
+      unknown:   { word:"Unverified", cls:"v-unknown", ic:"?", ring:"var(--border2)" },
+    };
+    function ring(risk, tier){
+      const t = TIER[tier] || TIER.unknown;
+      const pct = Math.max(0, Math.min(1, (risk==null?0:risk)));
+      const r = 46, c = 2*Math.PI*r, off = c*(1-pct);
+      const num = (risk==null) ? "–" : Math.round(pct*100);
+      return '<div class="ring"><svg width="104" height="104" viewBox="0 0 104 104">'
+        + '<circle cx="52" cy="52" r="'+r+'" fill="none" stroke="var(--border)" stroke-width="9"/>'
+        + '<circle cx="52" cy="52" r="'+r+'" fill="none" stroke="'+t.ring+'" stroke-width="9" stroke-linecap="round" '
+        + 'stroke-dasharray="'+c.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'"/></svg>'
+        + '<div class="num">'+num+'</div></div>';
+    }
+    function verdictBlock(v){
+      const t = TIER[v.tier] || TIER.unknown;
+      const conf = (v.confidence==null) ? "" : (Math.round(v.confidence*100) + "% confidence");
+      const rat = (v.rationale||[]).map(esc).join(" · ");
+      const unver = v.verified ? "" : '<div class="vconf">Couldn’t verify a menu. Treat it as unknown, not safe.</div>';
+      return '<div class="verdict">' + ring(v.risk, v.tier)
+        + '<div class="vb"><span class="vword '+t.cls+'"><span class="ic">'+t.ic+'</span>'+esc(t.word)+'</span>'
+        + (rat ? '<div class="vrat">'+rat+'</div>' : '')
+        + (v.basis ? '<div class="vconf">How we know: '+esc(v.basis.replace(/_/g," "))+(conf?' · '+conf:'')+'</div>' : (conf?'<div class="vconf">'+conf+'</div>':''))
+        + unver + '</div></div>';
+    }
+
+    function renderDossier(d){
+      const h = d.header||{}, v = d.verdict||{}, dishes = d.dishes||{}, rs = d.restaurantSignals||{},
+            deep = d.deeperSite||{}, comm = d.community||[], prov = d.provenance||{};
+      const cuisines = (h.cuisines||[]).filter(Boolean).slice(0,3).join(" · ");
+      let html = "";
+
+      // Header
+      html += '<div class="head-row"><div style="flex:1;min-width:240px">'
+        + '<h2>'+esc(h.name||"Restaurant")+'</h2>'
+        + '<div class="head-meta">'
+        + (cuisines?esc(cuisines)+' · ':'') + (h.address?esc(h.address):'')
+        + (h.website?' · <a href="'+esc(h.website)+'" target="_blank" rel="noopener">website ↗</a>':'')
+        + (h.phone?' · '+esc(h.phone):'')
+        + '</div></div>';
+      html += '<span class="pill">'+ (h.resolvedVia==="url"?"From URL":"Matched via Places") +'</span></div>';
+
+      // Verdict
+      html += verdictBlock(v);
+
+      // Region banner
+      const rn = prov.regionNotice;
+      if(rn && rn.message){
+        html += '<div class="region"><span aria-hidden="true">⚑</span><span>'+esc(rn.message)+'</span></div>';
+      }
+
+      // Dishes to watch
+      html += '<div class="sec"><h3>Watch out for these</h3>';
+      const watch = dishes.watch||[];
+      if(watch.length){
+        watch.slice(0,8).forEach(it => {
+          const nm = it.itemName || it.name || it.dish || "Dish";
+          const why = it.suspected ? "May hide nuts (lower confidence)"
+                    : (it.risk!=null ? ("Named nut risk · "+Math.round(it.risk*100)+"/100") : "Named nut risk");
+          html += '<div class="dish"><span aria-hidden="true">⚠</span><div><div class="dn">'+esc(nm)+'</div><div class="dr">'+esc(why)+'</div></div></div>';
+        });
+      } else {
+        html += '<div class="empty">No individual dishes were flagged as named risks.</div>';
+      }
+      if(dishes.parsedCount){
+        html += '<div class="safe-note" style="margin-top:8px">Parsed '+dishes.parsedCount+' dishes; '+dishes.otherCount+' had no named nuts. Absence of a label is not proof of safety.</div>';
+      }
+      html += '</div>';
+
+      // Deeper-site signals
+      html += '<div class="sec"><h3>From the restaurant’s own pages</h3>';
+      const sigs = deep.signals||[];
+      if(sigs.length){
+        sigs.forEach(s => {
+          let flags = "";
+          if(s.nut_free_claim) flags += '<span class="flag nf">Claims nut-free kitchen</span>';
+          if(s.allergy_friendly_claim) flags += '<span class="flag">Allergy-friendly</span>';
+          if(s.allergen_menu_available) flags += '<span class="flag">Allergen menu</span>';
+          if(s.ask_staff) flags += '<span class="flag">Tell staff</span>';
+          if(s.cross_contact_warning) flags += '<span class="flag warn">Cross-contact warning</span>';
+          html += '<div class="sig">' + (flags?'<div class="flags">'+flags+'</div>':'');
+          (s.statements||[]).slice(0,3).forEach(q => { html += '<div class="quote">“'+esc(q)+'”</div>'; });
+          if(s.url) html += '<span class="qsrc">'+esc(s.url)+'</span>';
+          html += '</div>';
+        });
+      } else {
+        html += '<div class="empty">'+ (deep.error?esc(deep.error):"No allergy-handling statements found on the site.") +'</div>';
+      }
+      if((deep.socialLinks||[]).length){
+        html += '<div class="socials">';
+        deep.socialLinks.forEach(u => { html += '<a class="pill" href="'+esc(u)+'" target="_blank" rel="noopener">'+esc(hostOf(u))+' ↗</a>'; });
+        html += '</div>';
+      }
+      html += '</div>';
+
+      // Community anecdotes
+      html += '<div class="sec"><h3>What diners say</h3>';
+      if(comm.length){
+        comm.slice(0,6).forEach(q => { html += '<div class="quote">“'+esc(q)+'”</div>'; });
+      } else {
+        html += '<div class="empty">No allergy anecdotes surfaced from web search.</div>';
+      }
+      html += '</div>';
+
+      // Provenance
+      html += '<div class="sec"><h3>How we know</h3><div class="provlist">';
+      html += provRow("Allergy disclaimer on site", rs.has_allergy_disclaimer);
+      html += provRow("Cross-contact warning", rs.has_cross_contact_warning);
+      html += provRow("Tells guests to inform staff", rs.mentions_staff_allergy_instruction);
+      html += provRow("Kitchen claims nut-free", rs.has_nut_free_claim);
+      const cov = (prov.coverage||[]).filter(c => c && c.found);
+      html += '<div class="prov"><span class="'+(cov.length?"ok":"no")+'">'+(cov.length?"✓":"–")+'</span> Sources with menu/allergen data: '+cov.length+'</div>';
+      html += '</div></div>';
+
+      dossierEl.innerHTML = html;
+      dossierEl.classList.add("show");
+    }
+    function provRow(label, on){
+      return '<div class="prov"><span class="'+(on?"ok":"no")+'">'+(on?"✓":"–")+'</span> '+esc(label)+'</div>';
+    }
+    function hostOf(u){ try{ return new URL(u).hostname.replace(/^www\./,""); }catch(e){ return u; } }
+
+    // ── Submit → open the SSE stream ───────────────────────────────────
+    form.addEventListener("submit", function(ev){
+      ev.preventDefault();
+      const name = $("name").value.trim(), location = $("location").value.trim(), url = $("url").value.trim();
+      if(!name && !url){ showError("Enter a restaurant name (with a city) or a website URL."); return; }
+      if(name && !location && !url){ showError("Add a city or location so we can find the right place, or paste the website URL."); return; }
+
+      errbox.classList.remove("show");
+      dossierEl.classList.remove("show"); dossierEl.innerHTML = "";
+      go.disabled = true; finished = false;
+      resetStages(); crawl.classList.add("show");
+      startTimer();
+
+      const p = new URLSearchParams();
+      if(name) p.set("name", name);
+      if(location) p.set("location", location);
+      if(url) p.set("url", url);
+      p.set("severity", $("severity").value);
+      p.set("crossContact", $("crossContact").value);
+      const nt = $("nutTypes").value.trim(); if(nt) p.set("nutTypes", nt);
+
+      if(es) es.close();
+      es = new EventSource("/dossier/stream?" + p.toString());
+
+      es.addEventListener("stage_start", e => {
+        const d = JSON.parse(e.data); setStage(d.key, "active");
+      });
+      es.addEventListener("stage_done", e => {
+        const d = JSON.parse(e.data); setStage(d.key, "done", summarize(d.key, d.summary));
+      });
+      es.addEventListener("stage_error", e => {
+        const d = JSON.parse(e.data); setStage(d.key, "warn", d.message);
+      });
+      es.addEventListener("dossier", e => { renderDossier(JSON.parse(e.data)); });
+      es.addEventListener("done", e => {
+        finished = true; const d = JSON.parse(e.data);
+        stopTimer(d && d.elapsedMs); go.disabled = false; es.close();
+      });
+      es.addEventListener("error", e => {
+        if(e.data){ try{ showError(JSON.parse(e.data).message || "Something went wrong."); }catch(x){ showError("Something went wrong."); } finished = true; stopTimer(); es.close(); return; }
+        // transport-level error: only surface if we hadn't finished
+        if(!finished){ showError("Lost the connection to the crawl. Try again."); stopTimer(); }
+        go.disabled = false;
+      });
+    });
+
+    function summarize(key, s){
+      if(!s) return "";
+      if(key==="resolve") return (s.name||"") + (s.address?" · "+s.address:"");
+      if(key==="deep_extract") return (s.itemCount||0)+" dishes parsed · "+(s.quotes||0)+" community mentions" + (s.tier?" · "+s.tier.replace(/_/g," "):"");
+      if(key==="deeper_site") return (s.pages||0)+" pages · "+(s.signals||0)+" signal(s) · "+(s.socials||0)+" social link(s)";
+      return "";
+    }
+  })();
+  </script>
+</body>
+</html>
