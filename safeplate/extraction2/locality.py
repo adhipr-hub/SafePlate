@@ -42,9 +42,9 @@ def _slug(text: str) -> str:
 
 def city_from_address(address: str | None) -> str | None:
     """The diner-city slug from a Places address ('..., Cupertino, CA 95014, USA'
-    -> 'cupertino'). The 2nd comma segment is usually the city (mirrors
-    discover._city_token). For short addresses like 'Palo Alto, CA', returns
-    the first segment. None when there is no city-like segment."""
+    -> 'cupertino'). Mirrors discover._city_token for 3+-segment addresses; for a
+    2-segment address it returns the first segment (the city) rather than the second.
+    None when there is no city-like segment."""
     if not address:
         return None
     parts = [p.strip() for p in address.split(",") if p.strip()]
@@ -71,8 +71,8 @@ def url_has_city(url: str, city: str) -> bool:
 def source_city_slug(url: str, restaurant_name: str = "") -> str | None:
     """Best-effort city slug from a menu-source URL's path + filename. Tokenizes on
     non-alphanumerics, drops restaurant-name tokens, menu/section descriptors and
-    upload-path segments, and pure-number/date tokens; the residual 1-3 contiguous
-    tokens are the location candidate. None when nothing plausible remains."""
+    upload-path segments, and pure-number/date tokens; the residual 1-3 tokens
+    (in original order) are the location candidate. None when nothing plausible remains."""
     path = urlparse(url or "").path.lower()
     raw = [t for t in re.split(r"[^a-z0-9]+", path) if t]
     name_tokens = {t for t in re.split(r"[^a-z0-9]+", (restaurant_name or "").lower()) if t}
