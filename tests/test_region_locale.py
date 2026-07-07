@@ -3,6 +3,18 @@ and describe it relative to the diner's region."""
 from safeplate.extraction2 import region as R
 
 
+# --- structural signals (calling code + currency) ----
+
+def test_structural_signals_detects_calling_code_and_currency():
+    from safeplate.extraction2 import region as R
+    assert R._structural_signals("call +64 9 555 0100") == {"NZ"}
+    assert R._structural_signals("mains from nz$18") == {"NZ"}
+    assert R._structural_signals("total £12.50 gbp") == {"GB"}
+    # 'sar' inside 'caesar' must NOT trip Saudi Arabia (word-boundary guard).
+    assert R._structural_signals("caesar salad") == set()
+    assert R._structural_signals("nothing here") == set()
+
+
 # --- detection from URL ccTLD (decisive) -------------------------------------
 
 def test_detect_from_cctld():

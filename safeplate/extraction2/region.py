@@ -125,6 +125,30 @@ _STRONG_NAME_SIGNALS: dict[str, tuple[str, ...]] = {
     "HK": ("hong kong",),
 }
 
+# Independent STRUCTURAL tells (calling code + unambiguous currency) for exactly the
+# countries that have a multiword NAME signal above. A country NAME (e.g. "new
+# zealand") may only assert a region when one of these ALSO appears -- a bare menu-
+# prose mention (a wine's origin) must not brand the source foreign. Alpha currency
+# codes are word-bounded so "sar" can't match inside "caesar", "aed" inside a word,
+# etc. ccTLD tells are handled separately (the domain scan) and stay decisive alone.
+_STRUCTURAL_TELL_RES: dict[str, re.Pattern[str]] = {
+    "NZ": re.compile(r"\+64\b|nz\$|\bnzd\b"),
+    "GB": re.compile(r"\+44\b|£|\bgbp\b"),
+    "ZA": re.compile(r"\+27\b|\bzar\b"),
+    "SA": re.compile(r"\+966\b|\bsar\b|﷼"),
+    "AE": re.compile(r"\+971\b|\baed\b"),
+    "KR": re.compile(r"\+82\b|₩|\bkrw\b"),
+    "HK": re.compile(r"\+852\b|hk\$|\bhkd\b"),
+}
+
+
+def _structural_signals(low: str) -> set[str]:
+    """ISO2 codes with an independent structural tell (calling code or unambiguous
+    currency) present in the already-lowercased visible text. Used to corroborate a
+    multiword country NAME before it may assert a source region (see
+    detect_source_region). Returns an empty set when none are present."""
+    return {code for code, rx in _STRUCTURAL_TELL_RES.items() if rx.search(low)}
+
 
 def country_label(code: str | None) -> str:
     """Human label for UI copy (e.g. 'NZ' -> 'New Zealand'); the raw code if unknown."""
