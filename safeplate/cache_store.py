@@ -119,6 +119,11 @@ def _get_pool():
     with _pool_lock:
         if _pool is not None:
             return _pool
+        # herd guard: another thread may have failed init (and started the
+        # backoff window) while we were queued on the lock -- recheck so we
+        # don't serially retry a dead DB once per queued thread
+        if time.time() - _pool_failed_at < _POOL_RETRY_SECONDS:
+            return None
         try:
             _pool = _new_pool(_with_sslmode(url))
         except Exception as exc:
@@ -135,7 +140,14 @@ def _new_pool(url: str):
     from psycopg_pool import ConnectionPool
 
     pool = ConnectionPool(
-        url, min_size=0, max_size=4, kwargs={"connect_timeout": 5}, open=True
+        url,
+        min_size=0,
+        max_size=4,
+        kwargs={"connect_timeout": 5},
+        open=True,
+        # client-side acquisition wait, not just the connect timeout above --
+        # caps how long a dead DB can stall a request before we fall back to disk
+        timeout=5,
     )
     with pool.connection() as conn:
         conn.execute(_CREATE_SQL)

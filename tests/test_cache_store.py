@@ -175,6 +175,38 @@ def test_with_sslmode_appends_require():
     )
 
 
+def test_new_pool_caps_acquisition_timeout(monkeypatch):
+    # psycopg_pool's client-side acquisition `timeout` defaults to 30s; without
+    # an explicit timeout=5, a DB that dies after pool init would stall every
+    # cache call up to 30s instead of degrading to disk in ~5s.
+    calls = {}
+
+    class FakeConn:
+        def execute(self, sql, params=None):
+            return None
+
+    class FakePoolCtor:
+        def __init__(self, url, **kwargs):
+            calls["url"] = url
+            calls["kwargs"] = kwargs
+
+        @contextmanager
+        def connection(self):
+            yield FakeConn()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr("psycopg_pool.ConnectionPool", FakePoolCtor)
+    cache_store._new_pool("postgresql://u:p@h/db")
+
+    assert calls["kwargs"]["timeout"] == 5
+    assert calls["kwargs"]["min_size"] == 0
+    assert calls["kwargs"]["max_size"] == 4
+    assert calls["kwargs"]["kwargs"] == {"connect_timeout": 5}
+    assert calls["kwargs"]["open"] is True
+
+
 @pytest.mark.skipif(
     not os.environ.get("SAFEPLATE_TEST_DATABASE_URL"),
     reason="no test database configured (set SAFEPLATE_TEST_DATABASE_URL to run)",
