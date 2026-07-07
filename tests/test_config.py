@@ -4,6 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
+import safeplate.config as config
 from safeplate.config import get_gemini_fallback_models
 from safeplate.common import _is_gemini_model_fallback_error
 
@@ -40,6 +41,21 @@ class ConfigTests(unittest.TestCase):
                 "Gemini request failed with HTTP 403: API key invalid"
             )
         )
+
+
+def test_get_database_url_unset(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    assert config.get_database_url() is None
+
+
+def test_get_database_url_blank_is_none(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "   ")
+    assert config.get_database_url() is None
+
+
+def test_get_database_url_set(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", " postgresql://u:p@h:5432/db ")
+    assert config.get_database_url() == "postgresql://u:p@h:5432/db"
 
 
 if __name__ == "__main__":

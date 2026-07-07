@@ -82,6 +82,16 @@ def get_cache_dir() -> Path:
     return Path(__file__).resolve().parents[1] / "data" / ".cache"
 
 
+def get_database_url() -> str | None:
+    """Postgres URL for the shared cache store (and future DB-backed features).
+    Unset/blank means every cache stays on the local disk -- the default for dev
+    machines and tests. Standard form:
+    postgresql://user:password@host:5432/dbname"""
+    url = os.environ.get("DATABASE_URL", "")
+    url = url.strip()
+    return url or None
+
+
 def get_fetch_concurrency() -> int:
     """Worker count for parallel page fetching across restaurants/sources."""
     return _positive_int_env("SAFEPLATE_FETCH_CONCURRENCY", DEFAULT_FETCH_CONCURRENCY)
