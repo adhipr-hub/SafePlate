@@ -1,7 +1,7 @@
 # Provenance-granularity fixes: location-mismatch + region false-positive
 
 **Date:** 2026-07-06
-**Status:** Design — awaiting review (one open decision, see §7)
+**Status:** Design — approved (open decision resolved: §7 option A)
 **Found via:** live deep-dive dossier run on *Sweet Maple, 20010 Stevens Creek Blvd,
 Cupertino, CA*.
 
@@ -152,10 +152,9 @@ In `detect_source_region`:
   the visible text). Unchanged — this preserves the Burger King ← NZ / Starbucks ←
   CH / Nando's ← GB cases the module was built for.
 - A multiword country **name** (`_STRONG_NAME_SIGNALS`) counts **only when the
-  same text carries an independent *structural* tell for that same country** —
-  subject to the open decision in §7, which may add a narrow ingredient/beverage
-  veto so un-corroborated *non-ingredient* claims (e.g. "proudly made in New
-  Zealand") are still kept.
+  same text carries an independent *structural* tell for that same country.** No
+  ingredient veto (open decision resolved to option A, §7): an un-corroborated
+  bare-prose country name never asserts a region.
 
 Structural tells are a small, bounded table for exactly the 7 name-signal
 countries (GB, NZ, ZA, SA, AE, KR, HK), each with its **calling code** and
@@ -199,7 +198,8 @@ New helper `_structural_signals(text) -> set[str]` scans for these. In
 
 - **Bug 2 unit:** Sweet Maple wine text → `None`; "NZ green mussels" on a US menu
   → `None`; real NZ menu with `+64`/`NZ$` → `NZ`. All existing ccTLD/domain-tell
-  and false-friend tests stay green.
+  and false-friend tests stay green; `test_detect_strong_multiword_name` is
+  updated per §7 (bare name → `None`, name + structural tell → `NZ`).
 - **Bug 1 unit:** city-slug extraction (`sweet-maple-santa-monica-menu.pdf` →
   `santa-monica`; `dinner-menu.pdf` → no city; `menu-cupertino` → `cupertino`);
   notice layering incl. the coverage-diff path; `_menu_city_mismatch` truth table.
@@ -209,7 +209,7 @@ New helper `_structural_signals(text) -> set[str]` scans for these. In
   byte-identical. Bug 1's notice is additive; Bug 1b only *widens* when the Brave
   fallback may run (never narrows) and keeps all existing collision/budget guards.
 
-## 7. Open decision — Bug 2 loses bare-prose foreign claims
+## 7. Resolved decision — accept loss of bare-prose foreign claims (option A)
 
 Pure structural corroboration (§4) drops **every** un-corroborated country name —
 including legitimate provenance claims, not just ingredient origins. This
@@ -218,35 +218,25 @@ including legitimate provenance claims, not just ingredient origins. This
 
 ```python
 text = "Allergen guide — proudly made in New Zealand."
-assert R.detect_source_region(text, "https://cdn.x.com/n.pdf") == "NZ"  # today
+assert R.detect_source_region(text, "https://cdn.x.com/n.pdf") == "NZ"  # OLD behavior
 ```
 
 "Proudly made in New Zealand" is a real foreign signal with no ccTLD/currency/phone
-to corroborate it, so §4 would now return `None` and miss it. This is a
-safety-asymmetric tradeoff: we fix a false *positive* (wine) at the cost of a
-false *negative* (bare-prose foreign claim). Two ways to resolve:
+to corroborate it, so §4 returns `None` and no longer detects it. This is an
+accepted safety-asymmetric tradeoff: we fix a false *positive* (wine) at the cost
+of a false *negative* (bare-prose foreign claim with no structural cue).
 
-- **(A) Accept it.** Update `test_detect_strong_multiword_name` to expect `None`;
-  rely on ccTLD + structural tells only. Simplest, no list to maintain, but
-  narrows the safety net for genuinely-foreign charts whose only cue is prose.
-- **(B) Corroboration + a minimal ingredient/beverage veto** *(recommended)*. Keep
-  an un-corroborated name vote **unless** its occurrences are all in
-  ingredient/beverage context (wine varietals: `sauvignon|pinot|cabernet|
-  chardonnay|merlot|riesling|syrah|shiraz|malbec|rosé`; beverage words:
-  `wine|vintage|bottle|glass|btl|vineyard`; food-origin: `mussels|oysters|lamb|
-  wagyu|king salmon|grass-fed|wild-caught|imported`; or a price token within the
-  window). Drop iff *(all occurrences are ingredient-context) AND (no structural
-  corroboration)*.
-  - wine / mussels → dropped ✅  ·  "proudly made in New Zealand" → kept ✅ ·
-    real NZ menu → kept ✅
-  - Cost: a small veto list to maintain — the very thing pure 2+3 was meant to
-    avoid — but it preserves the documented true-positive **and** covers the
-    mussels case, i.e. strictly more capable.
+**Decision: option A (accept it).** No ingredient veto list is added. Rationale:
+keep the module simple and free of an open-ended ingredient blocklist; genuinely
+foreign allergen charts/menus almost always carry a ccTLD, address, phone, or
+currency somewhere, so the practical loss is small, and ccTLD detection still
+covers the original Burger King/Starbucks/Nando's cases unchanged.
 
-**Recommendation: (B).** It keeps every case the module already gets right and
-adds the wine/mussels fix; the veto list is short and the price-proximity rule
-covers most drink lines generically. If the maintenance cost isn't wanted, (A) is
-the clean fallback.
+**Required change:** update `test_detect_strong_multiword_name` to assert the new
+behavior — a bare-prose country name with no structural tell returns `None`; add a
+sibling test showing the same text **with** a structural tell (e.g. append
+"`Call +64 9 555 0100.`" or "`NZ$18`") still returns `NZ`, documenting the
+corroboration boundary.
 
 ## 8. Sequencing
 
