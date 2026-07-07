@@ -21,6 +21,7 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     SAFEPLATE_HOST=0.0.0.0 \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/playwright \
     PORT=8765
 
 WORKDIR /app
@@ -29,6 +30,12 @@ WORKDIR /app
 # force pip to reinstall everything on every rebuild (Docker caches this layer).
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Chromium (+ its system libraries) for JS-rendered menus in the Deep-Dive
+# Dossier. Installed to PLAYWRIGHT_BROWSERS_PATH so the non-root runtime user
+# can read it. If this layer is removed, the app still runs -- the dossier just
+# degrades to static fetching.
+RUN playwright install --with-deps chromium
 
 # Then copy the application code.
 COPY . .

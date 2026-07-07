@@ -59,6 +59,16 @@ Your `.env` and `data/` are gitignored, so no secrets or local outputs are pushe
 and just fill the secret values. The manual dashboard path above is the most
 reliable, though.)*
 
+## JS-rendered menus (Playwright)
+
+The Deep-Dive Dossier renders JavaScript-built sites with headless Chromium
+(`playwright`). Locally: `pip install -r requirements.txt && playwright install
+chromium`. In Docker the image installs Chromium with its system libraries
+(reliable path). On Render's native Python runtime the build attempts
+`playwright install chromium`; if the browser can't run there, the app degrades
+gracefully to static fetching -- everything works, JS-only menus just fall back
+to cuisine estimates.
+
 ## Step 4 — Open it
 Visit `https://<your-service>.onrender.com`. The browser prompts for the
 username/password you set, then SafePlate loads. Because it's HTTPS, the

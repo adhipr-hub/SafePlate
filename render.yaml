@@ -12,7 +12,10 @@ services:
     name: safeplate
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    # `playwright install chromium` is best-effort on the native Python runtime
+    # (system libraries may be incomplete there); the app degrades to static
+    # fetching if Chromium can't run. The Dockerfile is the reliable path.
+    buildCommand: pip install -r requirements.txt && playwright install chromium
     startCommand: python scripts/start_safeplate_app.py --host 0.0.0.0 --port $PORT --no-browser
     healthCheckPath: /healthz
     envVars:
