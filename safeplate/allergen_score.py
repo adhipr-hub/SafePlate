@@ -745,7 +745,13 @@ def _score_one_allergen(
     # How much menu we parsed, and which dishes are nut-RISKY by ANY evidence:
     # grounded chart/text hits OR dish-name inference. Navigability + the coverage
     # discount both read these.
-    parsed_count = sum(1 for row in rows if row[1])
+    # Review-sourced dishes (the community fallback used when NO real menu was found)
+    # must not count as menu coverage -- they cannot earn the "we read the menu"
+    # reassurance (`menu_coverage` basis) or its coverage discount. They still feed the
+    # dish-name prior above (a menu-less place beats a bare cuisine guess); excluding
+    # them here means a place whose real menu was never read never shows as "menu
+    # reviewed". Community items carry extraction_method "community_mention" (row[3]).
+    parsed_count = sum(1 for row in rows if row[1] and row[3] != "community_mention")
     coverage_fraction = min(1.0, parsed_count / _COVERAGE_FULL) if parsed_count else 0.0
 
     # A dish is nut-risky by NAME only if its prior is ELEVATED above the cuisine
@@ -1104,7 +1110,13 @@ def _score_generic_allergen(
         default=1.0,
     )
 
-    parsed_count = sum(1 for row in rows if row[1])
+    # Review-sourced dishes (the community fallback used when NO real menu was found)
+    # must not count as menu coverage -- they cannot earn the "we read the menu"
+    # reassurance (`menu_coverage` basis) or its coverage discount. They still feed the
+    # dish-name prior above (a menu-less place beats a bare cuisine guess); excluding
+    # them here means a place whose real menu was never read never shows as "menu
+    # reviewed". Community items carry extraction_method "community_mention" (row[3]).
+    parsed_count = sum(1 for row in rows if row[1] and row[3] != "community_mention")
     coverage_fraction = min(1.0, parsed_count / _COVERAGE_FULL) if parsed_count else 0.0
 
     name_risk_threshold = max(0.5, cuisine_floor + 0.1)

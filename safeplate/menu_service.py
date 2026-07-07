@@ -289,7 +289,8 @@ def _structured_menu_response(
                 "rationale": per_allergen.rationale,
             }
         )
-    coverage_status = "menu_backed" if menu_items else "cuisine_estimate"
+    real_items = _non_community_items(menu_items)
+    coverage_status = "menu_backed" if real_items else "cuisine_estimate"
     region_notice = _region_notice_for(
         coverage, menu_items, address=address, website_url=website_url
     )
@@ -322,7 +323,7 @@ def _structured_menu_response(
             "risk": round(assessment.overall_risk, 3),
             "confidence": round(assessment.overall_confidence, 2),
             "rationale": assessment.rationale,
-            "isMenuBacked": bool(menu_items),
+            "isMenuBacked": bool(real_items),
             "tier": assessment.tier,
             "riskiestItems": riskiest_items,
             "scoringEngine": scoring_engine,
@@ -594,13 +595,14 @@ def _write_assessment_into_card(
         "region": region,
         "scoringEngine": scoring_engine,
     }
-    payload["coverageStatus"] = "menu_backed" if menu_items else "cuisine_estimate"
+    real_items = _non_community_items(menu_items)
+    payload["coverageStatus"] = "menu_backed" if real_items else "cuisine_estimate"
     if diets:
         payload["diets"] = diets
     # We just extracted the full menu to score the card -- carry it along so opening
     # the drawer is INSTANT (no /api/menu round-trip). Only for menu-backed cards;
     # cuisine-estimate ones have nothing to embed and fetch fresh on open.
-    if menu_items:
+    if real_items:
         payload["menuDetail"] = _structured_menu_response(
             restaurant_name=name,
             website_url=website_url,
@@ -822,14 +824,29 @@ def _menu_summary(
     }
 
 
+def _non_community_items(menu_items: list[Any]) -> list[Any]:
+    """Items that came from an actually-read menu source. Items scraped from reviews
+    (the community fallback when no real menu was found) are NOT menu coverage:
+    presenting them as "menu reviewed" over-claims -- a single review-mentioned dish
+    would otherwise read as the whole menu. They still feed the dish-name prior; they
+    simply don't earn menu-backed coverage. EVERY builder that emits a
+    ``coverageStatus`` / ``isMenuBacked`` field must gate it on this filter."""
+    return [
+        item
+        for item in menu_items
+        if str(_item_value(item, "source_type") or "") != "community"
+    ]
+
+
 def _coverage_status(
     menu_sources: list[Any],
     menu_text: list[Any],
     menu_items: list[Any],
 ) -> str:
-    if menu_items:
+    real_items = _non_community_items(menu_items)
+    if real_items:
         return "menu_backed"
-    if menu_sources or menu_text:
+    if menu_items or menu_sources or menu_text:
         return "cuisine_estimate"
     return "no_menu_found"
 
