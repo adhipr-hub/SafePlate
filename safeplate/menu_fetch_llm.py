@@ -14,12 +14,10 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 import time
-from pathlib import Path
 from typing import Any
 
-from safeplate.config import get_cache_dir
+from safeplate import cache_store
 from safeplate.gemini_menu import (
     GeminiMenuError,
     _parse_gemini_json_response,
@@ -437,16 +435,13 @@ def _as_terms(value: Any) -> list[str]:
     return [str(term).strip() for term in value if str(term).strip()]
 
 
-def _cache_path(url: str) -> Path:
-    digest = hashlib.sha1(url.encode("utf-8")).hexdigest()
-    return get_cache_dir() / "llm_menu" / f"{digest}.json"
+def _cache_key(url: str) -> str:
+    return hashlib.sha1(url.encode("utf-8")).hexdigest()
 
 
 def _load_cache(url: str) -> dict[str, Any] | None:
-    path = _cache_path(url)
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    payload = cache_store.load("llm_menu", _cache_key(url))
+    if payload is None:
         return None
     if time.time() - payload.get("fetched_at", 0) > _CACHE_TTL_SECONDS:
         return None
@@ -455,12 +450,8 @@ def _load_cache(url: str) -> dict[str, Any] | None:
 
 
 def _save_cache(url: str, extraction: dict[str, Any]) -> None:
-    path = _cache_path(url)
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps({"fetched_at": time.time(), "extraction": extraction}),
-            encoding="utf-8",
-        )
-    except OSError:
-        pass
+    cache_store.save(
+        "llm_menu",
+        _cache_key(url),
+        {"fetched_at": time.time(), "extraction": extraction},
+    )

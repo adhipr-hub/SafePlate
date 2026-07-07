@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from safeplate.config import get_cache_dir
+from safeplate import cache_store
 from safeplate.extraction2.interpret_llm import _call_with_retry
 from safeplate.gemini_menu import GeminiMenuError
 
@@ -122,14 +122,9 @@ def _cache_key(names: list[str], diets: list[str], model: str) -> str:
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()
 
 
-def _cache_path(key: str):
-    return get_cache_dir() / "diet_llm" / f"{key}.json"
-
-
 def _load_cache(key: str):
-    try:
-        blob = json.loads(_cache_path(key).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    blob = cache_store.load("diet_llm", key)
+    if blob is None:
         return None
     if time.time() - blob.get("at", 0) > _CACHE_TTL:
         return None
@@ -137,9 +132,4 @@ def _load_cache(key: str):
 
 
 def _save_cache(key: str, parsed) -> None:
-    try:
-        p = _cache_path(key)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps({"at": time.time(), "parsed": parsed}), encoding="utf-8")
-    except OSError:
-        pass
+    cache_store.save("diet_llm", key, {"at": time.time(), "parsed": parsed})

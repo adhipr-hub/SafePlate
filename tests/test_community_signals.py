@@ -20,16 +20,20 @@ def _brave_results(*texts):
 
 class CommunitySignalsTests(unittest.TestCase):
     def setUp(self):
+        import os
         import tempfile
-        from pathlib import Path
         self._tmp = tempfile.mkdtemp()
-        self._orig_cache = cs.get_cache_dir
-        cs.get_cache_dir = lambda: Path(self._tmp)
+        self._orig_cache = os.environ.get("SAFEPLATE_CACHE_DIR")
+        os.environ["SAFEPLATE_CACHE_DIR"] = self._tmp
         self._orig_brave = brave.brave_web_search
         self._orig_llm = illm._call_with_retry
 
     def tearDown(self):
-        cs.get_cache_dir = self._orig_cache
+        import os
+        if self._orig_cache is None:
+            os.environ.pop("SAFEPLATE_CACHE_DIR", None)
+        else:
+            os.environ["SAFEPLATE_CACHE_DIR"] = self._orig_cache
         brave.brave_web_search = self._orig_brave
         illm._call_with_retry = self._orig_llm
 

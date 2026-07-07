@@ -53,3 +53,38 @@ def test_allergy_signals_cache_hit_serves_from_store(monkeypatch):
         lambda *a, **k: pytest.fail("cache hit must not call Gemini"),
     )
     assert allergy_signals._cached_or_call("page text", api_key="k", model="m") == parsed
+
+
+def test_community_signals_cache_hit_serves_from_store(monkeypatch):
+    from safeplate import community_signals
+
+    monkeypatch.setattr(
+        community_signals.cache_store, "load",
+        lambda ns, key: {"at": time.time(), "signals": [], "dishes": [], "quotes": [], "diet_signals": []}
+        if ns == "community_signals" else None,
+    )
+    result = community_signals._load_cache("Nut House Cafe", "1 Main St", False)
+    assert result is not None
+    assert result.signals == [] and result.quotes == []
+
+
+def test_diet_llm_cache_hit_serves_from_store(monkeypatch):
+    from safeplate import diet_llm
+
+    monkeypatch.setattr(
+        diet_llm.cache_store, "load",
+        lambda ns, key: {"at": time.time(), "parsed": [{"n": "salad"}]} if ns == "diet_llm" else None,
+    )
+    assert diet_llm._load_cache("somekey") == [{"n": "salad"}]
+
+
+def test_llm_menu_cache_hit_serves_from_store(monkeypatch):
+    from safeplate import menu_fetch_llm
+
+    extraction = {"menu_items": [{"item_name": "pho"}]}
+    monkeypatch.setattr(
+        menu_fetch_llm.cache_store, "load",
+        lambda ns, key: {"fetched_at": time.time(), "extraction": extraction}
+        if ns == "llm_menu" else None,
+    )
+    assert menu_fetch_llm._load_cache("https://pho.example/menu") == extraction

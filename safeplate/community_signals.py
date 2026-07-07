@@ -17,7 +17,6 @@ the searched text) or it is dropped.
 from __future__ import annotations
 
 import hashlib
-import json
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -25,7 +24,7 @@ from typing import Any
 
 from safeplate.allergen_prior import NUTS, PEANUTS, TREE_NUTS
 from safeplate.allergen_score import CommunitySignal
-from safeplate.config import get_cache_dir
+from safeplate import cache_store
 from safeplate.gemini_menu import GeminiMenuError
 from safeplate.menu_text import MenuItemRecord
 from safeplate.textutil import norm_ws
@@ -291,17 +290,15 @@ def _build_result(
 
 
 # --------------------------------------------------------------------------- #
-def _cache_path(restaurant_name: str, address: str | None, want_dishes: bool):
-    key = hashlib.sha1(
+def _cache_key(restaurant_name: str, address: str | None, want_dishes: bool) -> str:
+    return hashlib.sha1(
         f"{_CACHE_VERSION}:{restaurant_name}:{address or ''}:{int(want_dishes)}".encode("utf-8")
     ).hexdigest()
-    return get_cache_dir() / "community_signals" / f"{key}.json"
 
 
 def _load_cache(restaurant_name: str, address: str | None, want_dishes: bool) -> CommunityResult | None:
-    try:
-        blob = json.loads(_cache_path(restaurant_name, address, want_dishes).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    blob = cache_store.load("community_signals", _cache_key(restaurant_name, address, want_dishes))
+    if blob is None:
         return None
     if time.time() - blob.get("at", 0) > _CACHE_TTL:
         return None
@@ -321,15 +318,14 @@ def _load_cache(restaurant_name: str, address: str | None, want_dishes: bool) ->
 def _save_cache(restaurant_name: str, address: str | None, want_dishes: bool, result: CommunityResult) -> None:
     from dataclasses import asdict
 
-    path = _cache_path(restaurant_name, address, want_dishes)
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({
+    cache_store.save(
+        "community_signals",
+        _cache_key(restaurant_name, address, want_dishes),
+        {
             "at": time.time(),
             "signals": [asdict(s) for s in result.signals],
             "dishes": [asdict(d) for d in result.dishes],
             "quotes": result.quotes,
             "diet_signals": [asdict(d) for d in result.diet_signals],
-        }), encoding="utf-8")
-    except OSError:
-        pass
+        },
+    )
