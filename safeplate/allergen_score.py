@@ -1064,11 +1064,16 @@ def _score_generic_allergen(
         ))
 
     # T4 + T5: cuisine/location floor + per-dish KB matches (generic prior twin).
+    # Description included, same as the nut path: allergen evidence often lives only
+    # there ("Chicken Pasta" / "in a creamy alfredo sauce" -> milk).
     base = restaurant_allergen_risk(
         allergen=allergen,
         cuisines=cuisines,
         region=region,
-        menu_items=[{"name": name_raw} for name_raw, *_rest in rows],
+        menu_items=[
+            {"name": name_raw, "description": desc}
+            for name_raw, _name, desc, *_rest in rows
+        ],
         baseline=None,
     )
     cuisine_floor = allergen_cuisine_baseline(allergen, cuisines, region).risk

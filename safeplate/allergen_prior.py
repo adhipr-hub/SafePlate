@@ -1424,7 +1424,9 @@ def restaurant_allergen_risk(
     riskiest: list[tuple[str, float]] = []
     for item in menu_items or []:
         name = str(item.get("name") or "")
-        low = name.lower()
+        # Match on name + description (same text the nut path scores): KB patterns
+        # like "alfredo" usually appear only in the description.
+        low = _normalize(f"{name} {item.get('description') or ''}")
         best = 0.0
         note = ""
         for pattern, dish_risk, dish_note in kb:
