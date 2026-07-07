@@ -757,7 +757,7 @@ def _validate_record(
             return _replace_validation(
                 record,
                 validation_status="rejected",
-                validation_reason="PDF URL contains no food/allergen keywords — likely a corporate or legal document",
+                validation_reason="PDF URL contains no food/allergen keywords; likely a corporate or legal document",
                 confidence_delta=-0.3,
             )
         return _replace_validation(

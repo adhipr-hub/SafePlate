@@ -197,7 +197,7 @@
     .reveal-up{ opacity:0; transform:translateY(16px); }
     .dossier.show .reveal-up{ animation:revealUp .6s var(--ease-out) both; animation-delay:var(--d,0ms); }
     @keyframes revealUp{ to{ opacity:1; transform:none; } }
-    /* Ring draws from empty to its value via a keyframe — renders correct-by-default
+    /* Ring draws from empty to its value via a keyframe -- renders correct-by-default
        (no rAF gating), so it's right even in headless/hidden tabs. */
     .ring circle.arc{ stroke-dashoffset:var(--off); animation:ringDraw 1.1s var(--ease-out) both; }
     @keyframes ringDraw{ from{ stroke-dashoffset:var(--c); } to{ stroke-dashoffset:var(--off); } }
@@ -466,19 +466,19 @@
       if(rn && rn.verified === false){
         const src = esc(rn.sourceLabel || "another region");
         html += '<div class="region reveal-up"><span aria-hidden="true">⚑</span><span>Allergen data is from '+src+
-                ' — recipes and labelling differ by country. Use as a guide and confirm with the restaurant.</span></div>';
+                '. Recipes and labelling differ by country. Use as a guide and confirm with the restaurant.</span></div>';
       }
       const ln = prov.locationNotice;
       if(ln && ln.verified === false){
         const home = esc(ln.homeCity || "your area");
         const msg = ln.shownCity
           ? ('This menu is from the '+esc(ln.shownCity)+' location, not '+home+
-             '. Dishes and prep can differ — confirm with the '+home+' location.')
+             '. Dishes and prep can differ; confirm with the '+home+' location.')
           : ("We couldn't confirm this is the "+home+" menu; it may be from another location. Confirm with the restaurant.");
         html += '<div class="region reveal-up"><span aria-hidden="true">⚑</span><span>'+msg+'</span></div>';
       }
 
-      // Menu read — richer, per-dish risk badges + a read summary
+      // Menu read -- richer, per-dish risk badges + a read summary
       html += '<div class="sec reveal-up" style="--d:180ms"><h3>What the menu says</h3><div class="menu-read">';
       const watch = dishes.watch||[];
       const parsed = dishes.parsedCount || 0;
@@ -488,7 +488,7 @@
         watch.slice(0,10).forEach(it => {
           const nm = it.itemName || it.name || it.dish || "Dish";
           let band, word, reason;
-          if(it.suspected){ band='b-med'; word='Suspected'; reason='May hide nuts — lower-confidence signal'; }
+          if(it.suspected){ band='b-med'; word='Suspected'; reason='May hide nuts (lower-confidence signal)'; }
           else if(it.risk!=null){
             const rk = Math.round(it.risk*100);
             band = it.risk>=0.66 ? 'b-high' : (it.risk>=0.33 ? 'b-med' : 'b-low');
@@ -499,7 +499,7 @@
                 + '<span class="d2b '+band+'">'+esc(word)+'</span></div>';
         });
         if(parsed && dishes.otherCount!=null){
-          html += '<div class="mr-foot">'+dishes.otherCount+' other dishes carried no named nuts — but an unlabelled dish is not a safe dish. Confirm cross-contact with the kitchen.</div>';
+          html += '<div class="mr-foot">'+dishes.otherCount+' other dishes carried no named nuts, but an unlabelled dish is not a safe dish. Confirm cross-contact with the kitchen.</div>';
         }
       } else {
         html += '<div class="mr-foot">No individual dishes named nuts. That is not the same as nut-free; confirm cross-contact with the kitchen before ordering.</div>';

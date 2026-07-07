@@ -1,4 +1,4 @@
-"""Deep-Dive Dossier (prototype) — a SINGLE-restaurant deep dive.
+"""Deep-Dive Dossier (prototype) -- a SINGLE-restaurant deep dive.
 
 Instead of scanning ~12 nearby places, the user points at one restaurant and we
 spend the full budget going deep: resolve it, run the production extraction +
@@ -296,7 +296,7 @@ def build_target(params: dict[str, Any], *, demo_mode: bool = False) -> Target |
     )
     row = _best_name_match(search.get("rows") or [], name)
     if row is None:
-        # Couldn't match by name — fall back to a supplied URL if there was one.
+        # Couldn't match by name -- fall back to a supplied URL if there was one.
         if url:
             return Target(name=name or _name_from_url(url), website_url=url, resolved_via="url")
         return None
@@ -370,7 +370,7 @@ def scan_deeper_site(
     """Fetch the homepage, follow a few internal about/FAQ/allergy links, and mine
     grounded allergy-handling statements from them (reusing the production
     ``extract_allergy_signals`` grounding). Also collects social links. Best-effort:
-    any failure is recorded in ``error`` and never raises — the dossier degrades,
+    any failure is recorded in ``error`` and never raises -- the dossier degrades,
     it doesn't break, and it NEVER moves the verdict toward 'safe'."""
     from safeplate.page_fetch import fetch_html_page
     from safeplate.soup import make_soup
@@ -389,7 +389,7 @@ def scan_deeper_site(
     soup = make_soup(home.html)
     base_host = urlparse(home.final_url).netloc
 
-    # Social links (surfaced, not crawled — IG/FB are bot-walled).
+    # Social links (surfaced, not crawled -- IG/FB are bot-walled).
     socials = [
         _abs(home.final_url, a["href"])
         for a in soup.find_all("a", href=True)
@@ -484,7 +484,7 @@ def assemble_dossier(
 ) -> dict[str, Any]:
     """Fold the target + extraction + deeper-site scan into the dossier payload the
     page renders. Missing/failed extraction degrades to an unverified verdict
-    (``verified: false``) — never a fabricated 'safe'."""
+    (``verified: false``) -- never a fabricated 'safe'."""
     summary = (extraction or {}).get("summary") or {}
     mbr = summary.get("menuBackedRisk") or {}
     item_count = int(summary.get("itemCount") or 0)
@@ -545,7 +545,7 @@ def iter_dossier_events(params: dict[str, Any], *, demo_mode: bool = False) -> I
     try:
         yield _sse("start", {"name": params.get("name"), "location": params.get("location")})
 
-        # Stage 1 — resolve.
+        # Stage 1 -- resolve.
         yield _sse("stage_start", {"key": "resolve", "label": "Finding the restaurant"})
         try:
             target = build_target(params, demo_mode=demo_mode)
@@ -567,7 +567,7 @@ def iter_dossier_events(params: dict[str, Any], *, demo_mode: bool = False) -> I
                                             "website": target.website_url, "via": target.resolved_via}},
         )
 
-        # Stage 2 — deep extract (menu + allergen chart + community + scoring), one call.
+        # Stage 2 -- deep extract (menu + allergen chart + community + scoring), one call.
         yield _sse(
             "stage_start",
             {"key": "deep_extract", "label": "Reading the menu, allergen chart & community mentions"},
@@ -587,7 +587,7 @@ def iter_dossier_events(params: dict[str, Any], *, demo_mode: bool = False) -> I
             }},
         )
 
-        # Stage 3 — deeper-site scan (new lever). Best-effort.
+        # Stage 3 -- deeper-site scan (new lever). Best-effort.
         yield _sse(
             "stage_start",
             {"key": "deeper_site", "label": "Scanning about / FAQ / allergy pages & socials"},

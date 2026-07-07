@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SafePlate — Allergy-aware dining</title>
+  <title>SafePlate · Allergy-aware dining</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23166534'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
   <script>document.documentElement.classList.add('js');</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,17 +13,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet" />
   <style>
     /* ════════════════════════════════════════════════════════════════════════
-       SafePlate — "Editorial Aurora" (live app reskin)
+       SafePlate -- "Editorial Aurora" (live app reskin)
        Warm-paper editorial broadsheet + a slow green aurora signature.
        Playfair Display (display) · Hanken Grotesk (UI) · Spline Sans Mono (figures).
        All class/var names kept intact for the data-driven JS below.
        ════════════════════════════════════════════════════════════════════════ */
     :root {
-      /* —— Warm-paper editorial base —— */
+      /* ---- Warm-paper editorial base ---- */
       --page:    #F7F3EA;   /* warm bone */
       --paper2:  #FAF7F0;   /* alternate tonal ground */
       --surface: #FDFBF6;   /* lifted near-white cards */
-      --border:  #E6DECF;   /* hairline (ALSO the ring track — keep visible) */
+      --border:  #E6DECF;   /* hairline (ALSO the ring track -- keep visible) */
       --border2: #CFC4B2;   /* hover border */
 
       /* Hero / closing forest (kept defined; warm-paper hero uses the aurora) */
@@ -33,8 +33,8 @@
       --hero-soft: #DCEBE1;
       --mint:    #86EFAC;
 
-      /* Ink scale — AA-safe on bone (no light-grey body text) */
-      --tx:  #211B16;   /* espresso — display/headlines (~13:1) */
+      /* Ink scale -- AA-safe on bone (no light-grey body text) */
+      --tx:  #211B16;   /* espresso -- display/headlines (~13:1) */
       --tx2: #4A4039;   /* body copy (~9:1) */
       --tx3: #5E544B;   /* secondary / captions (~6.6:1) */
 
@@ -50,7 +50,7 @@
       --tl: #F0FDF4;  --tm: #FFFBEB;  --th: #FEF2F2;   /* risk tint bg */
       --bl: #BBF7D0;  --bm: #FDE68A;  --bh: #FECACA;   /* risk border */
 
-      /* Semantic accents — each carries exactly one meaning */
+      /* Semantic accents -- each carries exactly one meaning */
       --signal:     #2563EB;
       --ai:         #6D28D9;
       --ai-tint:    #EDE9FE;
@@ -58,15 +58,15 @@
       --callahead:  #7C3AED;
       --star:       #FBBF24;
       --scrim:      rgba(20,14,8,0.34);
-      /* Primary CTA gradient — AA-safe for white text at BOTH stops */
+      /* Primary CTA gradient -- AA-safe for white text at BOTH stops */
       --brand-grad: linear-gradient(150deg, #15803D, #0F4A2E);
       /* Menu-chip tints */
       --mchip-nut: #FEE2E2;  --mchip-other: #FEF9C3;  --mchip-other-bd: #FEF08A;  --mchip-other-ink: #854D0E;
 
-      /* THE SIGNATURE: the aurora (brand atmosphere only — never a risk signal) */
+      /* THE SIGNATURE: the aurora (brand atmosphere only -- never a risk signal) */
       --aur-forest: #0F4A2E;  --aur-mid: #16A34A;  --aur-mint: #86EFAC;  --aur-gold: rgba(214,178,120,.10);
 
-      /* Elevation — warm, diffuse */
+      /* Elevation -- warm, diffuse */
       --e1: 0 1px 3px rgba(40,28,16,0.06), 0 1px 2px rgba(40,28,16,0.04);
       --e2: 0 6px 22px -6px rgba(40,28,16,0.10), 0 2px 6px rgba(40,28,16,0.05);
       --e3: 0 16px 44px -10px rgba(40,28,16,0.16), 0 4px 12px rgba(40,28,16,0.07);
@@ -75,7 +75,7 @@
 
       --rXS: 8px;  --rS: 12px;  --rM: 14px;  --rL: 18px;  --rXL: 24px;  --pill: 999px;
 
-      /* Type — editorial-luxury webfaces, tight system fallback */
+      /* Type -- editorial-luxury webfaces, tight system fallback */
       --serif: "Playfair Display", Georgia, "Times New Roman", serif;
       --sans:  "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
       --mono:  "Spline Sans Mono", ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
@@ -142,27 +142,29 @@
     .s-dot.live { background: var(--g2); box-shadow: 0 0 0 0 rgba(34,197,94,.5); animation: pip 2.6s var(--ease-io) infinite; }
     @keyframes pip { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); } 50% { box-shadow: 0 0 0 5px rgba(34,197,94,0); } }
 
-    /* Theme switch — flip between the classic and green skins (backend-served) */
+    /* Theme switch -- flip between the classic and green skins (backend-served) */
     .theme-switch {
       margin-left: auto; display: inline-flex; align-items: center; gap: 2px;
       padding: 3px; border-radius: var(--pill);
       border: 1px solid var(--border); background: var(--paper2);
     }
-    .theme-switch .ts-lab { font: 700 10px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--tx3); padding: 0 8px 0 6px; }
-    .theme-switch .ts-opt {
+    .ts-lab { font: 700 10px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--tx3); padding: 0 8px 0 6px; }
+    .ts-opt {
       font: 600 12px/1 var(--sans); color: var(--tx3); text-decoration: none;
       padding: 7px 12px; border-radius: var(--pill); white-space: nowrap;
       transition: background .16s var(--ease-io), color .16s var(--ease-io), box-shadow .16s var(--ease-io);
     }
-    .theme-switch .ts-opt:hover { color: var(--tx); }
-    .theme-switch .ts-opt.is-on { background: var(--surface); color: var(--g0); box-shadow: var(--e1); }
+    .ts-opt:hover { color: var(--tx); }
+    .ts-opt.is-on { background: var(--surface); color: var(--g0); box-shadow: var(--e1); }
+    /* The dropdown-menu copy of the switch: hidden until the bar copy is hidden (≤680px). */
+    .nav-theme { display: none; }
 
-    /* ─── Hero band — warm paper + living aurora ─── */
+    /* ─── Hero band -- warm paper + living aurora ─── */
     .hero {
       position: relative; isolation: isolate; overflow: hidden;
       color: var(--tx2); padding: clamp(54px,7vw,96px) 0 clamp(70px,8vw,112px);
     }
-    /* the signature aurora — slow breathing green light */
+    /* the signature aurora -- slow breathing green light */
     .aurora { position: absolute; inset: -20% -10% -10% -10%; z-index: 0; pointer-events: none; }
     .aurora::before {
       content: ""; position: absolute; inset: 0;
@@ -179,7 +181,7 @@
       33% { transform: translate3d(1.6%,-1.4%,0) scale(1.03); }
       66% { transform: translate3d(-1.4%,1.2%,0) scale(1.02); }
     }
-    /* fine grain film — the "designed, not default" tell */
+    /* fine grain film -- the "designed, not default" tell */
     .grain {
       position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .05; mix-blend-mode: multiply;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -193,7 +195,7 @@
       font: 400 clamp(42px,6vw,76px)/1.02 var(--serif);
       letter-spacing: -.025em; margin-bottom: 22px; text-wrap: balance; color: var(--tx);
     }
-    h1 .grad { font-style: italic; color: var(--g0); }   /* editorial emphasis — italic, never gradient text */
+    h1 .grad { font-style: italic; color: var(--g0); }   /* editorial emphasis -- italic, never gradient text */
     .hero-sub {
       font: 400 clamp(17px,2vw,21px)/1.55 var(--sans); color: var(--tx3);
       max-width: 34ch; margin-bottom: 26px;
@@ -272,7 +274,7 @@
     .profile-summary .ps-edit:hover { border-color: var(--g1); }
 
     /* ─── Results bar ─── */
-    .results { padding: 0 0 96px; }
+    .results { padding: 0 0 96px; scroll-margin-top: 78px; }  /* clear the sticky topbar when scrolled to */
     .results.hidden { display: none; }
     .results-bar {
       display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -288,7 +290,7 @@
     }
     .sort-btn:hover { border-color: var(--border2); color: var(--tx); }
     .sort-btn.on { background: var(--tx); border-color: var(--tx); color: var(--page); }
-    /* Cache toggle: a developer/testing control — only revealed with ?debug in the URL.
+    /* Cache toggle: a developer/testing control -- only revealed with ?debug in the URL.
        Neutral inks when off (the risk palette is reserved for grading allergen risk). */
     .cache-toggle { margin-left: 10px; }
     .cache-toggle[hidden] { display: none !important; }
@@ -315,9 +317,9 @@
     .prog.done .prog-fill { background: var(--g1); }
     .prog-label { font: 600 12.5px/1 var(--mono); color: var(--tx2); white-space: nowrap;
       font-variant-numeric: tabular-nums; }
-    /* a card just confirmed to a menu-backed score — calm green settle */
+    /* a card just confirmed to a menu-backed score -- calm green settle */
     .rcard.upgraded { border-color: var(--g1); box-shadow: var(--e2); }
-    /* a card awaiting its menu — gentle stripe pulse marks localized work */
+    /* a card awaiting its menu -- gentle stripe pulse marks localized work */
     .rcard.is-reading .card-stripe { animation: stripePulse 1.15s ease-in-out infinite; }
     @keyframes stripePulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
     /* provenance chip pops when its evidence upgrades */
@@ -335,7 +337,7 @@
       transition: transform .22s var(--ease-io), box-shadow .22s var(--ease-io), border-color .22s var(--ease-io);
     }
     @keyframes riseIn { to { opacity: 1; transform: none; } }
-    /* Re-renders (sort change, post-upgrade re-sort) skip the entrance animation —
+    /* Re-renders (sort change, post-upgrade re-sort) skip the entrance animation --
        motion marks NEW results, not a reshuffle of ones already on screen. */
     .rcard.no-anim { animation: none; opacity: 1; transform: none; }
     .rcard:hover { transform: translateY(-3px); box-shadow: var(--e3); border-color: var(--border2); }
@@ -526,18 +528,18 @@
     .risky-name { color: var(--tx2); font-weight: 500; flex: 1; min-width: 0;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 12px; }
     .risky-pct { font: 600 13px/1 var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
-    /* "might hide nuts" — a softer, amber (caution) variant for dish-TYPE guesses, so a
+    /* "might hide nuts" -- a softer, amber (caution) variant for dish-TYPE guesses, so a
        low-confidence hunch never reads as a hard "contains nuts" warning. */
     .warning-box.maybe { background: var(--tm); border-color: var(--bm); }
     .warning-box.maybe .warning-head { color: var(--md); }
-    /* Weight (not opacity) carries the de-emphasis — dimming dropped these below AA. */
+    /* Weight (not opacity) carries the de-emphasis -- dimming dropped these below AA. */
     .warning-head .wh-sub { font-weight: 400; }
     .risky-maybe { font: 700 10px/1 var(--sans); color: var(--md);
       text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
     /* Quote attribution: italic differentiates; full-strength ink keeps AA contrast. */
     .attr-note { font-style: italic; color: var(--tx3); }
 
-    /* Region provenance notice — amber (uncertainty, not danger); icon + text so it
+    /* Region provenance notice -- amber (uncertainty, not danger); icon + text so it
        never relies on colour alone (WCAG 2.2 AA + safety-aware colour). */
     .region-banner {
       background: var(--tm); border: 1px solid var(--bm); border-radius: var(--rM);
@@ -666,7 +668,7 @@
     .feat-ico svg { width: 22px; height: 22px; }
     .feat h3 { font: 600 18px/1.25 var(--sans); letter-spacing: -.015em; color: var(--tx); margin-bottom: 9px; }
     .feat p { font: 400 14.5px/1.6 var(--sans); color: var(--tx3); }
-    /* "Why SafePlate" — icon-left feature rows */
+    /* "Why SafePlate" -- icon-left feature rows */
     .why-feats { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
     .wfeat {
       display: flex; gap: 16px; align-items: flex-start; padding: 26px;
@@ -710,7 +712,14 @@
     @media (max-width: 860px) { .footer-inner { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 680px) {
       .nav-toggle { display: grid; margin-left: auto; }
-      .topbar-pill { margin-left: 0; }
+      /* The bar can't fit the theme switch beside the brand + status pill without
+         forcing the layout viewport past the device width (which zooms the whole
+         page out); it moves into the nav dropdown instead. */
+      .theme-switch { display: none; }
+      .topbar-pill { margin-left: 0; min-width: 0; }
+      .topbar-pill span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .topbar-inner { gap: 10px; }
+      .brand { min-width: 0; }
       .nav-links {
         position: absolute; top: 64px; right: 12px; min-width: 190px; display: none;
         flex-direction: column; align-items: stretch; gap: 2px; margin-left: 0;
@@ -719,6 +728,11 @@
       }
       .nav-links.open { display: flex; }
       .nav-link { padding: 11px 12px; }
+      .nav-links.open .nav-theme {
+        display: flex; align-items: center; gap: 2px;
+        border-top: 1px solid var(--border); margin-top: 6px; padding: 10px 6px 2px;
+      }
+      .nav-theme .ts-opt { padding: 10px 12px; }
       .footer-inner { grid-template-columns: 1fr 1fr; gap: 24px; }
     }
     @media (max-width: 540px) {
@@ -735,6 +749,8 @@
       .cite { padding: 5px 8px; }
       .hist-remove { min-width: 32px; min-height: 32px; font-size: 17px; }
       .hist-input { font-size: 16px; }   /* ≥16px stops iOS focus-zoom */
+      .ps-edit, .rate-save-btn, .ts-opt { min-height: 44px; display: inline-flex; align-items: center; }
+      .footer-col a { padding: 11px 0; }
     }
 
     /* ─── Hero product preview (the signature, shown up front) ─── */
@@ -759,10 +775,10 @@
     .hp-ring .ring-mid { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
     .hp-ring .ring-num { font: 500 16px/1 var(--mono); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 
-    /* ─── Search zone — sits just over the warm hero ─── */
+    /* ─── Search zone -- sits just over the warm hero ─── */
     .search-zone { position: relative; z-index: 5; margin-top: clamp(-56px,-4vw,-32px); }
 
-    /* ─── Reveal (scroll choreography) — JS-gated, motion-gated ─── */
+    /* ─── Reveal (scroll choreography) -- JS-gated, motion-gated ─── */
     @media (prefers-reduced-motion: no-preference) {
       html.js .reveal { opacity: 0; transform: translateY(22px);
         transition: opacity .7s var(--ease-out), transform .7s var(--ease-out);
@@ -881,7 +897,7 @@
     .pk-tile-label { margin-left: auto; font: 600 11.5px/1 var(--sans); letter-spacing: .01em;
       color: var(--tx3); white-space: nowrap; }
 
-    /* Comfort levels — colour-coded, each also labelled + metered (never colour alone) */
+    /* Comfort levels -- colour-coded, each also labelled + metered (never colour alone) */
     .pk-tile.lvl-1 { background: var(--th); border-color: var(--bh); }
     .pk-tile.lvl-1 .pk-tile-label { color: var(--hi); }
     .pk-tile.lvl-1 .pk-seg.fill { background: var(--rh); }
@@ -938,6 +954,12 @@
       <a class="nav-link" href="/about">About</a>
       <a class="nav-link" href="/faq">FAQ</a>
       <a class="nav-link" href="/contact">Contact</a>
+      <!-- On small screens the bar can't fit the theme switch; it lives here instead. -->
+      <div class="nav-theme" role="group" aria-label="Design version">
+        <span class="ts-lab" aria-hidden="true">View</span>
+        <a class="ts-opt is-on" href="/?theme=classic" aria-current="true">Classic</a>
+        <a class="ts-opt" href="/?theme=green">New design</a>
+      </div>
     </nav>
     <!-- Internal plumbing: only shown when it matters to the user (demo mode / offline). -->
     <div class="topbar-pill" id="cfgPill" hidden>
@@ -962,7 +984,7 @@
     <div class="hero-copy">
       <p class="allergen-label" style="display:block;margin-bottom:18px">Nut-allergy dining · Evidence-first</p>
       <h1 id="heroTitle">Eat out without<br/><span class="grad">the guesswork</span>.</h1>
-      <p class="hero-sub">Find restaurants near you, ranked by how likely their menu involves nuts — built from real menu evidence, cuisine, and location, with the proof shown for every score.</p>
+      <p class="hero-sub">Find restaurants near you, ranked by how likely their menu involves nuts, built from real menu evidence, cuisine, and location, with the proof shown for every score.</p>
       <div class="trust-strip">
         <span class="trust-item">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h6M8 16h4"/></svg>
@@ -1072,7 +1094,7 @@
           title="Cache on: reuse stored extractions for speed. Turn off to bypass every cache and re-read each restaurant LIVE from its website (slower; for testing extraction).">Cache: on</button>
       </div>
     </div>
-    <p class="score-hint">Scores estimate allergen risk from 0 to 100 — <strong>lower is safer</strong>. Every score shows how we know.</p>
+    <p class="score-hint">Scores estimate allergen risk from 0 to 100: <strong>lower is safer</strong>. Every score shows how we know.</p>
     <div class="prog hidden" id="progStrip">
       <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
       <span class="prog-label" id="progLabel"></span>
@@ -1256,7 +1278,7 @@
     <div class="ob-pane" id="obStep2"><!-- Task 4 fills this picker --></div>
 
     <div class="ob-foot">
-      <button type="button" class="ob-skip" id="obSkip">Skip — I'll add later</button>
+      <button type="button" class="ob-skip" id="obSkip">Skip, I'll add later</button>
       <div>
         <button type="button" class="ob-next" id="obToStep2">Next</button>
         <button type="button" class="ob-next" id="obDone" style="display:none">Done</button>
@@ -1354,7 +1376,7 @@ function _pkAria(name, lvl){
 }
 function renderPicker(){
   const root = document.getElementById("obStep2");
-  let html = `<p class="pk-intro">Tap a place to set how comfortable you are eating there. Tap again to raise it — <strong>red means avoid</strong>, <strong>green means you trust it</strong>. Stays in your browser.</p>
+  let html = `<p class="pk-intro">Tap a place to set how comfortable you are eating there. Tap again to raise it: <strong>red means avoid</strong>, <strong>green means you trust it</strong>. Stays in your browser.</p>
   <div class="pk-legend">
     <span class="pk-legend-item"><span class="pk-legend-dot" style="background:var(--rh)"></span>Avoid</span>
     <span class="pk-legend-item"><span class="pk-legend-dot" style="background:var(--rm)"></span>Wary</span>
@@ -1437,7 +1459,7 @@ function _syncNutsAllergenEntry(){
   e.severity = state.severity; e.crossContact = state.crossContact; e.nutTypes = state.nutTypes;
 }
 // There is ONE global cross-contact toggle, so every entry (nuts included) must mirror
-// state.crossContact — otherwise non-nut entries keep the stale value from the moment
+// state.crossContact -- otherwise non-nut entries keep the stale value from the moment
 // they were selected. Severity stays per-allergen (set via each entry's own sub-panel).
 function _syncCrossContactAcrossAllergens(){
   state.allergens.forEach(a => { a.crossContact = state.crossContact; });
@@ -1601,7 +1623,7 @@ function ringClr(r)    { return {"lo":"var(--rl)","md":"var(--rm)","hi":"var(--r
 function textClr(r)    { return {"lo":"var(--lo)","md":"var(--md)","hi":"var(--hi)"}[band(r)]; }
 function stripeClr(r)  { return ringClr(r); }
 function riskWord(r)   { return {"lo":"Lower risk","md":"Moderate risk","hi":"Higher risk"}[band(r)]; }
-/* Confidence in plain words — "82% conf." is stats jargon to a hungry diner. */
+/* Confidence in plain words -- "82% conf." is stats jargon to a hungry diner. */
 function confWord(c)   { return c >= 0.7 ? "High" : c >= 0.45 ? "Medium" : "Low"; }
 const TIER_LABELS = { avoid:"Avoid", caution:"Caution", likely_ok:"Likely OK" };
 
@@ -1639,19 +1661,19 @@ function covLabel(s) { return s==="menu_backed"?"Menu-backed":s==="no_menu_found
 function covClass(s) { return s==="menu_backed"?"menu":s==="no_menu_found"?"nomenu":""; }
 function cbadge(label,cls) { return `<span class="cbadge ${cls||""}">${esc(label)}</span>`; }
 
-/* "How we know" — map evidence basis + coverage to a user-facing trust tier. */
+/* "How we know" -- map evidence basis + coverage to a user-facing trust tier. */
 function provenanceTier(basis, coverage) {
   if (coverage !== "menu_backed" && (basis === "cuisine_prior" || basis === "dish_prior" || !basis))
     return { label: "Call ahead", cls: "pv-callahead",
-             blurb: "No online menu found — confirm directly with the restaurant." };
+             blurb: "No online menu found. Confirm directly with the restaurant." };
   switch (basis) {
     case "allergen_matrix":   return { label: "Confirmed", cls: "pv-confirmed", blurb: "From the restaurant's published allergen chart." };
     case "menu_evidence":     return { label: "Confirmed", cls: "pv-confirmed", blurb: "From the menu's own text." };
     case "restaurant_signal": return { label: "Restaurant info", cls: "pv-signal", blurb: "Based on the restaurant's allergy statements." };
-    case "dish_prior":        return { label: "Inferred", cls: "pv-inferred", blurb: "Inferred from dish names — not a confirmed allergen list." };
-    case "menu_coverage":     return { label: "Menu reviewed", cls: "pv-inferred", blurb: "We read the menu and found no nut dishes — informal, not an allergen chart." };
-    case "cuisine_prior":     return { label: "Estimate", cls: "pv-estimate", blurb: "Estimated from cuisine & area — no menu data." };
-    default:                  return { label: "Estimate", cls: "pv-estimate", blurb: "Estimated — limited data." };
+    case "dish_prior":        return { label: "Inferred", cls: "pv-inferred", blurb: "Inferred from dish names, not a confirmed allergen list." };
+    case "menu_coverage":     return { label: "Menu reviewed", cls: "pv-inferred", blurb: "We read the menu and found no nut dishes. Informal, not an allergen chart." };
+    case "cuisine_prior":     return { label: "Estimate", cls: "pv-estimate", blurb: "Estimated from cuisine & area; no menu data." };
+    default:                  return { label: "Estimate", cls: "pv-estimate", blurb: "Estimated; limited data." };
   }
 }
 function pvchip(t) { return `<span class="pvchip ${t.cls}">${esc(t.label)}</span>`; }
@@ -1690,7 +1712,13 @@ function toast(msg, err) {
 /* ── search ── */
 async function search(opts={}) {
   const loc = $("#loc").value.trim();
-  const hasCoords = opts.latitude != null && opts.longitude != null;
+  let hasCoords = opts.latitude != null && opts.longitude != null;
+  // The geo button leaves "Current location" in the input; when the user hits
+  // search again later, reuse the stored browser fix rather than geocoding the label.
+  if (!hasCoords && _geoCoords && /^current location$/i.test(loc)) {
+    opts = { ...opts, location: "Current location", latitude: _geoCoords.latitude, longitude: _geoCoords.longitude };
+    hasCoords = true;
+  }
   if (!loc && !hasCoords) { toast("Enter a location first", true); return; }
   const seq = ++_searchSeq;   // any in-flight progressive upgrades from a prior search are now stale
   const btn = $("#goBtn"); btn.disabled=true;
@@ -1707,6 +1735,12 @@ async function search(opts={}) {
         <div class="skel-line" style="width:28%"></div>
       </div>
     </div>`).join("");
+  // Take the diner straight to the incoming cards (on phones the results section
+  // is below the fold, so a search otherwise appears to do nothing).
+  $("#results").scrollIntoView({
+    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    block: "start",
+  });
   try {
     const req = { provider:"auto", radius:1800, limit:12, severity: state.severity, crossContact: state.crossContact, scoringEngine: state.scoringEngine, nutTypes: state.nutTypes, noCache: state.noCache, experienceHistory: state.experienceHistory, allergens: state.allergens, diets: state.diets };
     if (hasCoords) { req.location = opts.location||"Current location"; req.latitude=opts.latitude; req.longitude=opts.longitude; }
@@ -1717,7 +1751,7 @@ async function search(opts={}) {
     if (seq !== _searchSeq) return;                  // a newer search superseded this one
     state.rows = (data.rows||[]).filter(r=>r.name);
     state.where = data.location || req.location || loc;
-    renderResults(true);   // a NEW result set — the one render that earns the entrance animation
+    renderResults(true);   // a NEW result set -- the one render that earns the entrance animation
     upgradeCardsProgressive(seq);   // fire-and-forget menu-backed upgrades
   } catch(e) {
     toast(e.message||"Search failed",true);
@@ -1777,7 +1811,7 @@ async function upgradeCardsProgressive(seq) {
       finally {
         r._upgrading = false;
         if (seq===_searchSeq) {
-          landed ? applyUpgrade(r, prevRisk) : clearReading(r);  // swap one card in place — no full re-render
+          landed ? applyUpgrade(r, prevRisk) : clearReading(r);  // swap one card in place -- no full re-render
           tickProg(++_done, targets.length, seq);
         }
       }
@@ -1792,22 +1826,27 @@ async function upgradeCardsProgressive(seq) {
 }
 
 /* ── geo ── */
+/* Last browser fix. "Current location" in the input is a label, not a geocodable
+   address; a later manual search must reuse these coords instead of sending the
+   literal text to the geocoder (which fails with "Could not geocode location"). */
+let _geoCoords = null;
 function useBrowserLocation() {
   if (!navigator.geolocation) { toast("Browser location not available",true); return; }
   const btn = $("#geoBtn"); btn.disabled=true;
   navigator.geolocation.getCurrentPosition(
     pos => {
       btn.disabled=false;
+      _geoCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
       $("#loc").value="Current location";
       search({location:"Current location",latitude:pos.coords.latitude,longitude:pos.coords.longitude});
     },
-    () => { btn.disabled=false; toast("Location blocked — check browser settings",true); },
+    () => { btn.disabled=false; toast("Location blocked. Check browser settings.",true); },
     {enableHighAccuracy:false,timeout:10000,maximumAge:300000}
   );
 }
 
 /* ── sort & render cards ── */
-/* @sort-core:start — PURE sort logic, unit-tested in tests/test_diet_sort_tiebreak.py.
+/* @sort-core:start -- PURE sort logic, unit-tested in tests/test_diet_sort_tiebreak.py.
    Keep self-contained: no globals (state is passed in), so the test can extract and
    run just this block under node. Diet only breaks EXACT allergen-risk ties. */
 const _DIET_VERDICT_RANK = { good_options:3, limited:2, unknown:1, not_compatible:0 };
@@ -1851,7 +1890,7 @@ function sortRows(rows) {
 function cardNode(r) { return document.querySelector(`.rcard[data-i="${state.rows.indexOf(r)}"]`); }
 
 /* Cuisine chips for a card: prefer the scorer's canonical cuisines, else fall back
-   to provider categories — but drop generic place-types ("restaurant", "meal
+   to provider categories -- but drop generic place-types ("restaurant", "meal
    takeaway") and de-duplicate, so a card never shows "Restaurant · Restaurant". */
 const _GENERIC_TYPE = new Set([
   "restaurant","food","establishment","point of interest","meal takeaway",
@@ -1923,7 +1962,7 @@ function clearReading(r) { const el = cardNode(r); if (el) { el.classList.remove
 
 /* Swap one card to its menu-backed score in place: tween the ring from the
    estimate to the confirmed value, count the number up, pop the provenance chip,
-   and flash a calm green confirm — instead of re-rendering (and re-animating +
+   and flash a calm green confirm -- instead of re-rendering (and re-animating +
    re-sorting) the whole grid on every upgrade. */
 function applyUpgrade(r, prevRisk) {
   const el = cardNode(r);
@@ -1931,7 +1970,7 @@ function applyUpgrade(r, prevRisk) {
   el.classList.remove("is-reading");
   const newRisk = r.allergenPrior?.risk ?? prevRisk ?? 0.3;
   el.innerHTML = cardMarkup(r);
-  el.setAttribute("aria-label", `${r.name} — ${riskWord(newRisk)} ${allergenPhrase()}. View details.`);
+  el.setAttribute("aria-label", `${r.name}: ${riskWord(newRisk)} ${allergenPhrase()}. View details.`);
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (!reduce && prevRisk!=null) {
     const R = 56*0.395, C = 2*Math.PI*R;
@@ -1951,7 +1990,7 @@ function applyUpgrade(r, prevRisk) {
   setTimeout(() => el.classList.remove("upgraded"), 850);
 }
 
-/* Determinate progress for the progressive fill — a finishing bar feels faster
+/* Determinate progress for the progressive fill -- a finishing bar feels faster
    than an open-ended spinner. Guarded by seq so a superseded run can't paint. */
 function startProg(total, seq) {
   if (seq!==_searchSeq) return;
@@ -1981,11 +2020,11 @@ function renderResults(animate = false) {
   $("#resCount").textContent = `${n} place${n!==1?"s":""}`;
   $("#resWhere").textContent = state.where ? `near ${state.where}` : "";
   if (!n) {
-    $("#grid").innerHTML = `<div class="empty-msg" style="grid-column:1/-1"><p>No restaurants found here.<br/>Try a nearby neighbourhood or a city-centre address — we search about a 20-minute walk around the spot you name.</p></div>`;
+    $("#grid").innerHTML = `<div class="empty-msg" style="grid-column:1/-1"><p>No restaurants found here.<br/>Try a nearby neighbourhood or a city-centre address. We search about a 20-minute walk around the spot you name.</p></div>`;
     return;
   }
   $("#grid").innerHTML = rows.map((r,i) =>
-    `<article class="rcard${animate?"":" no-anim"}" tabindex="0" role="button" aria-label="${esc(r.name)} — ${riskWord(r.allergenPrior?.risk??0.3)} ${esc(allergenPhrase())}. View details."${animate?` style="animation-delay:${i*32}ms"`:""} data-i="${state.rows.indexOf(r)}">${cardMarkup(r)}</article>`
+    `<article class="rcard${animate?"":" no-anim"}" tabindex="0" role="button" aria-label="${esc(r.name)}: ${riskWord(r.allergenPrior?.risk??0.3)} ${esc(allergenPhrase())}. View details."${animate?` style="animation-delay:${i*32}ms"`:""} data-i="${state.rows.indexOf(r)}">${cardMarkup(r)}</article>`
   ).join("");
   document.querySelectorAll(".rcard").forEach(el=>{
     const open = () => openDetail(state.rows[+el.dataset.i]);
@@ -2077,7 +2116,7 @@ function verdictHtml(risk, coverage, basis, perAllergen) {
   const tierLbl = TIER_LABELS[risk?.tier]||"";
   const prov = provenanceTier(basis ?? risk?.basis, coverage);
   /* Personalized chip: client-derived so it works on both instant-open (menuDetail embedded)
-     and fresh-fetch paths — the backend flag is not always in the search-card embed. */
+     and fresh-fetch paths -- the backend flag is not always in the search-card embed. */
   const personalChip = (state.experienceHistory.length > 0 && (state.scoringEngine||"").startsWith("ai"))
     ? `<span class="pvchip pv-personal">Personalized to your history</span>` : "";
   return `<div class="verdict" id="riskVerdict">
@@ -2133,7 +2172,7 @@ const _DIET_VERDICT_COPY = {
   unknown:        d => `${d}: ask staff`,
 };
 /* Diet verdicts stay OUT of the risk palette (reserved for allergen risk): green =
-   positive/confirmed is a brand meaning, everything else is graded in neutral inks —
+   positive/confirmed is a brand meaning, everything else is graded in neutral inks --
    the verdict wording itself carries the signal. */
 const _DIET_VERDICT_COLOR = { not_compatible:"var(--tx)", limited:"var(--tx2)", good_options:"var(--g0)", unknown:"var(--tx3)" };
 const _DIET_BASIS_COPY = {
@@ -2156,7 +2195,7 @@ function dietBadgesHtml(diets) {
       const url = String(n.url || "");
       const link = /^https?:\/\//i.test(url)
         ? ` <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">source</a>` : "";
-      const attr = n.source === "community" ? ` <span class="attr-note">— from reviews</span>` : "";
+      const attr = n.source === "community" ? ` <span class="attr-note">· from reviews</span>` : "";
       return `<div class="diet-note">🌱 “${esc(n.quote)}”${attr}${link}</div>`;
     }).join("");
     return `<div class="diet-row">
@@ -2245,7 +2284,7 @@ function regionBannerHtml(n) {
     </svg>
     <div>
       <div class="rb-title">Allergen data is from ${src}</div>
-      <div class="rb-body">We couldn't find data verified for your area, so this is from ${src}. Recipes and labelling can differ by country — use it as a guide and confirm with the restaurant.</div>
+      <div class="rb-body">We couldn't find data verified for your area, so this is from ${src}. Recipes and labelling can differ by country. Use it as a guide and confirm with the restaurant.</div>
     </div>
   </div></div>`;
 }
@@ -2279,7 +2318,7 @@ function renderMenu(m,r) {
   const nutSuspected = _risky.filter(x=>x.suspected).slice(0,5);   // dish-type guess, low confidence
   const nutItems = items.filter(it=>asList(it.allergen_terms).some(isNut));
 
-  /* region provenance — when the only data we found is from another country, keep it
+  /* region provenance -- when the only data we found is from another country, keep it
      but say so plainly (recipes/labelling differ by region) right under the verdict. */
   let html = regionBannerHtml(summary.regionNotice);
   html += perAllergenHtml(summary.perAllergen);
@@ -2303,7 +2342,7 @@ function renderMenu(m,r) {
     </div>`;
   }
 
-  /* allergy notes — grounded quotes from the restaurant's allergy pages */
+  /* allergy notes -- grounded quotes from the restaurant's allergy pages */
   const allergyQuotes = [...new Set((m.allergySignals||[]).flatMap(s=>asList(s.statements)))].slice(0,4);
   if (allergyQuotes.length) {
     html += `<div class="ds">
@@ -2312,16 +2351,16 @@ function renderMenu(m,r) {
     </div>`;
   }
 
-  /* community notes — what diners report about allergies (web search, Tier C) */
+  /* community notes -- what diners report about allergies (web search, Tier C) */
   const communityQuotes = [...new Set(m.communityQuotes||[])].slice(0,3);
   if (communityQuotes.length) {
     html += `<div class="ds">
       <h3 class="sec-head">What diners report</h3>
-      ${communityQuotes.map(q=>`<div class="mi-desc" style="margin:6px 0 0">“${esc(q)}” <span class="attr-note">— from reviews</span></div>`).join("")}
+      ${communityQuotes.map(q=>`<div class="mi-desc" style="margin:6px 0 0">“${esc(q)}” <span class="attr-note">· from reviews</span></div>`).join("")}
     </div>`;
   }
 
-  /* riskiest-item warnings — riskiestItems is aggregated server-side across EVERY
+  /* riskiest-item warnings -- riskiestItems is aggregated server-side across EVERY
      scored allergen (not just nuts), so the copy must name the diner's actual
      allergen(s) rather than hardcoding "nuts" (a non-nut diner could otherwise read
      "contains nuts" as not-applicable and dismiss a warning about their own allergen).
@@ -2344,7 +2383,7 @@ function renderMenu(m,r) {
   if (nutSuspected.length) {
     html += `<div class="ds"><div class="warning-box maybe">
       <div class="warning-head">${_triIcon}
-        ${nutSuspected.length} dish${nutSuspected.length>1?"es":""} might hide ${esc(_riskyNoun)} <span class="wh-sub">· by dish type — not confirmed</span>
+        ${nutSuspected.length} dish${nutSuspected.length>1?"es":""} might hide ${esc(_riskyNoun)} <span class="wh-sub">· by dish type, not confirmed</span>
       </div>
       ${nutSuspected.map(it=>`<div class="risky-row clickable" data-dish="${esc(it.itemName)}">
         <span class="risky-name">${esc(it.itemName)}</span>
@@ -2370,7 +2409,7 @@ function renderMenu(m,r) {
         <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/>
         <path d="M8 7h8M8 11h5M8 15h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
-      <p>No machine-readable menu found.<br/>Risk above is from cuisine &amp; location — call ahead to confirm.</p>
+      <p>No machine-readable menu found.<br/>Risk above is from cuisine &amp; location. Call ahead to confirm.</p>
     </div>`;
   } else {
     /* group by category */
@@ -2416,7 +2455,7 @@ function renderMenu(m,r) {
   if (summary.geminiValidationEnabled) extras.push(cbadge("Gemini validation","live"));
   if (extras.length) html += `<div class="ds"><div class="card-badges">${extras.join("")}</div></div>`;
 
-  /* Rate your experience — the SAME 4-level comfort scale as the onboarding picker
+  /* Rate your experience -- the SAME 4-level comfort scale as the onboarding picker
      (one mental model, not a competing 1–10 number). Tap a level to save instantly;
      tap it again to clear. */
   const _curHist = _findHist(r.name);
@@ -2431,7 +2470,7 @@ function renderMenu(m,r) {
         <input id="drawerRateNote" class="hist-input hist-note-input" type="text" placeholder="Note (optional)" value="${esc(_curHist?.note || "")}" autocomplete="off" aria-label="Optional note" />
         <button type="button" class="rate-save-btn" id="drawerRateSaveBtn">Save note</button>
       </div>
-      <p class="hist-privacy">Saved to your history — stays in your browser and personalizes your scores.</p>
+      <p class="hist-privacy">Saved to your history. Stays in your browser and personalizes your scores.</p>
     </div>
   </div>`;
 
@@ -2583,7 +2622,7 @@ function trapModalTab(e) {
 }
 
 /* ── profile summary ──
-   Everything the scorer protects against must be visible here — a diner who added a
+   Everything the scorer protects against must be visible here -- a diner who added a
    milk allergy or a vegan diet has to be able to verify, at a glance, that it's active. */
 const _SEV_LABEL = { avoid_preference: "Preference", intolerance: "Intolerance", allergy: "Allergy", anaphylaxis: "Anaphylaxis" };
 const _CC_LABEL = { not_concerned: "not concerned", moderate: "somewhat careful", strict: "very careful", "": "very careful" };
@@ -2704,7 +2743,7 @@ $("#cacheToggle").onclick = () => {
 loadConfig();
 loadHistory();
 loadProfile();
-/* First visit: no blocking modal — the diner sees the product and can search
+/* First visit: no blocking modal -- the diner sees the product and can search
    immediately on the safe default profile (nut allergy, very careful about
    cross-contact). The summary under the search box shows exactly what's active,
    with a "Set up profile" button that opens the full editor when THEY choose. */

@@ -35,7 +35,7 @@ _NAV_LINKS = (
 _BASE_CSS = """
 :root{
   --page:#F4F6F5; --surface:#FFFFFF; --border:#E3DDD5; --border2:#C9C2B8;
-  --tx:#1A1714; --tx2:#6A5F57; --tx3:#766A60;  /* tx3 was #A09088 — failed AA for text */
+  --tx:#1A1714; --tx2:#6A5F57; --tx3:#766A60;  /* tx3 was #A09088 -- failed AA for text */
   --g0:#166534; --g1:#16A34A; --g2:#22C55E; --gt:#DCFCE7;
   --signal:#2563EB; --md:#92400E; --callahead:#7C3AED; --star:#FBBF24; --brand-grad:linear-gradient(145deg,#16A34A,#15803D);
   --hero-1:#12492D; --hero-2:#0B3A22; --hero-ink:#F3FBF6; --hero-soft:rgba(229,245,236,.90); --mint:#86EFAC;
@@ -77,15 +77,24 @@ a{color:inherit;}
   background:var(--brand-grad); color:#fff; font-size:13.5px;
   font-weight:700; box-shadow:0 4px 14px -4px rgba(21,128,61,.5); transition:transform .15s,box-shadow .15s;}
 .nav-cta:hover{transform:translateY(-1px); box-shadow:0 8px 22px -4px rgba(21,128,61,.5);}
-.nav-toggle{display:none; margin-left:auto; width:40px; height:40px; border-radius:10px;
-  border:1.5px solid var(--border); background:var(--surface); color:var(--tx);
-  cursor:pointer; align-items:center; justify-content:center;}
+/* CSS-only mobile menu (these pages ship no JS): a <details> dropdown. */
+.nav-menu{display:none; position:relative; flex:none;}
+.nav-menu summary{list-style:none; display:grid; place-items:center; width:44px; height:44px;
+  border-radius:10px; border:1.5px solid var(--border); background:var(--surface);
+  color:var(--tx); cursor:pointer;}
+.nav-menu summary::-webkit-details-marker{display:none;}
+.nav-menu summary svg{width:18px; height:18px;}
+.nav-drop{position:absolute; top:52px; right:0; min-width:190px; z-index:40;
+  display:flex; flex-direction:column; gap:2px; padding:8px;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 18px 40px -18px rgba(20,14,8,.35);}
+.nav-drop .nav-link{padding:12px 12px;}
 
 /* ── Page hero ── */
 .phero{position:relative; isolation:isolate; overflow:hidden; text-align:center;
   padding:62px 0 56px; color:var(--hero-ink);
   background:linear-gradient(168deg,var(--hero-1) 0%,var(--hero-2) 100%);}
-/* soft brand glow — depth, not decoration */
+/* soft brand glow -- depth, not decoration */
 .phero::before{content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
   background:
     radial-gradient(50% 70% at 14% -10%,rgba(134,239,172,.18) 0%,transparent 60%),
@@ -103,7 +112,7 @@ a{color:inherit;}
 .phero h1{font-family:"Newsreader",Georgia,serif; font-weight:700; position:relative; z-index:1;
   font-size:clamp(34px,4.6vw,52px); line-height:1.04; letter-spacing:-.025em;
   margin-bottom:16px; text-wrap:balance; color:var(--hero-ink);}
-.phero h1 .grad{color:var(--mint);}  /* solid mint — no gradient text (banned) */
+.phero h1 .grad{color:var(--mint);}  /* solid mint -- no gradient text (banned) */
 .phero-sub{font-size:17px; color:var(--hero-soft); line-height:1.6; max-width:560px;
   margin:0 auto; position:relative; z-index:1;}
 
@@ -211,7 +220,7 @@ a{color:inherit;}
 .footer-col h4{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.1em;
   color:var(--tx3); margin-bottom:14px;}
 .footer-col a{display:block; font-size:13.5px; color:var(--tx2); text-decoration:none;
-  margin-bottom:10px; transition:color .15s; width:fit-content;}
+  padding:5px 0; margin-bottom:2px; transition:color .15s; width:fit-content;}
 .footer-col a:hover{color:var(--g0);}
 .footer-bottom{border-top:1px solid var(--border); padding:20px 0; display:flex;
   align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;}
@@ -223,6 +232,7 @@ a{color:inherit;}
 }
 @media (max-width:680px){
   .nav-links{display:none;}
+  .nav-menu{display:block;}
   .nav-cta{margin-left:auto;}
   .footer-inner{grid-template-columns:1fr 1fr; gap:24px;}
 }
@@ -249,6 +259,12 @@ def _nav_html(active: str) -> str:
     </a>
     <nav class="nav-links">{links}</nav>
     <a class="nav-cta" href="/#search">Find safe places</a>
+    <details class="nav-menu">
+      <summary aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </summary>
+      <nav class="nav-drop">{links}</nav>
+    </details>
   </div>
 </header>"""
 
@@ -262,7 +278,7 @@ def _footer_html() -> str:
         <span class="brand-name">Safe<em>Plate</em></span>
       </a>
       <p class="footer-blurb">Allergy-aware dining. We read real menus, cuisine patterns,
-      and location to rank restaurants by how likely a dish involves nuts &mdash; with the
+      and location to rank restaurants by how likely a dish involves nuts, with the
       evidence shown for every score.</p>
     </div>
     <div class="footer-col">
@@ -354,7 +370,7 @@ def _phero(eyebrow: str, title_html: str, sub: str) -> str:
 def _cta_band() -> str:
     return f"""<section class="section"><div class="wrap"><div class="cta">
   <h2>Find a safer table near you</h2>
-  <p>Enter your neighbourhood and see nearby restaurants ranked by nut risk &mdash; with the
+  <p>Enter your neighbourhood and see nearby restaurants ranked by nut risk, with the
   evidence behind every score.</p>
   <a class="btn-primary" href="/#search">{_ICO_PIN}&nbsp;Find safe places</a>
 </div></div></section>"""
@@ -366,12 +382,12 @@ def _cta_band() -> str:
 def _how_it_works_body() -> str:
     steps = [
         ("1", "Tell us where &amp; what",
-         "Search a city, neighbourhood, or use your location, and set your allergy &mdash; nuts "
+         "Search a city, neighbourhood, or use your location, and set your allergy: nuts "
          "today, with sesame, dairy and gluten on the way. You also set how serious your reaction "
          "is and how careful you need to be about cross-contact."),
         ("2", "We read the real menu",
          "For each nearby restaurant we find and read its actual online menu, allergen charts, and "
-         "allergy statements &mdash; not just the cuisine type. Structured allergen data is used "
+         "allergy statements, not just the cuisine type. Structured allergen data is used "
          "directly; prose is interpreted dish by dish."),
         ("3", "You get a ranked, explained score",
          "Every place gets a nut-risk score and a plain-English reason. Tap any restaurant to see "
@@ -392,13 +408,13 @@ def _how_it_works_body() -> str:
          "We found the allergen named in the restaurant&rsquo;s own published allergen chart or "
          "directly in the menu text. This is the strongest evidence."),
         ("pv-signal", "Restaurant info",
-         "Based on the restaurant&rsquo;s own allergy statements &mdash; disclaimers, cross-contact "
+         "Based on the restaurant&rsquo;s own allergy statements: disclaimers, cross-contact "
          "warnings, or staff-protocol notes found on their site."),
         ("pv-inferred", "Inferred",
          "Inferred from dish names and descriptions, or from reading the full menu and finding no "
          "nut dishes. Informed, but not a confirmed allergen list."),
         ("pv-estimate", "Estimate",
-         "Estimated from cuisine and area when no usable menu is available &mdash; the weakest "
+         "Estimated from cuisine and area when no usable menu is available; the weakest "
          "signal, used only as a starting point."),
         ("pv-callahead", "Call ahead",
          "No online menu was found at all. We tell you plainly to confirm directly with the "
@@ -416,7 +432,7 @@ def _how_it_works_body() -> str:
         "How it works",
         'From a search to a score you can <span class="grad">actually trust</span>.',
         "SafePlate doesn&rsquo;t just guess from the cuisine. It reads real menus, weighs the "
-        "evidence, and shows its work &mdash; so you decide with the full picture.",
+        "evidence, and shows its work, so you decide with the full picture.",
     ) + f"""
 <section class="section"><div class="wrap">
   <div class="section-head">
@@ -441,7 +457,7 @@ def _how_it_works_body() -> str:
     <h2 class="section-title">Built to fail safe</h2>
     <p class="section-lede">When evidence is thin, we say so rather than guessing low. A missing
     menu is shown as &ldquo;call ahead,&rdquo; not as &ldquo;safe.&rdquo; The score is a starting
-    point for a conversation with the restaurant &mdash; not a substitute for one.</p>
+    point for a conversation with the restaurant, not a substitute for one.</p>
   </div>
 </div></section>
 {_cta_band()}
@@ -456,7 +472,7 @@ def _about_body() -> str:
         (_ICO_EYE, "Transparent by default",
          "Every score shows its evidence and where it came from. No black-box numbers."),
         (_ICO_HEART, "Built for real diners",
-         "Designed around how people with allergies actually decide where to eat &mdash; quickly, "
+         "Designed around how people with allergies actually decide where to eat: quickly, "
          "and with the details that matter."),
     ]
     value_cards = "".join(
@@ -480,7 +496,7 @@ def _about_body() -> str:
   lines, ask the server, and hope the kitchen got the message. Most apps either ignore allergies
   entirely or reduce them to a single &ldquo;allergy-friendly&rdquo; badge that tells you nothing
   about <em>this</em> dish at <em>this</em> restaurant.</p>
-  <p>We thought the information to do better was already out there &mdash; in menus, allergen
+  <p>We thought the information to do better was already out there: in menus, allergen
   charts, and the things restaurants say about how they handle allergies. The hard part was
   reading all of it, weighing it honestly, and presenting it in a way you can trust in the few
   seconds you have before deciding where to eat. That&rsquo;s what SafePlate does.</p>
@@ -512,7 +528,7 @@ def _about_body() -> str:
   <h2>An honest limitation</h2>
   <p>SafePlate is an information tool, not a medical service or a guarantee. Menus change, kitchens
   vary, and cross-contact is hard to see from the outside. We&rsquo;re built to reduce uncertainty
-  and to be transparent about what we don&rsquo;t know &mdash; but the final, definitive check is
+  and to be transparent about what we don&rsquo;t know, but the final, definitive check is
   always a direct conversation with the restaurant. See our <a href="/faq">FAQ</a> for more.</p>
 </div></section>
 {_cta_band()}
@@ -533,7 +549,7 @@ def _faq_body() -> str:
         ("accuracy", "How accurate are the scores?",
          "It depends on the evidence available, which is why we always show it. A score built from a "
          "restaurant&rsquo;s published allergen chart is far stronger than one estimated from cuisine "
-         "alone &mdash; and we label each so you can tell the difference. Treat every score as a "
+         "alone, and we label each so you can tell the difference. Treat every score as a "
          "well-informed starting point, not a guarantee."),
         ("cross-contact", "Does it account for cross-contact?",
          "Partly. SafePlate looks for cross-contact warnings, shared-fryer notes, and allergy "
@@ -555,8 +571,8 @@ def _faq_body() -> str:
          "material; we don&rsquo;t collect or sell your personal data. See our "
          "<a href=\"/privacy\">Privacy Policy</a>."),
         ("cost", "Is SafePlate free?",
-         "The core experience &mdash; searching for places and seeing ranked, explained scores "
-         "&mdash; is free to use."),
+         "The core experience (searching for places and seeing ranked, explained scores"
+         ") is free to use."),
     ]
     items = "".join(
         f"""<details class="faq-item" id="{fid}">
@@ -653,7 +669,7 @@ def _privacy_body() -> str:
   <p>The allergen, severity, and cross-contact settings you choose are used to rank and explain
   results for that session. They&rsquo;re part of your request, not a stored medical record.</p>
   <h3>Restaurant &amp; menu information</h3>
-  <p>To produce scores, we retrieve and interpret publicly available information &mdash; restaurant
+  <p>To produce scores, we retrieve and interpret publicly available information: restaurant
   listings, online menus, allergen charts, and the allergy statements restaurants publish on their
   own sites.</p>
   <h3>Technical &amp; usage data</h3>
@@ -680,7 +696,7 @@ def _privacy_body() -> str:
 
   <h2>Your choices</h2>
   <ul>
-    <li>You can use SafePlate without granting device location &mdash; just type a place instead.</li>
+    <li>You can use SafePlate without granting device location; just type a place instead.</li>
     <li>You can control location permission at any time in your browser or device settings.</li>
   </ul>
 
@@ -703,7 +719,7 @@ def _terms_body() -> str:
     return _phero(
         "Terms of Service",
         'The <span class="grad">terms</span>, kept simple.',
-        "Please read these before relying on SafePlate &mdash; especially the part about allergies.",
+        "Please read these before relying on SafePlate, especially the part about allergies.",
     ) + """
 <section class="section"><div class="narrow prose">
   <p class="updated">Last updated: 22 June 2026</p>
@@ -711,7 +727,7 @@ def _terms_body() -> str:
   <p>These Terms of Service (&ldquo;Terms&rdquo;) govern your use of SafePlate. By using the
   service, you agree to them. If you don&rsquo;t agree, please don&rsquo;t use SafePlate.</p>
 
-  <h2>1. What SafePlate is &mdash; and isn&rsquo;t</h2>
+  <h2>1. What SafePlate is (and isn&rsquo;t)</h2>
   <p>SafePlate is an informational tool that estimates and ranks how likely restaurant menus
   involve certain allergens, based on public information. <strong>It is not medical advice, not a
   guarantee of safety, and not a substitute for confirming directly with a restaurant or following
