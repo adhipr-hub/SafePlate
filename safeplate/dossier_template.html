@@ -8,12 +8,12 @@
   <script>document.documentElement.classList.add('js');</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --page:#F7F3EA; --paper2:#FAF7F0; --surface:#FDFBF6; --border:#E6DECF; --border2:#CFC4B2;
+      --page:#F5F1EA; --paper2:#F2ECE1; --surface:#FCF9F3; --border:#E5DDD0; --border2:#D2C8B9;
       --tx:#211B16; --tx2:#4A4039; --tx3:#5E544B;
-      --g0:#166534; --g1:#16A34A; --g2:#22C55E; --gt:#DCFCE7;
+      --g0:#1C5A44; --g1:#2E8B6A; --g2:#22C55E; --gt:#DCFCE7;
       --lo:#15803D; --md:#92400E; --hi:#991B1B;
       --rl:#22C55E; --rm:#FBBF24; --rh:#F87171;
       --tl:#F0FDF4; --tm:#FFFBEB; --th:#FEF2F2;
@@ -26,7 +26,7 @@
       --e3:0 16px 44px -10px rgba(40,28,16,.16),0 4px 12px rgba(40,28,16,.07);
       --e4:0 30px 80px -16px rgba(20,40,28,.24),0 8px 26px rgba(40,28,16,.10);
       --rXS:8px; --rS:12px; --rM:14px; --rL:18px; --rXL:24px; --pill:999px;
-      --serif:"Playfair Display",Georgia,serif;
+      --serif:"Fraunces",Georgia,serif;
       --sans:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
       --mono:"Spline Sans Mono",ui-monospace,Menlo,monospace;
       --ease-out:cubic-bezier(.16,1,.3,1); --ease-io:cubic-bezier(.4,0,.2,1);
@@ -60,7 +60,7 @@
       animation:drift 22s var(--ease-io) infinite alternate; }
     @keyframes drift{ to{ transform:translate3d(3%,4%,0) scale(1.08); } }
     @media (prefers-reduced-motion:reduce){ .aurora{ animation:none; } }
-    h1.display{ font:400 clamp(34px,5.2vw,54px)/1.03 var(--serif); letter-spacing:-.02em; color:var(--tx); max-width:16ch; }
+    h1.display{ font:600 clamp(34px,5.2vw,54px)/1.03 var(--serif); letter-spacing:-.02em; color:var(--tx); max-width:16ch; }
     h1.display em{ font-style:italic; color:var(--g0); }
     .lede{ margin-top:14px; max-width:60ch; color:var(--tx2); font-size:17px; }
 
@@ -95,7 +95,7 @@
     .crawl{ margin-top:26px; display:none; }
     .crawl.show{ display:block; }
     .crawl-head{ display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
-    .crawl-head h2{ font:400 22px/1.1 var(--serif); color:var(--tx); }
+    .crawl-head h2{ font:600 22px/1.1 var(--serif); color:var(--tx); }
     .timer{ font:500 13px/1 var(--mono); color:var(--tx3); }
     .stages{ list-style:none; display:flex; flex-direction:column; gap:2px; }
     .stage{ display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border-radius:var(--rM);
@@ -116,7 +116,7 @@
     .dossier{ margin-top:30px; display:none; }
     .dossier.show{ display:block; }
     .head-row{ display:flex; align-items:flex-start; gap:18px; flex-wrap:wrap; }
-    .head-row h2{ font:400 30px/1.05 var(--serif); color:var(--tx); }
+    .head-row h2{ font:600 30px/1.05 var(--serif); color:var(--tx); }
     .head-meta{ font-size:14px; color:var(--tx3); margin-top:6px; }
     .head-meta a{ color:var(--g0); }
     .pill{ display:inline-flex; align-items:center; gap:6px; font:600 12px/1 var(--sans); padding:6px 10px;
@@ -162,6 +162,49 @@
     .errbox{ margin-top:20px; padding:16px 18px; border-radius:var(--rM); background:var(--th); border:1px solid var(--bh); color:var(--hi); display:none; }
     .errbox.show{ display:block; }
     .foot{ margin:44px 0 30px; font-size:13px; color:var(--tx3); text-align:center; }
+
+    /* ── AI reasoning: machine reasoning gets the violet voice (DESIGN.md) ── */
+    .reasoning{ margin-top:18px; padding:18px 20px; border-radius:var(--rL); background:var(--ai-tint); border:1px solid var(--ai-bd); }
+    .reasoning .rhead{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+    .reasoning .rbadge{ display:inline-flex; align-items:center; gap:6px; font:700 10px/1 var(--sans); letter-spacing:.11em;
+      text-transform:uppercase; color:#fff; background:var(--ai); padding:6px 10px; border-radius:var(--pill); }
+    .reasoning .rtitle{ font:600 18px/1.15 var(--serif); color:var(--tx); }
+    .reasoning .rlist{ display:flex; flex-direction:column; gap:11px; }
+    .reasoning .rpoint{ display:flex; gap:12px; align-items:flex-start; font-size:15px; line-height:1.55; color:var(--tx2); }
+    .reasoning .rpoint .rn{ flex:none; width:23px; height:23px; border-radius:50%; background:var(--surface); border:1px solid var(--ai-bd);
+      color:var(--ai); font:600 11px/1 var(--mono); display:grid; place-items:center; margin-top:1px; }
+    .reasoning .rfoot{ margin-top:14px; padding-top:12px; border-top:1px solid var(--ai-bd); font:500 12.5px/1.5 var(--mono);
+      color:var(--tx3); display:flex; gap:14px; flex-wrap:wrap; }
+    .reasoning .rfoot b{ color:var(--ai); font-weight:600; }
+
+    /* ── Menu read: richer dish cards with a per-dish risk badge ── */
+    .menu-read{ padding:4px 18px 8px; border-radius:var(--rL); border:1px solid var(--border); background:var(--surface); box-shadow:var(--e1); }
+    .mr-top{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:15px 0 4px; flex-wrap:wrap; }
+    .mr-stat{ font:600 14.5px/1.3 var(--sans); color:var(--tx); }
+    .mr-stat b{ font-family:var(--mono); color:var(--g0); }
+    .mr-sub{ font-size:12.5px; color:var(--tx3); }
+    .dish2{ display:grid; grid-template-columns:1fr auto; gap:3px 14px; align-items:center; padding:13px 0; border-top:1px solid var(--border); }
+    .dish2 .d2n{ font:600 15px/1.3 var(--sans); color:var(--tx); grid-column:1; }
+    .dish2 .d2r{ font-size:13px; color:var(--tx2); grid-column:1; }
+    .dish2 .d2b{ grid-row:1 / span 2; align-self:center; justify-self:end; font:700 10px/1 var(--mono); letter-spacing:.05em;
+      text-transform:uppercase; padding:6px 10px; border-radius:var(--pill); white-space:nowrap; }
+    .b-low{ color:var(--lo); background:var(--tl); border:1px solid var(--bl); }
+    .b-med{ color:var(--md); background:var(--tm); border:1px solid var(--bm); }
+    .b-high{ color:var(--hi); background:var(--th); border:1px solid var(--bh); }
+    .mr-foot{ font-size:13px; color:var(--tx2); padding:12px 0 4px; border-top:1px solid var(--border); }
+
+    /* ── Reveal + ring-draw animations ── */
+    .reveal-up{ opacity:0; transform:translateY(16px); }
+    .dossier.show .reveal-up{ animation:revealUp .6s var(--ease-out) both; animation-delay:var(--d,0ms); }
+    @keyframes revealUp{ to{ opacity:1; transform:none; } }
+    /* Ring draws from empty to its value via a keyframe — renders correct-by-default
+       (no rAF gating), so it's right even in headless/hidden tabs. */
+    .ring circle.arc{ stroke-dashoffset:var(--off); animation:ringDraw 1.1s var(--ease-out) both; }
+    @keyframes ringDraw{ from{ stroke-dashoffset:var(--c); } to{ stroke-dashoffset:var(--off); } }
+    @media (prefers-reduced-motion:reduce){
+      .reveal-up{ opacity:1; transform:none; } .dossier.show .reveal-up{ animation:none; }
+      .ring circle.arc{ animation:none; }
+    }
 
     @media (max-width:720px){
       form{ grid-template-columns:1fr; } .row3{ grid-template-columns:1fr; }
@@ -366,20 +409,35 @@
       const num = (risk==null) ? "–" : Math.round(pct*100);
       return '<div class="ring"><svg width="104" height="104" viewBox="0 0 104 104">'
         + '<circle cx="52" cy="52" r="'+r+'" fill="none" stroke="var(--border)" stroke-width="9"/>'
-        + '<circle cx="52" cy="52" r="'+r+'" fill="none" stroke="'+t.ring+'" stroke-width="9" stroke-linecap="round" '
-        + 'stroke-dasharray="'+c.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'"/></svg>'
+        + '<circle class="arc" cx="52" cy="52" r="'+r+'" fill="none" stroke="'+t.ring+'" stroke-width="9" stroke-linecap="round" '
+        + 'stroke-dasharray="'+c.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'" style="--c:'+c.toFixed(1)+';--off:'+off.toFixed(1)+'"/></svg>'
         + '<div class="num">'+num+'</div></div>';
     }
     function verdictBlock(v){
       const t = TIER[v.tier] || TIER.unknown;
-      const conf = (v.confidence==null) ? "" : (Math.round(v.confidence*100) + "% confidence");
-      const rat = (v.rationale||[]).map(esc).join(" · ");
+      const lead = (v.rationale||[]).filter(Boolean)[0];
       const unver = v.verified ? "" : '<div class="vconf">Couldn’t verify a menu. Treat it as unknown, not safe.</div>';
-      return '<div class="verdict">' + ring(v.risk, v.tier)
+      return '<div class="verdict reveal-up">' + ring(v.risk, v.tier)
         + '<div class="vb"><span class="vword '+t.cls+'"><span class="ic">'+t.ic+'</span>'+esc(t.word)+'</span>'
-        + (rat ? '<div class="vrat">'+rat+'</div>' : '')
-        + (v.basis ? '<div class="vconf">How we know: '+esc(v.basis.replace(/_/g," "))+(conf?' · '+conf:'')+'</div>' : (conf?'<div class="vconf">'+conf+'</div>':''))
+        + (lead ? '<div class="vrat">'+esc(lead)+'</div>' : '')
         + unver + '</div></div>';
+    }
+    // The AI's reasoning gets its own prominent, violet-voiced block (machine reasoning).
+    function reasoningBlock(v){
+      const pts = [];
+      (v.rationale||[]).forEach(p => { const k=(p||"").trim(); if(k && !pts.some(x=>x.trim()===k)) pts.push(p); });
+      if(!pts.length) return "";
+      const conf = (v.confidence==null) ? "" : (Math.round(v.confidence*100) + "% confidence");
+      const basis = v.basis ? v.basis.replace(/_/g," ") : "";
+      const items = pts.map((p,i)=>'<div class="rpoint"><span class="rn">'+(i+1)+'</span><span>'+esc(p)+'</span></div>').join("");
+      let foot = "";
+      if(basis) foot += '<span>Basis: <b>'+esc(basis)+'</b></span>';
+      if(conf) foot += '<span><b>'+esc(conf)+'</b></span>';
+      foot += '<span>'+(v.verified?'Menu verified':'Menu unverified')+'</span>';
+      return '<div class="reasoning reveal-up" style="--d:110ms">'
+        + '<div class="rhead"><span class="rbadge"><span aria-hidden="true">✦</span> AI reasoning</span><span class="rtitle">Why this verdict</span></div>'
+        + '<div class="rlist">'+items+'</div>'
+        + '<div class="rfoot">'+foot+'</div></div>';
     }
 
     function renderDossier(d){
@@ -389,7 +447,7 @@
       let html = "";
 
       // Header
-      html += '<div class="head-row"><div style="flex:1;min-width:240px">'
+      html += '<div class="head-row reveal-up"><div style="flex:1;min-width:240px">'
         + '<h2>'+esc(h.name||"Restaurant")+'</h2>'
         + '<div class="head-meta">'
         + (cuisines?esc(cuisines)+' · ':'') + (h.address?esc(h.address):'')
@@ -398,15 +456,16 @@
         + '</div></div>';
       html += '<span class="pill">'+ (h.resolvedVia==="url"?"From URL":"Matched via Places") +'</span></div>';
 
-      // Verdict
+      // Verdict + the AI's reasoning (its own prominent block)
       html += verdictBlock(v);
+      html += reasoningBlock(v);
 
       // Provenance banners (built from label fields; region_notice()/locationNotice
       // carry no prebuilt .message, so render from their parts).
       const rn = prov.regionNotice;
       if(rn && rn.verified === false){
         const src = esc(rn.sourceLabel || "another region");
-        html += '<div class="region"><span aria-hidden="true">⚑</span><span>Allergen data is from '+src+
+        html += '<div class="region reveal-up"><span aria-hidden="true">⚑</span><span>Allergen data is from '+src+
                 ' — recipes and labelling differ by country. Use as a guide and confirm with the restaurant.</span></div>';
       }
       const ln = prov.locationNotice;
@@ -416,29 +475,39 @@
           ? ('This menu is from the '+esc(ln.shownCity)+' location, not '+home+
              '. Dishes and prep can differ — confirm with the '+home+' location.')
           : ("We couldn't confirm this is the "+home+" menu; it may be from another location. Confirm with the restaurant.");
-        html += '<div class="region"><span aria-hidden="true">⚑</span><span>'+msg+'</span></div>';
+        html += '<div class="region reveal-up"><span aria-hidden="true">⚑</span><span>'+msg+'</span></div>';
       }
 
-      // Dishes to watch
-      html += '<div class="sec"><h3>Watch out for these</h3>';
+      // Menu read — richer, per-dish risk badges + a read summary
+      html += '<div class="sec reveal-up" style="--d:180ms"><h3>What the menu says</h3><div class="menu-read">';
       const watch = dishes.watch||[];
+      const parsed = dishes.parsedCount || 0;
+      html += '<div class="mr-top"><span class="mr-stat"><b>'+(parsed||watch.length||0)+'</b> dishes read · <b>'+watch.length+'</b> flagged for nuts</span>'
+            + '<span class="mr-sub">A missed risk is worse than a false alarm</span></div>';
       if(watch.length){
-        watch.slice(0,8).forEach(it => {
+        watch.slice(0,10).forEach(it => {
           const nm = it.itemName || it.name || it.dish || "Dish";
-          const why = it.suspected ? "May hide nuts (lower confidence)"
-                    : (it.risk!=null ? ("Named nut risk · "+Math.round(it.risk*100)+"/100") : "Named nut risk");
-          html += '<div class="dish"><span aria-hidden="true">⚠</span><div><div class="dn">'+esc(nm)+'</div><div class="dr">'+esc(why)+'</div></div></div>';
+          let band, word, reason;
+          if(it.suspected){ band='b-med'; word='Suspected'; reason='May hide nuts — lower-confidence signal'; }
+          else if(it.risk!=null){
+            const rk = Math.round(it.risk*100);
+            band = it.risk>=0.66 ? 'b-high' : (it.risk>=0.33 ? 'b-med' : 'b-low');
+            word = it.risk>=0.66 ? 'High' : (it.risk>=0.33 ? 'Medium' : 'Low');
+            reason = 'Named nut risk · '+rk+'/100';
+          } else { band='b-high'; word='Flagged'; reason='Named nut risk'; }
+          html += '<div class="dish2"><div class="d2n">'+esc(nm)+'</div><div class="d2r">'+esc(reason)+'</div>'
+                + '<span class="d2b '+band+'">'+esc(word)+'</span></div>';
         });
+        if(parsed && dishes.otherCount!=null){
+          html += '<div class="mr-foot">'+dishes.otherCount+' other dishes carried no named nuts — but an unlabelled dish is not a safe dish. Confirm cross-contact with the kitchen.</div>';
+        }
       } else {
-        html += '<div class="empty">No individual dishes were flagged as named risks.</div>';
+        html += '<div class="mr-foot">No individual dishes named nuts. That is not the same as nut-free; confirm cross-contact with the kitchen before ordering.</div>';
       }
-      if(dishes.parsedCount){
-        html += '<div class="safe-note" style="margin-top:8px">Parsed '+dishes.parsedCount+' dishes; '+dishes.otherCount+' had no named nuts. Absence of a label is not proof of safety.</div>';
-      }
-      html += '</div>';
+      html += '</div></div>';
 
       // Deeper-site signals
-      html += '<div class="sec"><h3>From the restaurant’s own pages</h3>';
+      html += '<div class="sec reveal-up" style="--d:240ms"><h3>From the restaurant’s own pages</h3>';
       const sigs = deep.signals||[];
       if(sigs.length){
         sigs.forEach(s => {
@@ -464,7 +533,7 @@
       html += '</div>';
 
       // Community anecdotes
-      html += '<div class="sec"><h3>What diners say</h3>';
+      html += '<div class="sec reveal-up" style="--d:300ms"><h3>What diners say</h3>';
       if(comm.length){
         comm.slice(0,6).forEach(q => { html += '<div class="quote">“'+esc(q)+'”</div>'; });
       } else {
@@ -473,7 +542,7 @@
       html += '</div>';
 
       // Provenance
-      html += '<div class="sec"><h3>How we know</h3><div class="provlist">';
+      html += '<div class="sec reveal-up" style="--d:360ms"><h3>How we know</h3><div class="provlist">';
       html += provRow("Allergy disclaimer on site", rs.has_allergy_disclaimer);
       html += provRow("Cross-contact warning", rs.has_cross_contact_warning);
       html += provRow("Tells guests to inform staff", rs.mentions_staff_allergy_instruction);
