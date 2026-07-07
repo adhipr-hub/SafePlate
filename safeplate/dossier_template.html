@@ -401,10 +401,22 @@
       // Verdict
       html += verdictBlock(v);
 
-      // Region banner
+      // Provenance banners (built from label fields; region_notice()/locationNotice
+      // carry no prebuilt .message, so render from their parts).
       const rn = prov.regionNotice;
-      if(rn && rn.message){
-        html += '<div class="region"><span aria-hidden="true">⚑</span><span>'+esc(rn.message)+'</span></div>';
+      if(rn && rn.verified === false){
+        const src = esc(rn.sourceLabel || "another region");
+        html += '<div class="region"><span aria-hidden="true">⚑</span><span>Allergen data is from '+src+
+                ' — recipes and labelling differ by country. Use as a guide and confirm with the restaurant.</span></div>';
+      }
+      const ln = prov.locationNotice;
+      if(ln && ln.verified === false){
+        const home = esc(ln.homeCity || "your area");
+        const msg = ln.shownCity
+          ? ('This menu is from the '+esc(ln.shownCity)+' location, not '+home+
+             '. Dishes and prep can differ — confirm with the '+home+' location.')
+          : ("We couldn't confirm this is the "+home+" menu; it may be from another location. Confirm with the restaurant.");
+        html += '<div class="region"><span aria-hidden="true">⚑</span><span>'+msg+'</span></div>';
       }
 
       // Dishes to watch

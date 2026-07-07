@@ -175,6 +175,51 @@ def _region_notice_for(
     return region_mod.region_notice(home=home, source_region=source_region)
 
 
+def _location_notice_for(
+    coverage: list[Any], menu_items: list[Any], *, address: str, restaurant_name: str
+) -> dict[str, Any] | None:
+    """Location-provenance notice: is the SHOWN menu from the diner's location, or
+    did discovery fall back to another branch's menu? Structural only (Places
+    address city vs. menu-source URL slug), never menu prose. We keep the menu but
+    flag the mismatch -- 'flag, don't hide'. None when there's nothing to say."""
+    from safeplate.extraction2 import locality
+
+    home = locality.city_from_address(address)
+    if not home:
+        return None
+    used = [getattr(it, "menu_source_url", "") for it in menu_items]
+    used = [u for u in used if u]
+    if not used:
+        return None
+    home_label = home.replace("-", " ").title()
+
+    # (a) A used source explicitly names a DIFFERENT city -> labeled mismatch.
+    for url in used:
+        if locality.menu_city_mismatch(url, address, restaurant_name):
+            shown = locality.source_city_slug(url, restaurant_name) or ""
+            return {
+                "verified": False,
+                "shownCity": shown.replace("-", " ").title(),
+                "homeCity": home_label,
+                "confidence": "labeled",
+            }
+
+    # (b) Coverage-diff: a diner-city menu was DISCOVERED but not the source we
+    #     used -> inferred mismatch (no clean label to show).
+    home_in_used = any(locality.url_has_city(u, home) for u in used)
+    home_in_coverage = any(
+        locality.url_has_city(getattr(c, "url", ""), home) for c in coverage
+    )
+    if home_in_coverage and not home_in_used:
+        return {
+            "verified": False,
+            "shownCity": "",
+            "homeCity": home_label,
+            "confidence": "inferred",
+        }
+    return None
+
+
 def _diet_summary_payload(
     diets: Any, menu_items: list[Any], *, cuisines: list[str] | None = None,
     llm_judgments: dict[str, Any] | None = None,
@@ -248,11 +293,15 @@ def _structured_menu_response(
     region_notice = _region_notice_for(
         coverage, menu_items, address=address, website_url=website_url
     )
+    location_notice = _location_notice_for(
+        coverage, menu_items, address=address, restaurant_name=restaurant_name
+    )
     summary: dict[str, Any] = {
         "engine": "structured",
         "scoringEngine": scoring_engine,
         "personalized": personalized,
         "regionNotice": region_notice,
+        "locationNotice": location_notice,
         "itemCount": len(item_payloads),
         "allergenItemCount": sum(
             1 for item in menu_items if getattr(item, "allergen_terms", None)
@@ -302,6 +351,7 @@ def _structured_menu_response(
         "coverage": [asdict(report) for report in coverage],
         "coverageStatus": coverage_status,
         "regionNotice": region_notice,
+        "locationNotice": location_notice,
         "summary": summary,
         "files": {},
     }

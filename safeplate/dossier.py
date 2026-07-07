@@ -528,6 +528,7 @@ def assemble_dossier(
         "provenance": {
             "coverage": (extraction or {}).get("coverage") or [],
             "regionNotice": summary.get("regionNotice"),
+            "locationNotice": summary.get("locationNotice"),
             "perAllergen": summary.get("perAllergen") or [],
         },
         "elapsedMs": int(elapsed * 1000),
