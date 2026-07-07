@@ -467,15 +467,23 @@ _SHARED_PLATFORM_HOSTS = (
 )
 
 
-def _cache_discriminator(website_url: str, restaurant_name: str | None) -> str:
+def _cache_discriminator(
+    website_url: str, restaurant_name: str | None, fetch_mode: str = "static"
+) -> str:
     """Empty for normal own-domain sites (so chain branches share a cache entry);
     the normalized restaurant name on shared platforms (so two restaurants under the
-    same aggregator domain don't collide)."""
+    same aggregator domain don't collide). A non-static fetch_mode is appended so a
+    static "no menu found" can never be replayed to the dossier's rendering run
+    (which would silently suppress the browser), and vice versa."""
     host = urlparse(website_url or "").netloc.lower().split(":")[0]
     host = host[4:] if host.startswith("www.") else host
     if any(host == h or host.endswith("." + h) for h in _SHARED_PLATFORM_HOSTS):
-        return " ".join((restaurant_name or "").split()).lower()
-    return ""
+        disc = " ".join((restaurant_name or "").split()).lower()
+    else:
+        disc = ""
+    if fetch_mode != "static":
+        disc = f"{disc}+fm={fetch_mode}"
+    return disc
 
 
 def _result_cache_path(website_url: str, model: str, discriminator: str = ""):
@@ -568,6 +576,7 @@ def discover_and_extract(
     policy=None,
     use_result_cache: bool = False,
     use_cache: bool = True,
+    fetch_mode: str = "static",
 ):
     """End-to-end: find candidates -> acquire -> extract. Returns (candidates, result).
 
@@ -575,7 +584,10 @@ def discover_and_extract(
     this website within the TTL -- skipping ALL discovery + extraction API calls on
     a repeat open. Eval/benchmarks leave it OFF so they always measure fresh logic.
     `use_cache=False` additionally bypasses the per-source caches (HTTP fetch, vision
-    matrix, text-LLM) so the run hits the LIVE website -- the 'raw' / no-cache test."""
+    matrix, text-LLM) so the run hits the LIVE website -- the 'raw' / no-cache test.
+    fetch_mode is forwarded to every HTML acquisition ("auto" = render JS-empty pages
+    with the headless browser); it also keys the result cache so static and rendered
+    runs never serve each other."""
     from safeplate.extraction2.acquire import acquire
     from safeplate.extraction2.classify import IMAGE_EXTS
     from safeplate.extraction2.pipeline import _fold_allergen_evidence, extract_menu
@@ -596,7 +608,7 @@ def discover_and_extract(
 
     cache_model = model or DEFAULT_MODEL
     cache_url = _normalize_cache_url(website_url)  # share one entry across utm/clean URLs
-    cache_disc = _cache_discriminator(website_url, restaurant_name)
+    cache_disc = _cache_discriminator(website_url, restaurant_name, fetch_mode)
     if use_result_cache:
         cached = _load_result_cache(cache_url, cache_model, cache_disc)
         if cached is not None:
@@ -623,7 +635,8 @@ def discover_and_extract(
             "image" if low.endswith(IMAGE_EXTS) else "website_link")
         try:
             return cand.url, acquire(cand.url, source_type=source_type,
-                                     user_agent=user_agent, use_cache=use_cache)
+                                     user_agent=user_agent, use_cache=use_cache,
+                                     fetch_mode=fetch_mode)
         except Exception:
             return cand.url, None
 
@@ -786,7 +799,7 @@ def discover_and_extract(
             seen_urls.add(cand.url)
             try:
                 payload = acquire(cand.url, source_type="pdf", user_agent=user_agent,
-                                  use_cache=use_cache)
+                                  use_cache=use_cache, fetch_mode=fetch_mode)
             except Exception:
                 continue
             if not _pdf_mentions(payload.text, restaurant_name):

@@ -40,3 +40,22 @@ def test_acquire_defaults_to_static(monkeypatch):
     monkeypatch.setattr(acquire_mod, "fetch_html_page", fake_fetch)
     acquire("http://example.test/menu", source_type="website_link", user_agent="t")
     assert calls == ["static"]
+
+
+from safeplate.extraction2.discover import _cache_discriminator
+
+
+def test_cache_discriminator_unchanged_for_static():
+    # Own-domain static: empty discriminator, exactly as before this feature
+    # (existing cache entries must stay valid).
+    assert _cache_discriminator("http://tandoori.example", "Tandoori Hut") == ""
+    assert _cache_discriminator(
+        "http://tandoori.example", "Tandoori Hut", fetch_mode="static") == ""
+
+
+def test_cache_discriminator_splits_auto_runs():
+    static = _cache_discriminator("http://tandoori.example", "Tandoori Hut")
+    auto = _cache_discriminator(
+        "http://tandoori.example", "Tandoori Hut", fetch_mode="auto")
+    assert auto != static
+    assert auto.endswith("+fm=auto")
