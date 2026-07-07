@@ -189,11 +189,15 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
                 from safeplate.dossier import dossier_html
                 self._send_html(dossier_html())
                 return
-            if path == "/dossier/stream":
-                self._handle_dossier_stream()
-                return
-            if path == "/dossier/candidates":
-                self._handle_dossier_candidates()
+            if path in ("/dossier/stream", "/dossier/candidates"):
+                # These run the same paid pipelines as POST /api/menu and
+                # /api/search -- they must burn the same limiter/daily budget.
+                if not self._guard_paid_endpoint():
+                    return
+                if path == "/dossier/stream":
+                    self._handle_dossier_stream()
+                else:
+                    self._handle_dossier_candidates()
                 return
             static_page = get_page(path)
             if static_page is not None:
@@ -220,19 +224,7 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             if not self._check_auth():
                 return
             path = urlparse(self.path).path
-            if path in ("/api/search", "/api/menu") and not rate_limiter.check(
-                self._client_ip()
-            ):
-                self._send_json(
-                    {"error": "Rate limit exceeded -- please wait a minute and try again."},
-                    status=429,
-                )
-                return
-            if path in ("/api/search", "/api/menu") and not daily_cap.allow():
-                self._send_json(
-                    {"error": "The app has hit today's request budget. Please try again tomorrow."},
-                    status=429,
-                )
+            if path in ("/api/search", "/api/menu") and not self._guard_paid_endpoint():
                 return
             if path == "/api/search":
                 self._handle_search()
@@ -373,6 +365,24 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
                 if key == name:
                     return value or None
             return None
+
+        def _guard_paid_endpoint(self) -> bool:
+            """Per-IP rate limit + process-wide daily cap for every route that
+            triggers paid provider calls (the search/menu POSTs and the dossier
+            GETs). Sends the 429 itself; the caller just returns on False."""
+            if not rate_limiter.check(self._client_ip()):
+                self._send_json(
+                    {"error": "Rate limit exceeded -- please wait a minute and try again."},
+                    status=429,
+                )
+                return False
+            if not daily_cap.allow():
+                self._send_json(
+                    {"error": "The app has hit today's request budget. Please try again tomorrow."},
+                    status=429,
+                )
+                return False
+            return True
 
         def _client_ip(self) -> str:
             """Real client IP for rate limiting. Only honour X-Forwarded-For when the

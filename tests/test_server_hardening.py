@@ -60,3 +60,44 @@ def test_loopback_bind_is_allowed_without_password(monkeypatch):
 def test_public_bind_allowed_with_password(monkeypatch):
     monkeypatch.setenv("SAFEPLATE_PASSWORD", "hunter2hunter2")
     api_server._assert_safe_to_bind("0.0.0.0")  # must not raise
+
+
+def _dossier_get(monkeypatch, **env):
+    """Handler wired for GET-route tests: dossier handlers stubbed to record calls,
+    _send_json stubbed to record response statuses."""
+    h = _handler(monkeypatch, **env)
+    h.headers = {}
+    calls: list[str] = []
+    h._handle_dossier_stream = lambda: calls.append("stream")
+    h._handle_dossier_candidates = lambda: calls.append("candidates")
+    statuses: list[int] = []
+    h._send_json = lambda payload, status=200: statuses.append(status)
+    return h, calls, statuses
+
+
+def test_dossier_stream_is_rate_limited(monkeypatch):
+    # /dossier/stream runs the same paid extraction pipeline as POST /api/menu, so it
+    # must consult the same per-IP limiter instead of offering an unmetered side door.
+    h, calls, statuses = _dossier_get(monkeypatch, SAFEPLATE_RATE_LIMIT_PER_MIN="1")
+    h.path = "/dossier/stream?name=X&location=Y"
+    h.do_GET()
+    assert calls == ["stream"]
+    h.do_GET()
+    assert calls == ["stream"]  # second request must NOT reach the paid handler
+    assert statuses == [429]
+
+
+def test_dossier_candidates_counts_toward_daily_cap(monkeypatch):
+    # /dossier/candidates hits Places search -- it must burn the same daily budget
+    # as POST /api/search.
+    h, calls, statuses = _dossier_get(
+        monkeypatch,
+        SAFEPLATE_DAILY_REQUEST_CAP="1",
+        SAFEPLATE_RATE_LIMIT_PER_MIN="100",
+    )
+    h.path = "/dossier/candidates?q=pizza"
+    h.do_GET()
+    assert calls == ["candidates"]
+    h.do_GET()
+    assert calls == ["candidates"]  # capped out: paid handler not reached
+    assert statuses == [429]
