@@ -538,6 +538,24 @@ def _save_result_cache(website_url: str, model: str, result, discriminator: str 
         pass
 
 
+def _used_menu_city_mismatch(result_items, address, restaurant_name) -> bool:
+    """True when a menu source that produced the current items names a city that
+    contradicts the diner's -- i.e. we're showing another location's menu, so the
+    off-site Brave menu-PDF hunt should re-open even if the item count isn't thin."""
+    from safeplate.extraction2 import locality
+
+    if not address:
+        return False
+    seen: set[str] = set()
+    for it in result_items:
+        url = getattr(it, "menu_source_url", "") or ""
+        if url and url not in seen:
+            seen.add(url)
+            if locality.menu_city_mismatch(url, address, restaurant_name or ""):
+                return True
+    return False
+
+
 def discover_and_extract(
     website_url: str,
     *,
@@ -746,11 +764,12 @@ def discover_and_extract(
     # JS-rendered menu), a static menu PDF often exists off-site. Fire only on thin
     # results, and require the PDF to actually name this restaurant -- a collision
     # guard against same-name-different-restaurant PDFs for common independents.
+    _city_mismatch = _used_menu_city_mismatch(result.items, address, restaurant_name)
     if (
         brave_api_key
         and api_key
         and restaurant_name
-        and len(result.items) < _MENU_PDF_THIN
+        and (len(result.items) < _MENU_PDF_THIN or _city_mismatch)
         and time.monotonic() < overall_deadline
     ):
         seen_urls = {c.url for c in candidates}
@@ -780,7 +799,7 @@ def discover_and_extract(
             result.coverage.extend(sub.coverage)
             result.llm_calls += sub.llm_calls
             candidates.append(cand)
-            if len(result.items) >= _MENU_PDF_THIN:
+            if not _city_mismatch and len(result.items) >= _MENU_PDF_THIN:
                 break
 
     # Directive #3: capture restaurant-level allergy-handling signals from narrative
