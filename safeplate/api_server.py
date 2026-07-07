@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from safeplate.config import (
     get_brave_search_api_key,
@@ -168,7 +168,20 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             if not self._check_auth():
                 return
             if path == "/":
-                self._send_html(app_html())
+                requested = (parse_qs(urlparse(self.path).query).get("theme") or [None])[0]
+                theme = requested or self._cookie("sp_theme") or "classic"
+                theme = "green" if theme == "green" else "classic"
+                # Persist the choice only when the toggle explicitly sets it, so a plain
+                # refresh keeps the last-picked skin.
+                set_cookie = (
+                    f"sp_theme={theme}; Path=/; Max-Age=31536000; SameSite=Lax"
+                    if requested in ("green", "classic")
+                    else None
+                )
+                self._send_html(app_html(theme), set_cookie=set_cookie)
+                return
+            if path.startswith("/static/"):
+                self._send_static(path)
                 return
             # Deep-Dive Dossier (prototype) -- additive routes; the production
             # search/menu paths above and below are untouched.
@@ -352,6 +365,15 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             self.end_headers()
             return False
 
+        def _cookie(self, name: str) -> str | None:
+            """Read a single cookie value from the request's Cookie header, or None."""
+            raw = self.headers.get("Cookie", "")
+            for part in raw.split(";"):
+                key, _, value = part.strip().partition("=")
+                if key == name:
+                    return value or None
+            return None
+
         def _client_ip(self) -> str:
             """Real client IP for rate limiting. Only honour X-Forwarded-For when the
             operator has opted in (behind a trusted proxy), and then use the RIGHTMOST
@@ -395,11 +417,41 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                 pass
 
-        def _send_html(self, html: str, status: int = 200) -> None:
+        def _send_static(self, path: str) -> None:
+            """Serve a bundled asset from safeplate/static. Hardened against traversal:
+            the remainder after '/static/' must be a bare filename (no separators, no
+            '..'), and the resolved file must sit directly inside _STATIC_DIR."""
+            rel = path[len("/static/"):]
+            if not rel or "/" in rel or "\\" in rel or ".." in rel:
+                self.send_error(404)
+                return
+            target = (_STATIC_DIR / rel).resolve()
+            ctype = _STATIC_CONTENT_TYPES.get(target.suffix.lower())
+            if ctype is None or target.parent != _STATIC_DIR.resolve() or not target.is_file():
+                self.send_error(404)
+                return
+            try:
+                data = target.read_bytes()
+            except OSError:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self._apply_security_headers()
+            self.end_headers()
+            self._write_body(data)
+
+        def _send_html(
+            self, html: str, status: int = 200, *, set_cookie: str | None = None
+        ) -> None:
             encoded = html.encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(encoded)))
+            if set_cookie is not None:
+                self.send_header("Set-Cookie", set_cookie)
             self._apply_security_headers()
             self.end_headers()
             self._write_body(encoded)
@@ -446,29 +498,55 @@ def run_server(
     return ThreadingHTTPServer((host, port), create_app_handler(demo_mode=demo_mode))
 
 
-_APP_TEMPLATE_PATH = Path(__file__).resolve().parent / "app_template.html"
-_app_html_cache: dict[str, Any] = {"mtime": None, "html": ""}
+# Two skins share the same JS/DOM contract and the same backend: the original
+# "classic" template and the "green" editorial reskin. The UI toggle (and a cookie)
+# picks between them; both are served from "/".
+_APP_TEMPLATE_PATHS = {
+    "classic": Path(__file__).resolve().parent / "app_template.html",
+    "green": Path(__file__).resolve().parent / "app_template_green.html",
+}
+_app_html_cache: dict[str, dict[str, Any]] = {
+    "classic": {"mtime": None, "html": ""},
+    "green": {"mtime": None, "html": ""},
+}
 _app_html_lock = threading.Lock()
 
+# Bundled static assets (hero photography, etc.). Served only for bare filenames that
+# resolve directly inside this directory -- no subpaths, no traversal.
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+_STATIC_CONTENT_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+    ".avif": "image/avif",
+}
 
-def app_html() -> str:
+
+def app_html(theme: str = "classic") -> str:
     """Serve the page template, re-reading it when the file changes so edits show on
     a plain browser refresh -- no server restart needed. Only re-reads when the file's
     mtime changes (a cheap stat per request); on a transient read error (e.g. the file
     caught mid-save) it keeps serving the last good copy.
 
-    The lock makes the stat/read/return atomic under ThreadingHTTPServer: without it a
-    reader could observe a new mtime paired with the old html, and concurrent first
-    requests would all re-read the file at once."""
+    ``theme`` picks the skin ("classic" or "green"); an unknown theme falls back to
+    classic. The lock makes the stat/read/return atomic under ThreadingHTTPServer:
+    without it a reader could observe a new mtime paired with the old html, and
+    concurrent first requests would all re-read the file at once."""
+    if theme not in _APP_TEMPLATE_PATHS:
+        theme = "classic"
+    path = _APP_TEMPLATE_PATHS[theme]
+    cache = _app_html_cache[theme]
     with _app_html_lock:
         try:
-            mtime = _APP_TEMPLATE_PATH.stat().st_mtime
-            if mtime != _app_html_cache["mtime"]:
-                _app_html_cache["html"] = _APP_TEMPLATE_PATH.read_text(encoding="utf-8")
-                _app_html_cache["mtime"] = mtime
+            mtime = path.stat().st_mtime
+            if mtime != cache["mtime"]:
+                cache["html"] = path.read_text(encoding="utf-8")
+                cache["mtime"] = mtime
         except OSError:
             pass  # keep serving the last good copy
-        return _app_html_cache["html"]
+        return cache["html"]
 
 
 

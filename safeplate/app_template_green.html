@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- Only the weights actually used: Playfair 400 + italic-400 (display), Hanken
        400/500/600/700 (UI), Spline 500/600 (figures). Trimmed from 9 Playfair cuts. -->
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet" />
   <style>
     /* ════════════════════════════════════════════════════════════════════════
        SafePlate — "Editorial Aurora" (live app reskin)
@@ -20,11 +20,11 @@
        ════════════════════════════════════════════════════════════════════════ */
     :root {
       /* —— Warm-paper editorial base —— */
-      --page:    #F7F3EA;   /* warm bone */
-      --paper2:  #FAF7F0;   /* alternate tonal ground */
-      --surface: #FDFBF6;   /* lifted near-white cards */
-      --border:  #E6DECF;   /* hairline (ALSO the ring track — keep visible) */
-      --border2: #CFC4B2;   /* hover border */
+      --page:    #F5F1EA;   /* warm oat */
+      --paper2:  #F2ECE1;   /* alternate tonal ground */
+      --surface: #FCF9F3;   /* lifted near-white cards */
+      --border:  #E5DDD0;   /* hairline (ALSO the ring track — keep visible) */
+      --border2: #D2C8B9;   /* hover border */
 
       /* Hero / closing forest (kept defined; warm-paper hero uses the aurora) */
       --hero-1:  #12492D;
@@ -38,9 +38,9 @@
       --tx2: #4A4039;   /* body copy (~9:1) */
       --tx3: #5E544B;   /* secondary / captions (~6.6:1) */
 
-      /* Brand green ramp */
-      --g0: #166534;   /* deep green */
-      --g1: #16A34A;   /* mid green  */
+      /* Brand green ramp — deep forest identity */
+      --g0: #1C5A44;   /* deep forest green */
+      --g1: #2E8B6A;   /* mid green  */
       --g2: #22C55E;   /* vivid ring */
       --gt: #DCFCE7;   /* tint       */
 
@@ -76,7 +76,7 @@
       --rXS: 8px;  --rS: 12px;  --rM: 14px;  --rL: 18px;  --rXL: 24px;  --pill: 999px;
 
       /* Type — editorial-luxury webfaces, tight system fallback */
-      --serif: "Playfair Display", Georgia, "Times New Roman", serif;
+      --serif: "Fraunces", Georgia, "Times New Roman", serif;
       --sans:  "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
       --mono:  "Spline Sans Mono", ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
       --ease-out: cubic-bezier(.16,1,.3,1);
@@ -115,7 +115,7 @@
     .nav-link:hover { color: var(--tx); background: rgba(33,27,22,.05); }
 
     .nav-toggle {
-      display: none; width: 42px; height: 42px; flex: none; place-items: center;
+      display: none; width: 44px; height: 44px; flex: none; place-items: center;
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--rS);
       color: var(--tx2); cursor: pointer;
     }
@@ -156,6 +156,15 @@
     }
     .theme-switch .ts-opt:hover { color: var(--tx); }
     .theme-switch .ts-opt.is-on { background: var(--surface); color: var(--g0); box-shadow: var(--e1); }
+    /* Keep the topbar within the viewport on phones: compact the switch so brand +
+       switch + menu button fit without forcing horizontal overflow. */
+    @media (max-width: 760px) {
+      .topbar-inner { gap: 6px; }
+      .theme-switch { padding: 2px; }
+      .theme-switch .ts-lab { display: none; }
+      /* Comfortable tap targets on touch: 44px min height. */
+      .theme-switch .ts-opt { padding: 0 11px; font-size: 11px; min-height: 44px; display: inline-flex; align-items: center; }
+    }
 
     /* ─── Hero band — warm paper + living aurora ─── */
     .hero {
@@ -163,7 +172,26 @@
       color: var(--tx2); padding: clamp(54px,7vw,96px) 0 clamp(70px,8vw,112px);
     }
     /* the signature aurora — slow breathing green light */
-    .aurora { position: absolute; inset: -20% -10% -10% -10%; z-index: 0; pointer-events: none; }
+    /* Real photography behind the aurora — revealed on the right, washed to paper on
+       the left so the dark editorial copy stays legible; fades into the page at the base. */
+    .hero-photo {
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background-color: var(--page);
+      background-image: url("/static/hero-dining.jpg");   /* fallback for browsers without image-set */
+      background-image: image-set(url("/static/hero-dining.webp") type("image/webp"), url("/static/hero-dining.jpg") type("image/jpeg"));
+      background-position: center; background-size: cover; background-repeat: no-repeat;
+    }
+    @media (max-width: 760px) {
+      /* Lighter hero image on phones (137KB webp vs the 337KB desktop webp). */
+      .hero-photo { background-image: image-set(url("/static/hero-dining-sm.webp") type("image/webp"), url("/static/hero-dining.jpg") type("image/jpeg")); }
+    }
+    .hero-photo::after {
+      content: ""; position: absolute; inset: 0;
+      background:
+        linear-gradient(100deg, var(--page) 0%, rgba(245,241,234,.95) 27%, rgba(245,241,234,.74) 48%, rgba(245,241,234,.46) 72%, rgba(245,241,234,.30) 100%),
+        linear-gradient(180deg, rgba(245,241,234,.55) 0%, rgba(245,241,234,0) 20%, rgba(245,241,234,0) 52%, var(--page) 100%);
+    }
+    .aurora { position: absolute; inset: -20% -10% -10% -10%; z-index: 1; pointer-events: none; }
     .aurora::before {
       content: ""; position: absolute; inset: 0;
       background:
@@ -181,7 +209,7 @@
     }
     /* fine grain film — the "designed, not default" tell */
     .grain {
-      position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .05; mix-blend-mode: multiply;
+      position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: .05; mix-blend-mode: multiply;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     }
     .hero-inner {
@@ -190,7 +218,7 @@
     }
     .hero-copy { max-width: 560px; }
     h1 {
-      font: 400 clamp(42px,6vw,76px)/1.02 var(--serif);
+      font: 600 clamp(42px,6vw,76px)/1.02 var(--serif);
       letter-spacing: -.025em; margin-bottom: 22px; text-wrap: balance; color: var(--tx);
     }
     h1 .grad { font-style: italic; color: var(--g0); }   /* editorial emphasis — italic, never gradient text */
@@ -198,6 +226,25 @@
       font: 400 clamp(17px,2vw,21px)/1.55 var(--sans); color: var(--tx3);
       max-width: 34ch; margin-bottom: 26px;
     }
+    /* Hero primary action — replaces the vanity stat trio */
+    .hero-actions { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 30px; }
+    .hero-cta {
+      display: inline-flex; align-items: center; gap: 9px;
+      padding: 0 24px; height: 52px; border-radius: var(--rM);
+      background: var(--brand-grad); color: #fff; text-decoration: none;
+      font: 600 15px/1 var(--sans); letter-spacing: -.01em;
+      box-shadow: 0 10px 26px -10px rgba(15,74,46,.6);
+      transition: transform .16s var(--ease-io), box-shadow .2s var(--ease-io);
+    }
+    .hero-cta:hover { transform: translateY(-1px); box-shadow: 0 16px 34px -10px rgba(15,74,46,.72); }
+    .hero-cta svg { width: 17px; height: 17px; transition: transform .18s var(--ease-io); }
+    .hero-cta:hover svg { transform: translateX(3px); }
+    .hero-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font: 600 14px/1 var(--sans); color: var(--g0); text-decoration: none;
+      border-bottom: 1px solid transparent; padding-bottom: 2px; transition: border-color .18s;
+    }
+    .hero-link:hover { border-color: var(--g1); }
 
     /* ─── Search ─── */
     .search-card {
@@ -439,7 +486,7 @@
       display: grid; place-items: center; font-size: 15px; transition: all .18s var(--ease-io);
     }
     .d-close:hover { background: var(--surface); border-color: var(--border2); color: var(--tx); }
-    .d-name { font: 400 26px/1.1 var(--serif); letter-spacing: -.02em; color: var(--tx); padding-right: 44px; margin-bottom: 5px; }
+    .d-name { font: 600 26px/1.1 var(--serif); letter-spacing: -.02em; color: var(--tx); padding-right: 44px; margin-bottom: 5px; }
     .d-addr { font: 500 13.5px/1.4 var(--sans); color: var(--tx3); }
 
     .d-body { flex: 1; overflow-y: auto; background: var(--page); }
@@ -460,7 +507,7 @@
       box-shadow: var(--e1); display: flex; gap: 18px; align-items: flex-start;
     }
     .verdict-body { flex: 1; min-width: 0; }
-    .verdict-label { font: 400 clamp(22px,3vw,28px)/1.1 var(--serif); letter-spacing: -.015em; margin-bottom: 8px; }
+    .verdict-label { font: 600 clamp(22px,3vw,28px)/1.1 var(--serif); letter-spacing: -.015em; margin-bottom: 8px; }
     .verdict-rationale { font: 400 15px/1.6 var(--sans); color: var(--tx2); }
     .verdict-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
@@ -647,7 +694,7 @@
     .section.tint { background: var(--paper2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
     .section-head { text-align: center; max-width: 660px; margin: 0 auto clamp(36px,4vw,52px); }
     .section-title {
-      font: 400 clamp(28px,4vw,42px)/1.08 var(--serif); letter-spacing: -.02em; color: var(--tx);
+      font: 600 clamp(28px,4vw,42px)/1.08 var(--serif); letter-spacing: -.02em; color: var(--tx);
     }
     .section-title em { font-style: italic; }
     .section-lede { font: 400 clamp(16px,2vw,19px)/1.6 var(--sans); color: var(--tx3); margin-top: 14px; }
@@ -680,7 +727,7 @@
     .wfeat p { font: 400 14px/1.55 var(--sans); color: var(--tx3); }
 
     .feat .step-num {
-      font: 400 20px/1 var(--serif); color: #fff;
+      font: 600 20px/1 var(--serif); color: #fff;
       width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
       background: var(--brand-grad); margin-bottom: 18px;
       box-shadow: 0 4px 14px -3px rgba(15,74,46,.5);
@@ -935,6 +982,7 @@
     </a>
     <nav class="nav-links" id="navLinks">
       <a class="nav-link" href="/how-it-works">How it works</a>
+      <a class="nav-link" href="/dossier">Deep dive</a>
       <a class="nav-link" href="/about">About</a>
       <a class="nav-link" href="/faq">FAQ</a>
       <a class="nav-link" href="/contact">Contact</a>
@@ -946,8 +994,8 @@
     </div>
     <div class="theme-switch" role="group" aria-label="Design version">
       <span class="ts-lab" aria-hidden="true">View</span>
-      <a class="ts-opt is-on" href="/?theme=classic" aria-current="true">Classic</a>
-      <a class="ts-opt" href="/?theme=green">New design</a>
+      <a class="ts-opt" href="/?theme=classic">Classic</a>
+      <a class="ts-opt is-on" href="/?theme=green" aria-current="true">New design</a>
     </div>
     <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -956,6 +1004,7 @@
 </header>
 
 <section class="hero reveal">
+  <div class="hero-photo" aria-hidden="true"></div>
   <div class="aurora" id="aurora" aria-hidden="true"></div>
   <div class="grain" aria-hidden="true"></div>
   <div class="wrap hero-inner">
@@ -978,6 +1027,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg>
           Built to fail safe
         </span>
+      </div>
+      <div class="hero-actions">
+        <a class="hero-cta" href="#search">Find safe places near me
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <a class="hero-link" href="/how-it-works">See how it works</a>
       </div>
     </div>
 
@@ -1019,20 +1074,6 @@
       </div>
     </div>
 
-    <div class="hero-stats">
-      <div class="stat reveal" style="--i:0">
-        <div class="num" data-count="11">11</div>
-        <div class="cap">specific nut types you can flag</div>
-      </div>
-      <div class="stat reveal" style="--i:1">
-        <div class="num" data-count="9">9</div>
-        <div class="cap">major allergens the chart reads</div>
-      </div>
-      <div class="stat reveal" style="--i:2">
-        <div class="num" data-count="100" data-suffix="%">100%</div>
-        <div class="cap">of scores show how we know</div>
-      </div>
-    </div>
   </div>
 </section>
 

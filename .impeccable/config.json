@@ -1,0 +1,20 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "fraunces",
+        "reason": "Fraunces is the green skin's documented display face (DESIGN.md §3, green variant)",
+        "createdAt": "2026-07-06T22:52:55.651Z"
+      },
+      {
+        "rule": "overused-font",
+        "value": "fraunces",
+        "reason": "Deliberate brand face for the green editorial skin; user-confirmed",
+        "createdAt": "2026-07-06T22:52:55.740Z"
+      }
+    ]
+  }
+}
