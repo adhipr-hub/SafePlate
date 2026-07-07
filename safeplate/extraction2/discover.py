@@ -17,15 +17,14 @@ not by another rule here.
 from __future__ import annotations
 
 import hashlib
-import json
 import time
 import unicodedata
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
+from safeplate import cache_store
 from safeplate.concurrency import map_concurrent
-from safeplate.config import get_cache_dir
 from safeplate.extraction2.interpret_llm import DEFAULT_MODEL, _call_with_retry
 from safeplate.extraction2.recency import dated_duplicate_key, source_recency
 from safeplate.gemini_menu import GeminiMenuError
@@ -486,11 +485,10 @@ def _cache_discriminator(
     return disc
 
 
-def _result_cache_path(website_url: str, model: str, discriminator: str = ""):
-    digest = hashlib.sha1(
+def _result_cache_key(website_url: str, model: str, discriminator: str = "") -> str:
+    return hashlib.sha1(
         f"{_RESULT_CACHE_VERSION}:{model}:{website_url}:{discriminator}".encode("utf-8")
     ).hexdigest()
-    return get_cache_dir() / "extraction2_result" / f"{digest}.json"
 
 
 def _load_result_cache(website_url: str, model: str, discriminator: str = ""):
@@ -502,11 +500,10 @@ def _load_result_cache(website_url: str, model: str, discriminator: str = ""):
     )
     from safeplate.menu_text import MenuItemRecord
 
-    try:
-        blob = json.loads(
-            _result_cache_path(website_url, model, discriminator).read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError):
+    blob = cache_store.load(
+        "extraction2_result", _result_cache_key(website_url, model, discriminator)
+    )
+    if blob is None:
         return None
     # A negative (empty) cache entry expires sooner so we re-try dead/thin sites.
     is_negative = not blob.get("items") and not blob.get("signals")
@@ -529,21 +526,17 @@ def _load_result_cache(website_url: str, model: str, discriminator: str = ""):
 def _save_result_cache(website_url: str, model: str, result, discriminator: str = "") -> None:
     from dataclasses import asdict
 
-    path = _result_cache_path(website_url, model, discriminator)
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps({
-                "at": time.time(),
-                "items": [asdict(i) for i in result.items],
-                "coverage": [asdict(c) for c in result.coverage],
-                "signals": [asdict(s) for s in result.allergy_signals],
-                "diet_signals": [asdict(s) for s in result.diet_signals],
-            }),
-            encoding="utf-8",
-        )
-    except OSError:
-        pass
+    cache_store.save(
+        "extraction2_result",
+        _result_cache_key(website_url, model, discriminator),
+        {
+            "at": time.time(),
+            "items": [asdict(i) for i in result.items],
+            "coverage": [asdict(c) for c in result.coverage],
+            "signals": [asdict(s) for s in result.allergy_signals],
+            "diet_signals": [asdict(s) for s in result.diet_signals],
+        },
+    )
 
 
 def _used_menu_city_mismatch(result_items, address, restaurant_name) -> bool:

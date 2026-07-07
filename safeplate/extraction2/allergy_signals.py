@@ -11,12 +11,11 @@ is then grounded against the source text so nothing is invented.
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import time
 from typing import Any
 
-from safeplate.config import get_cache_dir
+from safeplate import cache_store
 from safeplate.diet_score import DietSignal
 from safeplate.extraction2.interpret_llm import _call_with_retry, _readable_text
 from safeplate.extraction2.schema import AllergySignal, Payload
@@ -176,13 +175,9 @@ def _alnum(text: str) -> str:
 
 def _cached_or_call(text: str, *, api_key: str, model: str) -> dict[str, Any] | None:
     key = hashlib.sha1(f"allergysig:{model}:{text}".encode("utf-8")).hexdigest()
-    path = get_cache_dir() / "extraction2_allergy" / f"{key}.json"
-    try:
-        blob = json.loads(path.read_text(encoding="utf-8"))
-        if time.time() - blob.get("at", 0) <= _CACHE_TTL:
-            return blob["parsed"]
-    except (OSError, ValueError, KeyError):
-        pass
+    blob = cache_store.load("extraction2_allergy", key)
+    if blob is not None and "parsed" in blob and time.time() - blob.get("at", 0) <= _CACHE_TTL:
+        return blob["parsed"]
 
     request = {
         "system_instruction": {"parts": [{"text": SYSTEM}]},
@@ -197,9 +192,5 @@ def _cached_or_call(text: str, *, api_key: str, model: str) -> dict[str, Any] | 
         parsed = _call_with_retry(request, api_key=api_key, model=model)
     except GeminiMenuError:
         return None
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"at": time.time(), "parsed": parsed}), encoding="utf-8")
-    except OSError:
-        pass
+    cache_store.save("extraction2_allergy", key, {"at": time.time(), "parsed": parsed})
     return parsed

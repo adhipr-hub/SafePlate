@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import random
 import time
 from typing import Any
 
-from safeplate.config import get_cache_dir
+from safeplate import cache_store
 from safeplate.extraction2.schema import Payload
 from safeplate.gemini_menu import (
     GeminiMenuError,
@@ -153,13 +152,12 @@ def interpret_pdf_matrix(
     # Cache by PDF bytes: multi-page vision is the most expensive call in the
     # pipeline and allergen matrices change rarely, so never re-pay for the same PDF.
     key = hashlib.sha1(b"pdfmatrix:" + model.encode("utf-8") + b":" + payload.content).hexdigest()
-    path = get_cache_dir() / "extraction2_pdfmatrix" / f"{key}.json"
     if use_cache:
+        blob = cache_store.load("extraction2_pdfmatrix", key)
         try:
-            blob = json.loads(path.read_text(encoding="utf-8"))
-            if time.time() - blob.get("at", 0) <= _CACHE_TTL:
+            if blob is not None and time.time() - blob.get("at", 0) <= _CACHE_TTL:
                 return [MenuItemRecord(**item) for item in blob["items"]]
-        except (OSError, ValueError, KeyError, TypeError):
+        except (KeyError, TypeError):
             pass
 
     from dataclasses import asdict
@@ -174,14 +172,11 @@ def interpret_pdf_matrix(
         model=model,
     )
     if items:  # only cache real results; never cache a quota/transient failure
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(
-                json.dumps({"at": time.time(), "items": [asdict(i) for i in items]}),
-                encoding="utf-8",
-            )
-        except OSError:
-            pass
+        cache_store.save(
+            "extraction2_pdfmatrix",
+            key,
+            {"at": time.time(), "items": [asdict(i) for i in items]},
+        )
     return items
 
 
@@ -225,14 +220,14 @@ def _cached_or_call(text: str, *, api_key: str, model: str, use_cache: bool = Tr
 
 def _cached_or_call_inner(text: str, *, api_key: str, model: str, use_cache: bool = True) -> dict[str, Any]:
     key = hashlib.sha1(f"{model}:{text}".encode("utf-8")).hexdigest()
-    path = get_cache_dir() / "extraction2_llm" / f"{key}.json"
     if use_cache:
-        try:
-            blob = json.loads(path.read_text(encoding="utf-8"))
-            if time.time() - blob.get("at", 0) <= _CACHE_TTL:
-                return blob["parsed"]
-        except (OSError, ValueError, KeyError):
-            pass
+        blob = cache_store.load("extraction2_llm", key)
+        if (
+            blob is not None
+            and "parsed" in blob
+            and time.time() - blob.get("at", 0) <= _CACHE_TTL
+        ):
+            return blob["parsed"]
 
     request = {
         "system_instruction": {"parts": [{"text": TEXT_SYSTEM_INSTRUCTION}]},
@@ -252,11 +247,7 @@ def _cached_or_call_inner(text: str, *, api_key: str, model: str, use_cache: boo
         # that chunk's items and look complete).
         return {"page_had_menu": False, "menu_items": [], "_failed": True}
 
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"at": time.time(), "parsed": parsed}), encoding="utf-8")
-    except OSError:
-        pass
+    cache_store.save("extraction2_llm", key, {"at": time.time(), "parsed": parsed})
     return parsed
 
 

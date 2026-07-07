@@ -110,19 +110,22 @@ def test_select_links_uses_llm_when_only_ambiguous_links(monkeypatch):
 
 
 def test_negative_cache_expires_sooner_than_positive(tmp_path, monkeypatch):
-    import dataclasses, json, time
+    import dataclasses, time
+    from safeplate import cache_store
     from safeplate.menu_text import MenuItemRecord
 
-    monkeypatch.setattr(discover, "get_cache_dir", lambda: tmp_path)
+    monkeypatch.setenv("SAFEPLATE_CACHE_DIR", str(tmp_path))
     two_days = time.time() - 2 * 24 * 60 * 60  # older than negative TTL (1d), within positive (7d)
 
     fields = {f.name: "" for f in dataclasses.fields(MenuItemRecord)}
     fields.update(item_name="Pad Thai", allergen_terms=["peanut"], dietary_terms=[], confidence=1.0)
 
     def _write(url, *, items):
-        p = discover._result_cache_path(url, "m")
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps({"at": two_days, "items": items, "coverage": [], "signals": []}))
+        cache_store.save(
+            "extraction2_result",
+            discover._result_cache_key(url, "m"),
+            {"at": two_days, "items": items, "coverage": [], "signals": []},
+        )
 
     # A real (non-empty) hit at 2 days old is still served (within the 7-day TTL).
     _write("https://hit.example", items=[fields])
