@@ -143,3 +143,53 @@ def test_deeper_scan_internal_pages_use_auto(monkeypatch):
     # Homepage + the /allergy-info internal page, both fetched with "auto".
     assert [mode for _u, mode in calls] == ["auto", "auto"]
     assert result.pages_scanned  # scan ran (api_key=None stops before Gemini)
+
+
+# --- SPA fallback: render the site root when static discovery finds no menu -------
+# A fully JS-rendered (single-page-app) restaurant site has no static links to
+# harvest, so discovery yields no menu candidate at all and the renderer -- wired
+# into acquisition -- never gets a URL to render. The fallback hands acquisition the
+# site itself as a last-resort menu candidate, but ONLY on a rendering run so static
+# discovery stays byte-identical.
+
+from safeplate.extraction2.discover import Candidate, _spa_fallback_candidate
+
+
+def _cand(url: str, kind: str) -> Candidate:
+    return Candidate(url=url, anchor_text="", kind=kind, source="link")
+
+
+def test_spa_fallback_fires_when_auto_and_no_menu_candidate():
+    fb = _spa_fallback_candidate("http://scratch-sj.square.site/", [], "auto")
+    assert fb is not None
+    assert fb.url == "http://scratch-sj.square.site/"
+    assert fb.kind == "menu"
+    assert fb.reason == "spa_fallback"
+
+
+def test_spa_fallback_none_for_static_run():
+    # Byte-identical invariant: the non-dossier (static) paths never get a fallback.
+    assert _spa_fallback_candidate("http://scratch-sj.square.site/", [], "static") is None
+
+
+def test_spa_fallback_none_when_menu_candidate_already_found():
+    cands = [_cand("http://x.test/menu", "menu")]
+    assert _spa_fallback_candidate("http://x.test/", cands, "auto") is None
+
+
+def test_spa_fallback_fires_past_non_menu_candidates():
+    # An off-site allergen PDF (from the Brave fallback) is not a menu -- the SPA
+    # homepage still needs rendering to reveal the actual dishes.
+    cands = [_cand("http://cdn.test/allergens.pdf", "allergen")]
+    fb = _spa_fallback_candidate("http://x.test/", cands, "auto")
+    assert fb is not None and fb.kind == "menu"
+
+
+def test_spa_fallback_none_for_noise_website():
+    # A Facebook/Instagram "website" has no renderable menu; don't waste a render.
+    assert _spa_fallback_candidate("https://m.facebook.com/soulfoodsanjose", [], "auto") is None
+
+
+def test_spa_fallback_none_when_url_already_a_candidate():
+    cands = [_cand("http://x.test/", "allergen")]  # same URL already queued
+    assert _spa_fallback_candidate("http://x.test/", cands, "auto") is None

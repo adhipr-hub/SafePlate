@@ -557,6 +557,33 @@ def _used_menu_city_mismatch(result_items, address, restaurant_name) -> bool:
     return False
 
 
+def _spa_fallback_candidate(
+    website_url: str, candidates: list[Candidate], fetch_mode: str
+) -> Candidate | None:
+    """Last-resort menu candidate for a fully JS-rendered (single-page-app) site.
+
+    Static discovery harvests links from the fetched HTML, so a page whose menu is
+    built client-side yields NO menu candidate at all -- and the renderer, wired only
+    into acquisition, never receives a URL to render. On a rendering run
+    (``fetch_mode != "static"`` -- i.e. the dossier) hand acquisition the site itself
+    as a menu candidate so it gets rendered in the headless browser and the
+    client-built menu becomes visible.
+
+    Returns ``None`` for static runs (their candidate set stays byte-identical), for
+    noise sites (an IG/FB "website" has no renderable menu), when a menu candidate
+    already exists, or when this URL is already queued (avoid a duplicate extract)."""
+    if fetch_mode == "static" or not website_url or is_noise_website(website_url):
+        return None
+    if any(c.kind == "menu" for c in candidates):
+        return None
+    if any(c.url == website_url for c in candidates):
+        return None
+    return Candidate(
+        url=website_url, anchor_text="", kind="menu",
+        source="link", reason="spa_fallback",
+    )
+
+
 def discover_and_extract(
     website_url: str,
     *,
@@ -620,6 +647,11 @@ def discover_and_extract(
         website_url, user_agent=user_agent, restaurant_name=restaurant_name,
         address=address, api_key=api_key, model=model, brave_api_key=brave_api_key,
     )
+    # SPA fallback: a fully JS-rendered site yields no menu candidate from static
+    # discovery, so on a rendering run render the site itself (never on static runs).
+    spa_fallback = _spa_fallback_candidate(website_url, candidates, fetch_mode)
+    if spa_fallback is not None:
+        candidates.append(spa_fallback)
     # Acquire all candidates CONCURRENTLY (network-bound -- big latency win, no
     # accuracy change).
     def _acquire(cand: Candidate):
