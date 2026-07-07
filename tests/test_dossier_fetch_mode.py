@@ -59,3 +59,57 @@ def test_cache_discriminator_splits_auto_runs():
         "http://tandoori.example", "Tandoori Hut", fetch_mode="auto")
     assert auto != static
     assert auto.endswith("+fm=auto")
+
+
+import safeplate.extraction2.discover as discover_mod
+from safeplate.allergen_score import Severity, UserProfile
+from safeplate.menu_service import (
+    _extract_and_assess_structured,
+    _fetch_mode_from_payload,
+)
+
+
+def test_fetch_mode_from_payload_validates():
+    assert _fetch_mode_from_payload({}) == "static"
+    assert _fetch_mode_from_payload({"fetchMode": "auto"}) == "auto"
+    assert _fetch_mode_from_payload({"fetchMode": "dynamic"}) == "dynamic"
+    assert _fetch_mode_from_payload({"fetchMode": "browser!!"}) == "static"
+    assert _fetch_mode_from_payload({"fetchMode": None}) == "static"
+
+
+def _capture_discover(monkeypatch):
+    captured = {}
+
+    def fake_discover(website_url, **kwargs):
+        captured.update(kwargs)
+        return [], SimpleNamespace(
+            items=[], allergy_signals=[], coverage=[], diet_signals=[]
+        )
+
+    monkeypatch.setattr(discover_mod, "discover_and_extract", fake_discover)
+    return captured
+
+
+def _run_extract(fetch_mode=None):
+    kwargs = dict(
+        name="Tandoori Hut", website_url="http://tandoori.example", address="",
+        categories=[], latitude=None, longitude=None,
+        profile=UserProfile.for_nuts(Severity.ALLERGY),
+        user_agent="t", api_key=None,
+    )
+    if fetch_mode is not None:
+        kwargs["fetch_mode"] = fetch_mode
+    return _extract_and_assess_structured(**kwargs)
+
+
+def test_extract_and_assess_forwards_fetch_mode(monkeypatch):
+    captured = _capture_discover(monkeypatch)
+    _run_extract(fetch_mode="auto")
+    assert captured["fetch_mode"] == "auto"
+
+
+def test_extract_and_assess_defaults_to_static(monkeypatch):
+    # The drawer / search-card path never sets fetch_mode: default-equivalence.
+    captured = _capture_discover(monkeypatch)
+    _run_extract()
+    assert captured["fetch_mode"] == "static"

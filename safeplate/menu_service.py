@@ -63,6 +63,7 @@ def _extract_and_assess_structured(
     region: str | None = None,
     scoring_engine: str = "rules",
     no_cache: bool = False,
+    fetch_mode: str = "static",
     experience_history: list | None = None,
 ):
     """Run the structured extraction (result-cached) + Layer #5 assessment for one
@@ -95,6 +96,7 @@ def _extract_and_assess_structured(
                 # BOTH the result cache and the per-source caches off for a live fetch.
                 use_result_cache=not no_cache,
                 use_cache=not no_cache,
+                fetch_mode=fetch_mode,
             )
             menu_items = result.items
             allergy_signals = result.allergy_signals
@@ -358,6 +360,15 @@ def _structured_menu_response(
     }
 
 
+def _fetch_mode_from_payload(payload: dict[str, Any]) -> str:
+    """How extraction fetches HTML. Only the Deep-Dive Dossier sets this ("auto":
+    render JS-empty pages in the headless browser); every other caller gets the
+    static default, keeping the list/drawer fast and byte-identical. Unknown
+    values fall back to static rather than erroring a whole extraction."""
+    mode = str(payload.get("fetchMode") or "static")
+    return mode if mode in ("static", "auto", "dynamic") else "static"
+
+
 def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     """Engine 'structured': clean-architecture extraction (extraction2) fused with the
     Layer #5 per-user scorer. Returns the same menuItems shape as legacy (same
@@ -373,6 +384,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     profile = _user_profile_from_payload(payload)
     scoring_engine = _scoring_engine_from_payload(payload)
     no_cache = bool(payload.get("noCache"))  # UI "raw" toggle: bypass every cache, fetch live
+    fetch_mode = _fetch_mode_from_payload(payload)
     experience_history = payload.get("experienceHistory") if _is_ai_engine(scoring_engine) else None
     latitude = _optional_float(payload.get("latitude"))
     longitude = _optional_float(payload.get("longitude"))
@@ -397,6 +409,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         region=region,
         scoring_engine=scoring_engine,
         no_cache=no_cache,
+        fetch_mode=fetch_mode,
         experience_history=experience_history,
     )
 
