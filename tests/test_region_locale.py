@@ -42,9 +42,24 @@ def test_detect_domain_in_text():
     assert R.detect_source_region("see menu.example.in for more", "https://cdn.x.com/n.pdf") == "IN"
 
 
-def test_detect_strong_multiword_name():
+def test_detect_bare_prose_name_no_longer_fires_without_corroboration():
+    # Option A (spec 2026-07-06 §7): a bare-prose country name with no structural
+    # tell no longer asserts a region -- the Sweet Maple wine false-positive fix.
     text = "Allergen guide — proudly made in New Zealand."
+    assert R.detect_source_region(text, "https://cdn.x.com/n.pdf") is None
+
+
+def test_detect_name_fires_when_structurally_corroborated():
+    # Same name, now with a structural tell -> region asserted (corroboration boundary).
+    text = "Proudly made in New Zealand. Call +64 9 555 0100."
     assert R.detect_source_region(text, "https://cdn.x.com/n.pdf") == "NZ"
+
+
+def test_detect_wine_origin_does_not_brand_us_menu_foreign():
+    # The real Sweet Maple (Cupertino) regression: NZ appears only as a wine origin.
+    text = ("Matua, Sauvignon Blanc, New Zealand — $14. "
+            "The first New Zealand Sauvignon Blanc. Springfield, IL 62704.")
+    assert R.detect_source_region(text, "https://www.sweetmaplesf.com/files/menu.pdf") is None
 
 
 # --- the substring-collision regressions the code review caught ---------------

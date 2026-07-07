@@ -223,14 +223,21 @@ def detect_source_region(text: str, url: str = "") -> str | None:
     if not low:
         return None
     scores: dict[str, int] = {}
-    # 1) ccTLD-bearing domains mentioned in the text (e.g. "burgerking.co.nz").
+    # 1) ccTLD-bearing domains mentioned in the text (e.g. "burgerking.co.nz") --
+    #    a decisive structural tell, and a primary voter on its own (unchanged).
+    domain_votes: set[str] = set()
     for token in _DOMAIN_RE.findall(low):
         code = host_country(token)
         if code:
             scores[code] = scores.get(code, 0) + 1
-    # 2) unambiguous multiword country names.
+            domain_votes.add(code)
+    # Corroboration set = in-text ccTLD votes + calling-code/currency tells.
+    structural = domain_votes | _structural_signals(low)
+    # 2) unambiguous multiword country names -- counted ONLY when an independent
+    #    structural tell for the SAME country is present, so a bare menu-prose
+    #    mention (a wine's "New Zealand" origin) can't brand the source foreign.
     for code, phrases in _STRONG_NAME_SIGNALS.items():
-        if any(p in low for p in phrases):
+        if code in structural and any(p in low for p in phrases):
             scores[code] = scores.get(code, 0) + 1
     if not scores:
         return None
