@@ -752,8 +752,9 @@ COUNTRY_ALIASES: dict[str, str] = {
     "india": "IN", "pakistan": "PK", "bangladesh": "BD", "sri lanka": "LK", "nepal": "NP",
     "thailand": "TH", "vietnam": "VN", "indonesia": "ID", "malaysia": "MY",
     "china": "CN", "taiwan": "TW", "hong kong": "HK", "japan": "JP", "south korea": "KR",
-    "lebanon": "LB", "syria": "SY", "jordan": "JO", "israel": "IL", "turkey": "TR",
-    "egypt": "EG", "iran": "IR", "saudi arabia": "SA",
+    "lebanon": "LB", "syria": "SY", "jordan": "JO", "israel": "IL",
+    "turkey": "TR", "türkiye": "TR", "turkiye": "TR",
+    "egypt": "EG", "iran": "IR", "saudi arabia": "SA", "iceland": "IS",
     "united arab emirates": "AE", "uae": "AE", "iraq": "IQ", "afghanistan": "AF",
     "mexico": "MX", "france": "FR", "germany": "DE", "italy": "IT", "spain": "ES",
     "netherlands": "NL", "ethiopia": "ET", "nigeria": "NG", "ghana": "GH",
@@ -950,7 +951,13 @@ def region_from_address(
     then falls back to coordinates so a place with an unrecognized address but known
     lat/lon still resolves a region (region drives allergen-labeling/absence-inference,
     so 'unknown' under-credits clean menus). 'unknown' only if both fail."""
-    segments = [seg.strip() for seg in (address or "").split(",") if seg.strip()]
+    # Split on commas AND " - " (space-dash-space). Google returns many addresses --
+    # especially across the Gulf / MENA -- delimited by dashes with no commas, e.g.
+    # "35HJ+JF - Al Thanyah Second - Dubai - United Arab Emirates". Splitting on commas
+    # alone left that as one segment, so the trailing country ("United Arab Emirates",
+    # a known alias) was never isolated. Requiring surrounding spaces keeps hyphenated
+    # names intact ("Stratford-upon-Avon", "Al-Thanyah").
+    segments = [seg.strip() for seg in re.split(r",|\s[-–]\s", address or "") if seg.strip()]
     seg_lowers = [s.lower() for s in segments]
     # A segment's leading words with any trailing postcode digits stripped
     # ("Georgia 30301" -> "georgia"), for full-state-name matching.
@@ -961,8 +968,20 @@ def region_from_address(
     # code, or a 5-digit US ZIP (NOT a bare numeric postcode alone -- many countries use
     # those, but a 5-digit ZIP alongside the state name "Georgia" is decisive).
     has_us_word = any(COUNTRY_ALIASES.get(s) == "US" for s in seg_lowers)
+    # A US state code, but only where it sits like one in a real US address: the last
+    # segment's final token ("Portland, OR") or immediately before a ZIP ("San Jose,
+    # CA 95129"). Without this, an interior foreign token that happens to spell a state
+    # code -- the Arabic article "Al" (Alabama), Iberian/French "La" (Louisiana) -- would
+    # falsely imply US.
     last_tokens = re.split(r"\s+", segments[-1].upper()) if segments else []
-    has_state_code = any(token in _US_STATE_CODES for token in last_tokens)
+    has_state_code = any(
+        token in _US_STATE_CODES
+        and (
+            i == len(last_tokens) - 1
+            or bool(re.fullmatch(r"\d{5}(?:-\d{4})?", last_tokens[i + 1]))
+        )
+        for i, token in enumerate(last_tokens)
+    )
     has_us_zip = bool(re.search(r"\b\d{5}(?:-\d{4})?\b", address or ""))
     us_context = has_us_word or has_state_code or has_us_zip
 

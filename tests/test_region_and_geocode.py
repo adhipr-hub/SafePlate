@@ -22,6 +22,46 @@ def test_region_unknown_when_both_fail():
     assert region_from_address(None) == "unknown"
 
 
+# --- dash-delimited foreign addresses must not be mislabeled US ----------------
+# Google returns many MENA addresses with " - " delimiters (no commas). Splitting
+# on commas alone made the whole string one segment, so the trailing country was
+# never isolated AND the Arabic article "Al" matched the US state code "AL".
+
+def test_dash_delimited_uae_address_resolves_country_not_us():
+    # Real Google addresses captured live in Dubai / Abu Dhabi.
+    assert region_from_address(
+        "35HJ+JF - Al Thanyah Second - Dubai - United Arab Emirates",
+        latitude=25.07, longitude=55.18,
+    ) == "AE"
+    assert region_from_address(
+        "hamdan - Al Manhal - W15 01 - Abu Dhabi - United Arab Emirates",
+        latitude=24.45, longitude=54.37,
+    ) == "AE"
+
+
+def test_interior_al_token_does_not_imply_us_state():
+    # Even without a recognized trailing country, a leading Arabic "Al" (Alabama's
+    # "AL") must not resolve to US.
+    assert region_from_address("Al Manhal - Al Thanyah - Abu Dhabi") != "US"
+
+
+def test_us_state_code_still_resolves_with_zip_or_trailing():
+    assert region_from_address("123 Main St, San Jose, CA 95129") == "US"
+    assert region_from_address("Powell's Books, Portland, OR") == "US"
+
+
+# --- missing country aliases (native / current spellings) ----------------------
+
+def test_turkiye_native_spelling_resolves():
+    assert region_from_address(
+        "Binbirdirek, At Meydanı Cd No:10, 34093 Fatih/İstanbul, Türkiye"
+    ) == "TR"
+
+
+def test_iceland_resolves():
+    assert region_from_address("Vonarstræti 3, 101 Reykjavík, Iceland") == "IS"
+
+
 # --- _best_place: same-named city must rank by importance ----------------------
 
 def test_geocode_picks_real_city_over_samename_village():
