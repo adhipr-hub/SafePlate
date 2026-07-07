@@ -11,3 +11,7 @@ pdfplumber>=0.11.0
 playwright>=1.40.0
 # Optional: render allergen-matrix PDFs to images for Gemini vision extraction.
 # pypdfium2>=4.0.0
+
+# Postgres cache store (RDS). Optional at runtime: without DATABASE_URL -- or
+# without this package installed -- every cache stays on the local disk.
+psycopg[binary,pool]>=3.1
