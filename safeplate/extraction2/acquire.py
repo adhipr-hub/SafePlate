@@ -46,11 +46,13 @@ def payload_from_pdf_text(
 
 
 def acquire(url: str, *, source_type: str, user_agent: str | None = None,
-            use_cache: bool = True) -> Payload:
+            use_cache: bool = True, fetch_mode: str = "static") -> Payload:
     """Live acquisition: fetch a URL and normalize it to a Payload. Reuses v1's
     pooled HTTP / robots infra. (The offline eval harness builds payloads from
     snapshots via the helpers above and does not call this.) ``use_cache=False``
-    forces a live fetch (the 'raw' / no-cache test path)."""
+    forces a live fetch (the 'raw' / no-cache test path). fetch_mode is forwarded
+    to fetch_html_page for HTML pages ("auto" lets the dossier render JS-built
+    menus); images and PDFs are plain HTTP and ignore it."""
     user_agent = user_agent or get_user_agent()
     from safeplate.config import get_fetch_read_timeout
 
@@ -71,5 +73,7 @@ def acquire(url: str, *, source_type: str, user_agent: str | None = None,
             text = ""
         return Payload(url=url, source_type="pdf", kind=PayloadKind.TEXT,
                        text=text, content=resp.content, mime="application/pdf")
-    html = fetch_html_page(url, user_agent=user_agent, use_cache=use_cache).html
+    html = fetch_html_page(
+        url, user_agent=user_agent, use_cache=use_cache, fetch_mode=fetch_mode
+    ).html
     return payload_from_html(url, html, source_type=source_type)
