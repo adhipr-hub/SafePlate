@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafePlate — allergy-aware dining decisions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --cream:#F5F1EA; --sand:#EDE6DA; --sand2:#F2ECE1; --paper:#FCF9F3;
+    --ink:#22201A; --ink2:#575247; --ink3:#8B8578; --line:#E5DDD0; --line2:#D2C8B9;
+    --clay:#1C5A44; --clay-deep:#123F30; --clay2:#2E8B6A; --clay-tint:#E4F0EA;
+    --safe-ink:#2F7D4F; --safe-ring:#48A566; --safe-tint:#EAF3E6; --safe-border:#BFE3C8;
+    --caut-ink:#8A5A12; --caut-ring:#D9A33A; --caut-tint:#FAF1DD; --caut-border:#F0DBA6;
+    --avoid-ink:#9B2C22; --avoid-ring:#C0392B; --avoid-tint:#FAEBE7; --avoid-border:#F2C9C2;
+    --signal:#2563EB; --signal-tint:#EFF4FF; --signal-border:#CFE0FF;
+    --violet:#6D28D9; --violet-tint:#EDE9FE; --violet-border:#DDD0F7;
+    --scrim:rgba(18,26,18,.44);
+    --serif:'Fraunces', Georgia, 'Times New Roman', serif;
+    --sans:'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+    --mono:'Spline Sans Mono', ui-monospace, monospace;
+    --e1:0 1px 3px rgba(30,40,28,.06), 0 1px 2px rgba(30,40,28,.05);
+    --e2:0 10px 30px -12px rgba(24,50,36,.20);
+    --e3:0 22px 60px -18px rgba(24,50,36,.30);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:var(--sans); color:var(--ink); background:var(--cream); -webkit-font-smoothing:antialiased; line-height:1.5;}
+  body.locked{overflow:hidden;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 40px;}
+  ::selection{background:var(--clay-tint);}
+  a{color:inherit;}
+  button{font-family:inherit;}
+  :focus-visible{outline:2.5px solid var(--clay2); outline-offset:3px; border-radius:4px;}
+
+  /* top bar */
+  .top{position:sticky; top:0; z-index:40; background:rgba(245,241,234,.85); backdrop-filter:blur(10px); border-bottom:1px solid var(--line);}
+  .top .wrap{display:flex; align-items:center; justify-content:space-between; height:72px;}
+  .brand{display:flex; align-items:center; gap:11px; font-family:var(--serif); font-weight:600; font-size:22px; letter-spacing:-.01em;}
+  .brand .mk{width:29px; height:29px; border-radius:9px; background:radial-gradient(circle at 50% 120%, var(--clay2), var(--clay) 60%, var(--clay-deep)); display:grid; place-items:center; color:#fff; font-weight:700; font-size:15px; font-family:var(--sans);}
+  nav.links{display:flex; gap:28px; font-size:14.5px; color:var(--ink2);}
+  nav.links a{text-decoration:none;} nav.links a:hover{color:var(--ink);}
+  .top .right{display:flex; align-items:center; gap:16px;}
+  .login{font-size:14.5px; text-decoration:none;}
+  .pill{font-weight:600; font-size:14.5px; border:0; cursor:pointer; border-radius:999px; padding:12px 22px; background:var(--clay); color:#fff; transition:background .16s, transform .12s, box-shadow .2s;}
+  .pill:hover{background:var(--clay-deep); box-shadow:0 8px 22px -10px rgba(18,63,48,.55);}
+  .pill:active{transform:translateY(1px);}
+  .pill.ghost{background:var(--paper); color:var(--clay-deep); border:1.5px solid var(--line2); box-shadow:none;}
+  .pill.ghost:hover{border-color:var(--clay); background:var(--clay-tint);}
+  .pill.light{background:var(--paper); color:var(--clay-deep);}
+  .pill[disabled]{opacity:.5; cursor:not-allowed;}
+  @media(max-width:820px){ nav.links{display:none;} }
+
+  /* hero */
+  .hero{position:relative; margin:16px auto 0; max-width:1180px; padding:0 40px;}
+  .hero-frame{position:relative; border-radius:26px; overflow:hidden; min-height:520px; display:flex; align-items:flex-end;
+      background:
+        linear-gradient(180deg, rgba(16,20,14,0) 36%, rgba(11,22,15,.78) 100%),
+        radial-gradient(120% 90% at 78% 6%, #D8E0CE 0%, #8CA588 30%, #3E5D4C 60%, #1E3329 82%, #0F1A14 100%);}
+  .aurora{position:absolute; inset:-25% -15%; z-index:1; pointer-events:none;
+      background:radial-gradient(42% 55% at 32% 24%, rgba(60,170,120,.58), rgba(60,170,120,0) 70%);
+      filter:blur(30px); mix-blend-mode:screen; animation:drift 14s ease-in-out infinite alternate;}
+  .hero-frame::after{content:""; position:absolute; inset:0; z-index:1; background-image:repeating-linear-gradient(122deg, rgba(255,255,255,.04) 0 2px, transparent 2px 92px); pointer-events:none;}
+  .photo-note{position:absolute; top:16px; right:18px; z-index:2; font-family:var(--mono); font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.5); text-transform:uppercase;}
+  .hero-copy{position:relative; z-index:2; padding:44px; width:100%;}
+  .eyebrow{display:inline-block; font-weight:600; font-size:12px; letter-spacing:.02em; color:#fff; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.24); padding:7px 14px; border-radius:999px; margin-bottom:18px; backdrop-filter:blur(4px);}
+  h1.hero-h{font-family:var(--serif); font-weight:600; font-size:clamp(42px,6vw,78px); line-height:.99; letter-spacing:-.025em; color:#FBFAF3;}
+  h1.hero-h em{font-style:italic; color:var(--clay2);}
+  .hero-sub{margin-top:18px; max-width:46ch; font-size:16px; line-height:1.55; color:rgba(251,250,243,.9);}
+  .hero-cta{margin-top:26px;}
+
+  /* search card — the focal object */
+  .search{position:relative; z-index:5; max-width:1000px; margin:-58px auto 0; padding:0 40px;}
+  .card-search{background:var(--paper); border:1px solid var(--line); border-radius:22px; box-shadow:var(--e3); padding:26px 28px;}
+  .cs-row{display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;}
+  .field{flex:1 1 320px; min-width:240px;}
+  .field label{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink3); margin-bottom:8px;}
+  .input-wrap{position:relative; display:flex; align-items:center;}
+  .input-wrap .ic{position:absolute; left:14px; color:var(--clay); font-size:16px;}
+  .input-wrap input{width:100%; height:52px; border:1px solid var(--line2); background:var(--paper); border-radius:13px; padding:0 46px 0 40px; font-size:15px; color:var(--ink); font-family:var(--sans);}
+  .input-wrap input::placeholder{color:var(--ink3);}
+  .input-wrap input:focus{outline:none; border-color:var(--clay2); box-shadow:0 0 0 3px var(--clay-tint);}
+  .geo{position:absolute; right:8px; width:38px; height:38px; border-radius:9px; border:1px solid var(--line); background:var(--sand2); color:var(--clay-deep); cursor:pointer; font-size:15px; display:grid; place-items:center;}
+  .geo:hover{border-color:var(--clay2); background:var(--clay-tint);}
+  .go{height:52px; padding:0 26px; border-radius:13px; background:var(--clay); color:#fff; font-weight:600; font-size:15px; border:0; cursor:pointer; display:inline-flex; align-items:center; gap:9px; transition:background .16s, transform .12s, box-shadow .2s;}
+  .go:hover{background:var(--clay-deep); box-shadow:0 10px 26px -12px rgba(18,63,48,.6);}
+  .go:active{transform:translateY(1px);}
+  .cs-adv{margin-top:20px; padding-top:18px; border-top:1px solid var(--line); display:grid; grid-template-columns:1fr auto; gap:18px 28px; align-items:start;}
+  .cs-adv .grp label.h{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink3); margin-bottom:10px;}
+  .chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{font-size:13px; font-weight:500; color:var(--ink2); background:var(--paper); border:1px solid var(--line2); border-radius:999px; padding:8px 14px; cursor:pointer; transition:.16s; user-select:none;}
+  .chip:hover{border-color:var(--clay2);}
+  .chip[aria-pressed="true"]{background:var(--clay-tint); border-color:var(--clay2); color:var(--clay-deep);}
+  .chip[aria-pressed="true"]::before{content:"✓ "; font-weight:700;}
+  .seg{display:inline-flex; background:var(--sand2); border:1px solid var(--line); border-radius:11px; padding:3px;}
+  .seg button{border:0; background:transparent; color:var(--ink2); font-size:13px; font-weight:500; padding:8px 14px; border-radius:8px; cursor:pointer;}
+  .seg button[aria-pressed="true"]{background:var(--paper); color:var(--clay-deep); box-shadow:var(--e1);}
+  .toggle{display:inline-flex; align-items:center; gap:9px; font-size:13.5px; color:var(--ink2); cursor:pointer; margin-top:12px;}
+  .toggle input{position:absolute; opacity:0; width:0; height:0;}
+  .toggle .tk{width:38px; height:22px; border-radius:999px; background:var(--line2); position:relative; transition:.18s; flex:none;}
+  .toggle .tk::after{content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:var(--paper); transition:.18s; box-shadow:var(--e1);}
+  .toggle input:checked + .tk{background:var(--clay);}
+  .toggle input:checked + .tk::after{transform:translateX(16px);}
+  .validation{display:none; margin-top:12px; font-size:13px; color:var(--avoid-ink); background:var(--avoid-tint); border:1px solid var(--avoid-border); border-radius:9px; padding:9px 12px;}
+  .validation.show{display:block;}
+  @media(max-width:720px){ .cs-adv{grid-template-columns:1fr;} .go{width:100%; justify-content:center;} }
+
+  /* results */
+  .results{padding:56px 0 30px;}
+  .res-head{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding-bottom:18px; border-bottom:1px solid var(--line2); margin-bottom:6px;}
+  .res-head .t{font-family:var(--serif); font-size:28px; font-weight:600; letter-spacing:-.01em;}
+  .res-head .t em{font-style:italic; color:var(--clay);}
+  .res-tools{display:flex; align-items:center; gap:14px;}
+  .res-count{font-family:var(--mono); font-size:12.5px; color:var(--ink2); letter-spacing:.02em;}
+  .sortsel{display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--ink2);}
+  .sortsel select{font-family:var(--sans); font-size:13px; border:1px solid var(--line2); background:var(--paper); border-radius:9px; padding:8px 10px; color:var(--ink); cursor:pointer;}
+
+  .rrow{display:grid; grid-template-columns:1.5fr 1.9fr auto; gap:26px; align-items:center; padding:24px 12px; border-bottom:1px solid var(--line); border-radius:14px; cursor:pointer; transition:background .18s, box-shadow .2s, transform .2s;}
+  .rrow:hover{background:var(--paper); box-shadow:var(--e2);}
+  .rrow .rname{font-family:var(--serif); font-size:23px; font-weight:600; letter-spacing:-.01em;}
+  .rrow .rname .cui{display:block; font-family:var(--sans); font-size:13px; color:var(--ink2); margin-top:3px; font-weight:400;}
+  .rrow .rname .cui .dot{color:var(--line2);}
+  .bar{position:relative; height:50px;}
+  .bar .lane{position:absolute; top:21px; left:0; right:0; height:8px; border-radius:999px; overflow:hidden; display:flex;}
+  .bar .lane i{height:100%;}
+  .bar .lane .z1{flex:0 0 40%; background:var(--safe-ring);}
+  .bar .lane .z2{flex:0 0 30%; background:var(--caut-ring);}
+  .bar .lane .z3{flex:1; background:var(--avoid-ring);}
+  .bar .pin{position:absolute; top:11px; transform:translateX(-50%);}
+  .bar .pin .p{width:16px; height:16px; border-radius:50%; background:var(--paper); border:4px solid currentColor; margin:0 auto;}
+  .bar .pin .lab{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; text-align:center; margin-top:5px; white-space:nowrap;}
+  .bar .ends{position:absolute; top:33px; left:0; right:0; display:flex; justify-content:space-between; font-family:var(--mono); font-size:9px; letter-spacing:.1em; color:var(--ink3); text-transform:uppercase;}
+  .verdict{text-align:right; min-width:158px; display:flex; flex-direction:column; align-items:flex-end;}
+  .verdict .score{font-family:var(--mono); font-size:38px; font-weight:500; line-height:1; letter-spacing:-.01em; font-variant-numeric:tabular-nums;}
+  .verdict .word{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-weight:600; font-size:11px; letter-spacing:.09em; text-transform:uppercase; margin-top:8px; padding:5px 10px; border-radius:7px;}
+  .verdict .prov{font-size:11.5px; color:var(--ink2); margin-top:8px; max-width:200px;}
+  .w-safe{color:var(--safe-ink); background:var(--safe-tint);}
+  .w-caut{color:var(--caut-ink); background:var(--caut-tint);}
+  .w-avoid{color:var(--avoid-ink); background:var(--avoid-tint);}
+  .rrow .go-ic{display:none;}
+  @media(max-width:820px){ .rrow{grid-template-columns:1fr; gap:14px;} .verdict{text-align:left; align-items:flex-start;} }
+
+  /* states: empty / loading / error */
+  .state{padding:64px 20px; text-align:center; border:1px dashed var(--line2); border-radius:20px; background:var(--sand2);}
+  .state .em{font-size:34px; color:var(--clay); margin-bottom:14px;}
+  .state h3{font-family:var(--serif); font-weight:600; font-size:24px; margin-bottom:8px;}
+  .state p{color:var(--ink2); font-size:15px; max-width:44ch; margin:0 auto 18px;}
+  .skel-row{display:grid; grid-template-columns:1.5fr 1.9fr auto; gap:26px; align-items:center; padding:24px 12px; border-bottom:1px solid var(--line);}
+  .sk{background:linear-gradient(90deg, var(--sand) 25%, var(--sand2) 37%, var(--sand) 63%); background-size:400% 100%; animation:shimmer 1.3s infinite; border-radius:8px;}
+  .loading-note{text-align:center; font-family:var(--mono); font-size:12.5px; color:var(--ink2); letter-spacing:.04em; padding:18px 0 2px;}
+  .loading-note .pulse{color:var(--clay); animation:blink 1s infinite;}
+
+  /* how it works — connected step path (no big 01/02/03 numerals) */
+  .how{padding:80px 0 30px; text-align:center;}
+  .sec-h{font-family:var(--serif); font-weight:600; font-size:clamp(30px,4vw,46px); letter-spacing:-.015em; line-height:1.06;}
+  .sec-h em{font-style:italic; color:var(--clay);}
+  .sec-lead{margin:14px auto 0; max-width:52ch; color:var(--ink2); font-size:15.5px;}
+  .steps{position:relative; display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-top:52px; text-align:left;}
+  .steps::before{content:""; position:absolute; top:15px; left:16%; right:16%; height:2px; background:repeating-linear-gradient(90deg, var(--line2) 0 6px, transparent 6px 12px);}
+  .step{position:relative;}
+  .step .node{width:32px; height:32px; border-radius:50%; background:var(--paper); border:2px solid var(--clay); color:var(--clay-deep); display:grid; place-items:center; font-family:var(--mono); font-weight:600; font-size:13px; margin-bottom:20px; position:relative; z-index:1;}
+  .step h3{font-family:var(--serif); font-weight:600; font-size:22px; letter-spacing:-.01em;}
+  .step p{color:var(--ink2); font-size:14px; line-height:1.55; margin-top:7px;}
+  @media(max-width:820px){ .steps{grid-template-columns:1fr; gap:30px;} .steps::before{display:none;} }
+
+  /* footer */
+  .foot{background:var(--sand); border-top:1px solid var(--line); margin-top:70px; padding:52px 0 30px;}
+  .foot .cols{display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr; gap:30px;}
+  .foot .brand{margin-bottom:12px;}
+  .foot .blurb{color:var(--ink2); font-size:13.5px; max-width:34ch; line-height:1.6;}
+  .foot .col h4{font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink3); margin-bottom:12px;}
+  .foot .col a{display:block; color:var(--ink2); text-decoration:none; font-size:14px; padding:5px 0;}
+  .foot .col a:hover{color:var(--clay-deep);}
+  .foot .legal{margin-top:36px; padding-top:20px; border-top:1px solid var(--line2); display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--ink3);}
+  .foot .legal .note{max-width:60ch;}
+  @media(max-width:820px){ .foot .cols{grid-template-columns:1fr 1fr;} }
+
+  /* evidence drawer */
+  .scrim{position:fixed; inset:0; z-index:50; background:var(--scrim); opacity:0; visibility:hidden; transition:opacity .3s ease, visibility .3s;}
+  .scrim.open{opacity:1; visibility:visible;}
+  .drawer{position:fixed; top:0; right:0; bottom:0; z-index:51; width:min(520px,94vw); background:var(--cream); box-shadow:-16px 0 50px -10px rgba(20,40,28,.28); transform:translateX(102%); transition:transform .34s cubic-bezier(.2,.8,.2,1); overflow-y:auto; overscroll-behavior:contain;}
+  .drawer.open{transform:none;}
+  .dw-top{position:sticky; top:0; background:linear-gradient(180deg, var(--cream) 70%, rgba(245,241,234,0)); padding:24px 28px 10px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
+  .dw-top .nm{font-family:var(--serif); font-size:26px; font-weight:600; letter-spacing:-.01em; line-height:1.1;}
+  .dw-top .cui{font-size:13px; color:var(--ink2); margin-top:3px;}
+  .dw-close{width:38px; height:38px; border-radius:10px; border:1px solid var(--line2); background:var(--paper); color:var(--ink2); cursor:pointer; font-size:17px; flex:none;}
+  .dw-close:hover{border-color:var(--clay2); color:var(--clay-deep);}
+  .dw-body{padding:8px 28px 40px;}
+  .verdict-panel{background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:22px; box-shadow:var(--e1);}
+  .vp-top{display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:16px;}
+  .vp-score{font-family:var(--mono); font-weight:500; font-size:46px; line-height:1; letter-spacing:-.02em;}
+  .vp-word{font-family:var(--mono); font-weight:600; font-size:12px; letter-spacing:.09em; text-transform:uppercase; padding:6px 12px; border-radius:8px;}
+  .vp-conf{font-size:12px; color:var(--ink2); text-align:right; margin-top:5px;}
+  .dw-bar .lane{position:relative; height:10px; border-radius:999px; overflow:hidden; display:flex;}
+  .dw-bar .lane i{height:100%;}
+  .dw-bar .pin-line{position:relative; height:26px; margin-top:2px;}
+  .dw-bar .pin-line .pl{position:absolute; transform:translateX(-50%); text-align:center;}
+  .dw-bar .pin-line .pl .p{width:14px; height:14px; border-radius:50%; background:var(--paper); border:4px solid currentColor; margin:0 auto;}
+  .dw-bar .pin-line .pl .lab{font-family:var(--mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase; margin-top:3px; white-space:nowrap;}
+  .dw-bar .ends{display:flex; justify-content:space-between; font-family:var(--mono); font-size:9px; letter-spacing:.1em; color:var(--ink3); text-transform:uppercase; margin-top:4px;}
+
+  .region{margin-top:16px; display:flex; gap:10px; align-items:flex-start; background:var(--caut-tint); border:1px solid var(--caut-border); border-radius:12px; padding:12px 14px; font-size:13px; color:var(--caut-ink);}
+  .region .ic{font-size:15px; margin-top:1px;}
+
+  .dw-sec{margin-top:26px;}
+  .dw-sec .h{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink3); margin-bottom:6px;}
+  .how-we-know{font-size:14px; color:var(--ink2); line-height:1.55;}
+  .why-list{margin-top:6px;}
+  .why{display:flex; gap:12px; align-items:flex-start; padding:14px 12px; border:1px solid var(--line); border-radius:12px; background:var(--paper); margin-bottom:10px; cursor:pointer; transition:border-color .16s, box-shadow .2s;}
+  .why:hover{border-color:var(--clay2); box-shadow:var(--e1);}
+  .why .tier{flex:none; font-family:var(--mono); font-weight:600; font-size:9.5px; letter-spacing:.07em; text-transform:uppercase; padding:4px 8px; border-radius:6px; margin-top:1px;}
+  .t-confirmed{color:var(--safe-ink); background:var(--safe-tint); border:1px solid var(--safe-border);}
+  .t-restaurant{color:var(--signal); background:var(--signal-tint); border:1px solid var(--signal-border);}
+  .t-observed{color:var(--signal); background:var(--signal-tint); border:1px solid var(--signal-border);}
+  .t-inferred{color:var(--caut-ink); background:var(--caut-tint); border:1px solid var(--caut-border);}
+  .t-estimate{color:var(--ink2); background:var(--sand); border:1px solid var(--line2);}
+  .t-callahead{color:var(--violet); background:var(--violet-tint); border:1px solid var(--violet-border);}
+  .why .wtext{font-size:13.5px; color:var(--ink); line-height:1.5;}
+  .why .wtext .src{display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:10.5px; color:var(--violet); background:var(--violet-tint); border:1px solid var(--violet-border); border-radius:5px; padding:1px 6px; margin-left:6px; text-decoration:none;}
+  .mchips{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;}
+  .mchip{font-family:var(--mono); font-size:11px; letter-spacing:.03em; padding:6px 11px; border-radius:7px;}
+  .mc-nut{color:var(--avoid-ink); background:var(--avoid-tint); border:1px solid var(--avoid-border);}
+  .mc-other{color:var(--caut-ink); background:var(--caut-tint); border:1px solid var(--caut-border);}
+  .mc-diet{color:var(--safe-ink); background:var(--safe-tint); border:1px solid var(--safe-border);}
+  .dw-actions{display:flex; gap:10px; margin-top:28px;}
+  .dw-actions .callahead{flex:1; border:0; cursor:pointer; border-radius:12px; padding:14px; font-weight:600; font-size:14px; background:var(--violet); color:#fff; display:inline-flex; align-items:center; justify-content:center; gap:8px;}
+  .dw-actions .callahead:hover{background:#5b21b6;}
+  .dw-actions .save{border:1px solid var(--line2); background:var(--paper); color:var(--clay-deep); border-radius:12px; padding:14px 18px; font-weight:600; font-size:14px; cursor:pointer;}
+  .dw-actions .save:hover{border-color:var(--clay2); background:var(--clay-tint);}
+
+  /* demo-states helper */
+  .demo-bar{display:inline-flex; align-items:center; gap:8px; font-size:11px; color:var(--ink3); font-family:var(--mono); letter-spacing:.06em;}
+  .demo-bar .dseg{display:inline-flex; background:var(--sand2); border:1px solid var(--line); border-radius:9px; padding:2px;}
+  .demo-bar .dseg button{border:0; background:transparent; font-family:var(--mono); font-size:11px; color:var(--ink2); padding:5px 9px; border-radius:7px; cursor:pointer; text-transform:uppercase; letter-spacing:.06em;}
+  .demo-bar .dseg button.on{background:var(--paper); color:var(--clay-deep); box-shadow:var(--e1);}
+
+  .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); z-index:60; background:var(--ink); color:var(--paper); font-size:13.5px; padding:12px 18px; border-radius:11px; box-shadow:var(--e3); opacity:0; visibility:hidden; transition:.25s;}
+  .toast.show{opacity:1; visibility:visible; transform:translateX(-50%) translateY(0);}
+
+  /* motion */
+  @keyframes fadeUp{from{opacity:0; transform:translateY(18px)} to{opacity:1; transform:none}}
+  @keyframes drift{0%{transform:translate(-3%,-2%) scale(1)} 100%{transform:translate(7%,5%) scale(1.16)}}
+  @keyframes shimmer{0%{background-position:100% 0} 100%{background-position:-100% 0}}
+  @keyframes blink{0%,100%{opacity:.35} 50%{opacity:1}}
+  .eyebrow{animation:fadeUp .7s .05s both;}
+  h1.hero-h{animation:fadeUp .85s .16s both;}
+  .hero-sub{animation:fadeUp .85s .3s both;}
+  .hero-cta{animation:fadeUp .85s .42s both;}
+  .card-search{animation:fadeUp .8s .5s both;}
+  .reveal{opacity:0; transform:translateY(20px); transition:opacity .7s ease, transform .75s cubic-bezier(.2,.7,.2,1);}
+  .reveal.in{opacity:1; transform:none;}
+  .rrow{opacity:0; transform:translateY(16px);}
+  .rrow.in{opacity:1; transform:none; transition:opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1), background .18s, box-shadow .2s;}
+  .rrow.in .bar .lane{transform:scaleX(1);}
+  .bar .lane{transform:scaleX(0); transform-origin:left; transition:transform .85s cubic-bezier(.2,.8,.2,1);}
+  .bar .pin{left:0; opacity:0; transition:left .95s cubic-bezier(.2,.8,.2,1) .2s, opacity .5s .2s;}
+  .rrow.in .bar .pin{left:var(--pinL); opacity:1;}
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001s !important; animation-delay:0s !important;}
+    .aurora{animation:none;}
+    .reveal,.rrow{opacity:1; transform:none; transition:none;}
+    .bar .lane{transform:none; transition:none;}
+    .bar .pin{opacity:1; left:var(--pinL); transition:none;}
+    .drawer{transition:none;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><span class="mk" aria-hidden="true">✔</span> SafePlate</div>
+    <nav class="links" aria-label="Primary">
+      <a href="#how">How it works</a><a href="#results">Nearby</a><a href="#">Evidence</a><a href="#">About</a>
+    </nav>
+    <div class="right">
+      <a class="login" href="#">Log in</a>
+      <button class="pill" onclick="focusSearch()">Find safe places</button>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-frame">
+    <div class="aurora" aria-hidden="true"></div>
+    <span class="photo-note" aria-hidden="true">Photography — warm table / restaurant scene</span>
+    <div class="hero-copy">
+      <span class="eyebrow">Built on real menu evidence</span>
+      <h1 class="hero-h">Know it’s safe<br/>before you <em>sit down</em>.</h1>
+      <p class="hero-sub">We read the menu, allergen chart, and kitchen statements at every restaurant near you, then grade the nut risk for your allergy like a lab result you can trust.</p>
+      <div class="hero-cta"><button class="pill light" onclick="focusSearch()">Find safe places near me</button></div>
+    </div>
+  </div>
+</section>
+
+<section class="search" id="search" aria-label="Set your allergy and search">
+  <div class="card-search">
+    <div class="cs-row">
+      <div class="field">
+        <label for="loc">Where are you eating?</label>
+        <div class="input-wrap">
+          <span class="ic" aria-hidden="true">◍</span>
+          <input id="loc" type="text" placeholder="Search a neighbourhood or address" value="Shoreditch, London" />
+          <button class="geo" title="Use my location" aria-label="Use my location" onclick="useGeo()">➤</button>
+        </div>
+      </div>
+      <button class="go" onclick="runSearch()"><span aria-hidden="true">◎</span> Find safe places</button>
+    </div>
+
+    <div class="cs-adv">
+      <div class="grp">
+        <label class="h" id="nutlab">Which nuts should we watch for?</label>
+        <div class="chips" role="group" aria-labelledby="nutlab" id="nutChips">
+          <button class="chip" aria-pressed="true">Peanut</button>
+          <button class="chip" aria-pressed="true">Almond</button>
+          <button class="chip" aria-pressed="true">Cashew</button>
+          <button class="chip" aria-pressed="false">Walnut</button>
+          <button class="chip" aria-pressed="false">Hazelnut</button>
+          <button class="chip" aria-pressed="false">Pistachio</button>
+          <button class="chip" aria-pressed="false">Pecan</button>
+          <button class="chip" aria-pressed="false">Pine nut</button>
+        </div>
+        <label class="toggle" style="margin-top:16px;">
+          <input type="checkbox" id="ccx" checked />
+          <span class="tk" aria-hidden="true"></span>
+          Include cross-contact risk (shared fryers, surfaces)
+        </label>
+        <div class="validation" id="valMsg">Pick at least one nut so we can grade risk for you.</div>
+      </div>
+      <div class="grp">
+        <label class="h">How serious is it?</label>
+        <div class="seg" role="group" aria-label="Severity">
+          <button aria-pressed="true">Allergy</button>
+          <button aria-pressed="false">Intolerance</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+  <section class="results" id="results" aria-live="polite">
+    <div class="res-head">
+      <div class="t">Your places, <em>ranked by risk</em></div>
+      <div class="res-tools">
+        <span class="res-count" id="resCount"></span>
+        <span class="sortsel">
+          <label for="sort" style="font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);">Sort</label>
+          <select id="sort" onchange="renderResults()">
+            <option value="risk">Safest first</option>
+            <option value="dist">Closest</option>
+            <option value="rating">Highest rated</option>
+          </select>
+        </span>
+        <span class="demo-bar" title="Prototype only">states
+          <span class="dseg" id="dseg">
+            <button data-s="empty">Empty</button>
+            <button data-s="loading">Loading</button>
+            <button data-s="results" class="on">Results</button>
+            <button data-s="error">Error</button>
+          </span>
+        </span>
+      </div>
+    </div>
+    <div id="resBody"></div>
+  </section>
+
+  <section class="how" id="how">
+    <h2 class="sec-h">Deciding is <em>simple</em></h2>
+    <p class="sec-lead">Three steps between “I’m hungry” and a call you can act on, with the proof shown at every one.</p>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="node">1</div>
+        <h3>Find nearby places</h3>
+        <p>Share where you are. We gather the restaurants within walking distance and start reading their menus.</p>
+      </div>
+      <div class="step reveal">
+        <div class="node">2</div>
+        <h3>Read the evidence</h3>
+        <p>Menus, allergen matrices, and kitchen statements, graded dish by dish, then placed on a risk range.</p>
+      </div>
+      <div class="step reveal">
+        <div class="node">3</div>
+        <h3>Decide with proof</h3>
+        <p>A verdict, a plain-language reason, and “how we know,” with every claim linked to its source.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <div class="brand"><span class="mk" aria-hidden="true">✔</span> SafePlate</div>
+        <p class="blurb">Allergy-aware dining decisions built on real menu evidence, not the wisdom of the crowd. Nut allergies first.</p>
+      </div>
+      <div class="col"><h4>Product</h4><a href="#">How it works</a><a href="#">Evidence &amp; sources</a><a href="#">Coverage</a><a href="#">Pricing</a></div>
+      <div class="col"><h4>Company</h4><a href="#">About</a><a href="#">Our method</a><a href="#">Contact</a><a href="#">FAQ</a></div>
+      <div class="col"><h4>Legal</h4><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Accessibility</a></div>
+    </div>
+    <div class="legal">
+      <span class="note">SafePlate helps you weigh risk from published evidence. It is not medical advice and cannot guarantee a meal is nut-free. When in doubt, confirm with the restaurant.</span>
+      <span>© 2026 SafePlate</span>
+    </div>
+  </div>
+</footer>
+
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Restaurant evidence" tabindex="-1"></aside>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const REST = [
+  { id:1, name:"Rovi", cui:"Vegetable-led · Fitzrovia", score:7, dist:4, rating:4.6,
+    prov:"Read from their allergen chart, updated 5 days ago",
+    conf:"High confidence", region:null,
+    evidence:[
+      {tier:"confirmed", label:"Confirmed", text:"Allergen chart lists no tree nuts on the core menu.", src:"allergen-chart.pdf"},
+      {tier:"restaurant", label:"Restaurant", text:"Kitchen note: separate fryers for nut-free orders.", src:"kitchen-note"},
+      {tier:"observed", label:"Observed", text:"3 recent diner reports, no nut incidents mentioned.", src:"reviews"}
+    ],
+    chips:[{t:"diet",l:"Vegan options"},{t:"other",l:"Sesame"}] },
+  { id:6, name:"Farmacy", cui:"Plant-based · Notting Hill", score:12, dist:15, rating:4.3,
+    prov:"Detailed allergen chart on file",
+    conf:"High confidence", region:null,
+    evidence:[
+      {tier:"confirmed", label:"Confirmed", text:"Full allergen chart flags nuts per dish; most are nut-free.", src:"allergen-chart"},
+      {tier:"restaurant", label:"Restaurant", text:"Dedicated nut-free prep station in the kitchen.", src:"kitchen-info"}
+    ],
+    chips:[{t:"diet",l:"Vegan"},{t:"diet",l:"Gluten-free"}] },
+  { id:4, name:"Lina Stores", cui:"Italian deli · Soho", score:22, dist:6, rating:4.5,
+    prov:"Read from their allergen matrix",
+    conf:"Medium-high confidence",
+    region:"Allergen data shown is from their King’s Cross branch, not this location.",
+    evidence:[
+      {tier:"confirmed", label:"Confirmed", text:"Allergen matrix covers all pasta and antipasti.", src:"allergen-matrix"},
+      {tier:"restaurant", label:"Restaurant", text:"Pesto contains pine nuts, clearly flagged on the menu.", src:"menu"},
+      {tier:"inferred", label:"Inferred", text:"Shared prep surfaces suggest some cross-contact risk.", src:"model"}
+    ],
+    chips:[{t:"nut",l:"Pine nut (pesto)"},{t:"diet",l:"Vegetarian"}] },
+  { id:2, name:"Bao Borough", cui:"Taiwanese · Borough", score:41, dist:8, rating:4.4,
+    prov:"No published allergen matrix; risk inferred from dishes",
+    conf:"Medium confidence", region:null,
+    evidence:[
+      {tier:"inferred", label:"Inferred", text:"Peanut appears in 4 signature dishes on the menu.", src:"menu"},
+      {tier:"restaurant", label:"Restaurant", text:"No allergen matrix published on their site.", src:"site"},
+      {tier:"callahead", label:"Call ahead", text:"Staff can confirm nut-free options by phone.", src:"phone"}
+    ],
+    chips:[{t:"nut",l:"Peanut"},{t:"other",l:"Soy"},{t:"other",l:"Gluten"}] },
+  { id:5, name:"Dishoom", cui:"Indian · Shoreditch", score:55, dist:10, rating:4.8,
+    prov:"Allergen guide available; several nut-containing dishes",
+    conf:"Medium confidence", region:null,
+    evidence:[
+      {tier:"restaurant", label:"Restaurant", text:"Allergen guide available on request in-venue.", src:"guide"},
+      {tier:"inferred", label:"Inferred", text:"Cashew and almond used across several curries.", src:"menu"},
+      {tier:"callahead", label:"Call ahead", text:"Recommend confirming your dish with the kitchen.", src:"phone"}
+    ],
+    chips:[{t:"nut",l:"Cashew"},{t:"nut",l:"Almond"},{t:"other",l:"Dairy"}] },
+  { id:3, name:"Kaosarn", cui:"Thai · Brixton", score:82, dist:12, rating:4.7,
+    prov:"Menu lists nuts across many dishes",
+    conf:"High confidence", region:null,
+    evidence:[
+      {tier:"confirmed", label:"Confirmed", text:"Menu lists peanuts and cashews across many dishes.", src:"menu"},
+      {tier:"observed", label:"Observed", text:"Multiple reviews mention prominent nut use.", src:"reviews"}
+    ],
+    chips:[{t:"nut",l:"Peanut"},{t:"nut",l:"Cashew"},{t:"other",l:"Shellfish"}] }
+];
+function band(s){ return s < 30 ? "safe" : s < 65 ? "caut" : "avoid"; }
+function word(s){ return s < 30 ? "Low risk" : s < 65 ? "Caution" : "Avoid"; }
+function icon(s){ return s < 30 ? "✓" : s < 65 ? "▲" : "✕"; }
+function tint(s){ return "w-" + band(s); }
+function inkVar(s){ return band(s)==="safe" ? "var(--safe-ink)" : band(s)==="caut" ? "var(--caut-ink)" : "var(--avoid-ink)"; }
+function ringVar(s){ return band(s)==="safe" ? "var(--safe-ring)" : band(s)==="caut" ? "var(--caut-ring)" : "var(--avoid-ring)"; }
+
+let demoState = "results";
+const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),2200); }
+function focusSearch(){ document.getElementById("search").scrollIntoView({behavior:"smooth",block:"center"}); setTimeout(()=>document.getElementById("loc").focus(),400); }
+function useGeo(){ document.getElementById("loc").value="Current location"; toast("Using your current location"); }
+
+function selectedNuts(){ return [...document.querySelectorAll("#nutChips .chip")].filter(c=>c.getAttribute("aria-pressed")==="true").length; }
+
+function runSearch(){
+  if(selectedNuts()===0){ document.getElementById("valMsg").classList.add("show"); return; }
+  document.getElementById("valMsg").classList.remove("show");
+  setState("loading");
+  document.getElementById("results").scrollIntoView({behavior:"smooth",block:"start"});
+  clearTimeout(window._srch);
+  window._srch = setTimeout(()=>setState("results"), RM ? 300 : 1300);
+}
+
+function setState(s){
+  demoState = s;
+  [...document.querySelectorAll("#dseg button")].forEach(b=>b.classList.toggle("on", b.dataset.s===s));
+  renderResults();
+}
+
+function sortedData(){
+  const key = document.getElementById("sort").value;
+  const d = REST.slice();
+  if(key==="risk") d.sort((a,b)=>a.score-b.score);
+  if(key==="dist") d.sort((a,b)=>a.dist-b.dist);
+  if(key==="rating") d.sort((a,b)=>b.rating-a.rating);
+  return d;
+}
+
+function renderResults(){
+  const body = document.getElementById("resBody");
+  const count = document.getElementById("resCount");
+  if(demoState==="empty"){
+    count.textContent="";
+    body.innerHTML = `<div class="state"><div class="em" aria-hidden="true">◎</div><h3>Set your allergy, then search</h3><p>Choose the nuts you need to avoid and hit “Find safe places.” We’ll grade every restaurant near you and show the evidence behind each call.</p><button class="pill" onclick="focusSearch()">Set it up</button></div>`;
+    return;
+  }
+  if(demoState==="loading"){
+    count.textContent="reading menus…";
+    let sk=""; for(let i=0;i<4;i++){ sk += `<div class="skel-row"><div><div class="sk" style="height:22px;width:60%"></div><div class="sk" style="height:13px;width:40%;margin-top:9px"></div></div><div class="sk" style="height:8px;width:100%;margin-top:8px"></div><div class="sk" style="height:38px;width:120px;margin-left:auto"></div></div>`; }
+    body.innerHTML = `<div class="loading-note"><span class="pulse">●</span> Reading menus, allergen charts, and kitchen statements near you</div>${sk}`;
+    return;
+  }
+  if(demoState==="error"){
+    count.textContent="";
+    body.innerHTML = `<div class="state"><div class="em" aria-hidden="true">⚠</div><h3>We couldn’t reach the menu sources</h3><p>Some restaurant sites didn’t respond. Your results may be incomplete. Try again in a moment.</p><button class="pill" onclick="runSearch()">Retry search</button></div>`;
+    return;
+  }
+  const data = sortedData();
+  count.textContent = data.length + " nearby · nut allergy · safest first";
+  body.innerHTML = data.map(r=>{
+    const b = band(r.score);
+    return `<div class="rrow" role="button" tabindex="0" data-id="${r.id}" style="--pinL:${r.score}%">
+      <div class="rname">${r.name}<span class="cui">${r.cui}</span></div>
+      <div class="bar">
+        <div class="lane"><i class="z1"></i><i class="z2"></i><i class="z3"></i></div>
+        <div class="pin" style="color:${ringVar(r.score)}"><div class="p"></div></div>
+        <div class="ends"><span>Safe</span><span>Avoid</span></div>
+      </div>
+      <div class="verdict">
+        <div class="score" data-count="${r.score}" style="color:${inkVar(r.score)}">0</div>
+        <span class="word ${tint(r.score)}">${icon(r.score)} ${word(r.score)}</span>
+        <div class="prov">${r.prov}</div>
+      </div>
+    </div>`;
+  }).join("");
+  wireRows();
+  revealRows();
+}
+
+function wireRows(){
+  document.querySelectorAll(".rrow").forEach(row=>{
+    const open = ()=>openDrawer(+row.dataset.id);
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); open(); }});
+  });
+}
+
+function countUp(el){
+  const target = +el.dataset.count || 0;
+  if(RM){ el.textContent = target; return; }
+  const start = performance.now(), dur = 850;
+  function tick(now){ const p=Math.min(1,(now-start)/dur), e=1-Math.pow(1-p,3); el.textContent=Math.round(e*target); if(p<1) requestAnimationFrame(tick); else el.textContent=target; }
+  requestAnimationFrame(tick);
+}
+
+function revealRows(){
+  const rows = [...document.querySelectorAll(".rrow")];
+  if(RM){ rows.forEach(r=>{ r.classList.add("in"); const s=r.querySelector(".score"); if(s) countUp(s); }); return; }
+  const io = new IntersectionObserver((es)=>{ es.forEach(en=>{ if(en.isIntersecting){ const r=en.target; r.classList.add("in"); const s=r.querySelector(".score"); if(s) countUp(s); io.unobserve(r); }});},{threshold:.14});
+  rows.forEach((r,i)=>{ r.style.transitionDelay=(i*0.06)+"s"; io.observe(r); });
+}
+
+/* chips + severity toggles */
+document.getElementById("nutChips").addEventListener("click", e=>{
+  const c = e.target.closest(".chip"); if(!c) return;
+  c.setAttribute("aria-pressed", c.getAttribute("aria-pressed")==="true" ? "false" : "true");
+  if(selectedNuts()>0) document.getElementById("valMsg").classList.remove("show");
+});
+document.querySelectorAll(".seg").forEach(seg=>seg.addEventListener("click", e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  seg.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed","false"));
+  b.setAttribute("aria-pressed","true");
+}));
+document.getElementById("dseg").addEventListener("click", e=>{ const b=e.target.closest("button"); if(b) setState(b.dataset.s); });
+
+/* drawer */
+let lastFocus=null;
+function openDrawer(id){
+  const r = REST.find(x=>x.id===id); if(!r) return;
+  lastFocus = document.activeElement;
+  const b = band(r.score);
+  const evi = r.evidence.map(ev=>`<div class="why"><span class="tier t-${ev.tier}">${ev.label}</span><div class="wtext">${ev.text}<a class="src" href="#" onclick="return srcClick(event)">↗ ${ev.src}</a></div></div>`).join("");
+  const chips = r.chips.map(c=>`<span class="mchip mc-${c.t}">${c.t==="nut"?"⚠ ":""}${c.l}</span>`).join("");
+  const region = r.region ? `<div class="region"><span class="ic" aria-hidden="true">◈</span><span>${r.region}</span></div>` : "";
+  document.getElementById("drawer").innerHTML = `
+    <div class="dw-top">
+      <div><div class="nm">${r.name}</div><div class="cui">${r.cui} · ${r.dist} min walk · ★ ${r.rating}</div></div>
+      <button class="dw-close" aria-label="Close" onclick="closeDrawer()">✕</button>
+    </div>
+    <div class="dw-body">
+      <div class="verdict-panel">
+        <div class="vp-top">
+          <div class="vp-score" style="color:${inkVar(r.score)}">${r.score}</div>
+          <div style="text-align:right"><span class="vp-word ${tint(r.score)}">${icon(r.score)} ${word(r.score)}</span><div class="vp-conf">${r.conf}</div></div>
+        </div>
+        <div class="dw-bar">
+          <div class="lane"><i style="flex:0 0 40%;background:var(--safe-ring)"></i><i style="flex:0 0 30%;background:var(--caut-ring)"></i><i style="flex:1;background:var(--avoid-ring)"></i></div>
+          <div class="pin-line"><div class="pl" style="left:${r.score}%;color:${ringVar(r.score)}"><div class="p"></div><div class="lab" style="color:${inkVar(r.score)}">Score ${r.score}</div></div></div>
+          <div class="ends"><span>Safe for you</span><span>Best to avoid</span></div>
+        </div>
+        ${region}
+      </div>
+
+      <div class="dw-sec">
+        <div class="h">How we know</div>
+        <div class="how-we-know">${r.prov}.</div>
+      </div>
+
+      <div class="dw-sec">
+        <div class="h">Why this score</div>
+        <div class="why-list">${evi}</div>
+      </div>
+
+      <div class="dw-sec">
+        <div class="h">On the menu</div>
+        <div class="mchips">${chips}</div>
+      </div>
+
+      <div class="dw-actions">
+        <button class="callahead" onclick="toast('Opening call to ${r.name}…')"><span aria-hidden="true">☎</span> Call ahead to confirm</button>
+        <button class="save" onclick="toast('Saved ${r.name}')">Save</button>
+      </div>
+    </div>`;
+  document.getElementById("scrim").classList.add("open");
+  const dw = document.getElementById("drawer");
+  dw.classList.add("open");
+  document.body.classList.add("locked");
+  setTimeout(()=>dw.querySelector(".dw-close").focus(),120);
+}
+function srcClick(e){ e.preventDefault(); toast("Opening cited source…"); return false; }
+function closeDrawer(){
+  document.getElementById("scrim").classList.remove("open");
+  document.getElementById("drawer").classList.remove("open");
+  document.body.classList.remove("locked");
+  if(lastFocus) lastFocus.focus();
+}
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrawer(); });
+
+/* how-it-works reveal */
+(function(){
+  if(RM){ document.querySelectorAll(".reveal").forEach(e=>e.classList.add("in")); return; }
+  const io=new IntersectionObserver(es=>es.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); }}),{threshold:.2});
+  document.querySelectorAll(".reveal").forEach((el,i)=>{ el.style.transitionDelay=(i*0.1)+"s"; io.observe(el); });
+})();
+
+renderResults();
+if(/^#r\d+$/.test(location.hash)){ setTimeout(()=>openDrawer(+location.hash.slice(2)), 200); }
+</script>
+</body>
+</html>

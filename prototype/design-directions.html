@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafePlate — design direction board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Archivo:wght@500;700;900&family=Spectral:ital,wght@0,400;0,500;1,400&family=Special+Elite&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: Inter, system-ui, sans-serif; color: #1a1a1a; background: #0e0f10; -webkit-font-smoothing: antialiased; }
+
+  /* ── board chrome ── */
+  .board-head { max-width: 1080px; margin: 0 auto; padding: 56px 32px 24px; color: #e7e7e7; }
+  .board-head h1 { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 500; font-size: 26px; letter-spacing: -0.02em; color: #fafafa; }
+  .board-head p { margin-top: 10px; font-size: 15px; line-height: 1.6; color: #9a9a9c; max-width: 62ch; }
+  .board-nav { max-width: 1080px; margin: 20px auto 0; padding: 0 32px 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .board-nav a { font-size: 12.5px; letter-spacing: 0.02em; color: #cfcfd1; text-decoration: none; border: 1px solid #2c2d2f; padding: 7px 13px; border-radius: 999px; transition: .15s; }
+  .board-nav a:hover { border-color: #4a4b4e; background: #191a1b; color: #fff; }
+
+  .dir { max-width: 1080px; margin: 0 auto 40px; border-radius: 20px; overflow: hidden; box-shadow: 0 30px 90px -30px rgba(0,0,0,.7); }
+  .dir-meta { padding: 22px 30px; background: #141516; color: #e9e9ea; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; border-bottom: 1px solid #242628; }
+  .dir-meta .tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #7f8082; }
+  .dir-meta h2 { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 500; font-size: 22px; letter-spacing: -0.01em; color: #fff; }
+  .dir-meta .thesis { flex: 1 1 100%; font-size: 14px; line-height: 1.55; color: #a7a8aa; max-width: 78ch; }
+  .dir-meta .risk { flex: 1 1 100%; font-size: 12.5px; color: #d9a441; font-family: 'IBM Plex Mono', monospace; }
+  .stage { padding: 0; }
+
+  /* generic swatch strip used inside each direction footer */
+  .swatches { display: flex; gap: 0; height: 34px; }
+  .swatches span { flex: 1; }
+
+  @media (max-width: 720px) { .board-head { padding: 40px 20px 16px; } .dir { margin: 0 12px 28px; } }
+</style>
+</head>
+<body>
+
+<div class="board-head">
+  <h1>SafePlate — four design directions</h1>
+  <p>Each escapes the current warm-cream + serif + green look. Every one keeps the hard rules: risk is never carried by color alone, green stays reserved for “safe / confirmed,” and provenance is visible. Pick the thesis, not the pixels — we’ll build the winner out properly.</p>
+</div>
+<nav class="board-nav">
+  <a href="#instrument">01 — Instrument</a>
+  <a href="#dossier">02 — Dossier</a>
+  <a href="#wayfinding">03 — Wayfinding</a>
+  <a href="#spectrum">04 — Spectrum</a>
+</nav>
+
+<!-- ============================================================= -->
+<!-- 01 · INSTRUMENT                                                -->
+<!-- ============================================================= -->
+<section class="dir" id="instrument">
+  <div class="dir-meta">
+    <span class="tag">Direction 01</span>
+    <h2>Instrument</h2>
+    <p class="thesis">SafePlate as a precision measuring device. Cool lab-paper, deep slate ink, and a single calm <em>ink-blue</em> brand hue — so brand is no longer green, freeing green to mean only “safe.” The signature is a calibrated risk gauge with real tick marks, not a generic donut. Reads: premium, exact, trustworthy — closest to the Function Health register you like.</p>
+    <span class="risk">Risk taken: drops green as the brand color entirely — brand identity now rides a clinical blue.</span>
+  </div>
+  <div class="stage">
+    <style>
+      #instrument .i-wrap { background: #F7FAFB; color: #0E1B22; font-family: Inter, sans-serif; padding: 46px 44px 40px; }
+      #instrument .i-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 30px; }
+      #instrument .i-brand { display: flex; align-items: center; gap: 10px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; letter-spacing: .04em; font-size: 14px; color: #12374A; }
+      #instrument .i-brand b { width: 26px; height: 26px; border-radius: 7px; background: #12557A; color: #fff; display: grid; place-items: center; font-size: 15px; }
+      #instrument .i-nav { display: flex; gap: 22px; font-size: 13px; color: #4d6472; }
+      #instrument .i-hero { display: grid; grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center; }
+      #instrument h1 { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 500; font-size: clamp(34px, 4.4vw, 52px); line-height: 1.02; letter-spacing: -0.03em; color: #0B1E29; }
+      #instrument h1 u { text-decoration: none; color: #12557A; }
+      #instrument .i-sub { margin-top: 18px; font-size: 15.5px; line-height: 1.6; color: #3a5260; max-width: 46ch; }
+      #instrument .i-cta { margin-top: 26px; display: flex; gap: 10px; }
+      #instrument .i-cta button { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; letter-spacing: .03em; border: 0; cursor: pointer; padding: 13px 20px; border-radius: 10px; }
+      #instrument .i-cta .p { background: #12557A; color: #fff; }
+      #instrument .i-cta .g { background: #fff; color: #12374A; border: 1px solid #D3DFE5; }
+      /* gauge */
+      #instrument .gauge { background: #fff; border: 1px solid #E1E9ED; border-radius: 16px; padding: 24px 26px; box-shadow: 0 20px 50px -24px rgba(18,55,74,.28); }
+      #instrument .gauge .lab { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #6f8794; }
+      #instrument .gauge .name { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 500; margin-top: 4px; color: #0B1E29; }
+      #instrument .dial { position: relative; margin: 14px auto 4px; width: 220px; height: 128px; }
+      #instrument .dial .read { position: absolute; left: 0; right: 0; top: 58px; text-align: center; }
+      #instrument .dial .read .n { font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 40px; color: #157347; letter-spacing: -.02em; }
+      #instrument .dial .read .w { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: .18em; color: #157347; }
+      #instrument .prov { margin-top: 12px; padding-top: 12px; border-top: 1px solid #EDF2F4; font-size: 12.5px; color: #4d6472; display: flex; align-items: center; gap: 7px; }
+      #instrument .prov b { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #157347; font-size: 11px; letter-spacing: .06em; background: #E7F5EC; border: 1px solid #BEE6CB; padding: 3px 8px; border-radius: 6px; }
+      @media (max-width: 720px){ #instrument .i-hero{ grid-template-columns:1fr; } #instrument .i-nav{ display:none; } }
+    </style>
+    <div class="i-wrap">
+      <div class="i-top">
+        <div class="i-brand"><b>◈</b> SAFEPLATE</div>
+        <div class="i-nav"><span>Search</span><span>How it works</span><span>Evidence</span></div>
+      </div>
+      <div class="i-hero">
+        <div>
+          <h1>Measure the risk<br/>before you <u>sit down</u>.</h1>
+          <p class="i-sub">Every nearby restaurant, read menu-by-menu and scored against your allergy on a calibrated scale — with the evidence behind each reading one tap away.</p>
+          <div class="i-cta">
+            <button class="p">Scan places near me</button>
+            <button class="g">See how it reads</button>
+          </div>
+        </div>
+        <div class="gauge">
+          <div class="lab">Nut-allergy reading</div>
+          <div class="name">Tallula’s Kitchen</div>
+          <div class="dial">
+            <svg viewBox="0 0 220 128" width="220" height="128" aria-label="Risk gauge reading 8 of 100, low">
+              <defs></defs>
+              <!-- track ticks -->
+              <g stroke="#D7E2E7" stroke-width="2">
+                <path d="M18 118 A92 92 0 0 1 202 118" fill="none" stroke="#E7EEF1" stroke-width="12" stroke-linecap="round"/>
+              </g>
+              <!-- colored arc segments (low/med/high) as a second channel is the label below -->
+              <path d="M18 118 A92 92 0 0 1 74 34" fill="none" stroke="#22C55E" stroke-width="12" stroke-linecap="round"/>
+              <path d="M84 29 A92 92 0 0 1 136 29" fill="none" stroke="#FBBF24" stroke-width="12"/>
+              <path d="M146 34 A92 92 0 0 1 202 118" fill="none" stroke="#F87171" stroke-width="12" stroke-linecap="round"/>
+              <!-- needle to ~8% (low) -->
+              <g>
+                <line x1="110" y1="118" x2="36" y2="86" stroke="#0B1E29" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="110" cy="118" r="6" fill="#0B1E29"/>
+              </g>
+              <text x="16" y="128" font-family="IBM Plex Mono" font-size="9" fill="#6f8794">SAFE</text>
+              <text x="176" y="128" font-family="IBM Plex Mono" font-size="9" fill="#6f8794">AVOID</text>
+            </svg>
+            <div class="read"><div class="n">8</div><div class="w">LOW RISK</div></div>
+          </div>
+          <div class="prov"><b>CONFIRMED</b> Read from their allergen chart · updated 4d ago</div>
+        </div>
+      </div>
+      <div class="swatches" style="margin-top:34px; border-radius:8px; overflow:hidden;">
+        <span style="background:#F7FAFB"></span><span style="background:#12557A"></span><span style="background:#0B1E29"></span><span style="background:#22C55E"></span><span style="background:#FBBF24"></span><span style="background:#F87171"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- 02 · DOSSIER                                                   -->
+<!-- ============================================================= -->
+<section class="dir" id="dossier">
+  <div class="dir-meta">
+    <span class="tag">Direction 02</span>
+    <h2>Dossier</h2>
+    <p class="thesis">Every verdict is a case file. Keeps the warmth of the current design but moves the personality off the serif and onto the <em>artifacts</em>: rubber-stamp provenance, evidence pinned like index cards, a monospace field-notes voice. Memorable because it looks like a careful investigator’s desk — not an editorial magazine.</p>
+    <span class="risk">Risk taken: stamps/typewriter voice flirt with skeuomorphism — needs restraint to stay grown-up, not kitsch.</span>
+  </div>
+  <div class="stage">
+    <style>
+      #dossier .d-wrap { background: #F3EEE3; color: #241D14; font-family: Inter, sans-serif; padding: 44px 44px 40px; background-image: radial-gradient(#e4dccb 0.8px, transparent 0.8px); background-size: 22px 22px; }
+      #dossier .d-top { display:flex; justify-content:space-between; align-items:center; padding-bottom: 26px; }
+      #dossier .d-brand { font-family:'Space Grotesk',sans-serif; font-weight:700; letter-spacing:-.01em; font-size:19px; display:flex; align-items:center; gap:9px; }
+      #dossier .d-brand b { width:26px;height:26px;border-radius:6px;background:#1F6B4D;color:#fff;display:grid;place-items:center;font-size:14px; }
+      #dossier .d-file { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; color:#7a6a52; }
+      #dossier .d-hero { display:grid; grid-template-columns: 1.1fr 1fr; gap:38px; align-items:center; }
+      #dossier h1 { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(32px,4.2vw,50px); line-height:1.04; letter-spacing:-.025em; color:#1c150c; }
+      #dossier .d-sub { margin-top:16px; font-family:'IBM Plex Mono',monospace; font-size:13.5px; line-height:1.65; color:#5a4c39; max-width:44ch; }
+      #dossier .d-cta { margin-top:24px; }
+      #dossier .d-cta button { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; cursor:pointer; border:0; background:#1c150c; color:#F3EEE3; padding:14px 22px; border-radius:10px; }
+      /* case card */
+      #dossier .case { background:#FBF8F1; border:1px solid #DED3BE; border-radius:12px; padding:22px 24px; position:relative; box-shadow: 4px 6px 0 rgba(28,21,12,.06); }
+      #dossier .stamp { position:absolute; top:16px; right:18px; transform:rotate(-8deg); font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:12px; letter-spacing:.14em; color:#1F6B4D; border:2px solid #1F6B4D; border-radius:6px; padding:5px 9px; opacity:.85; }
+      #dossier .case .k { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#8a7a60; }
+      #dossier .case .name { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:22px; margin-top:3px; color:#1c150c; }
+      #dossier .verdict { margin-top:14px; display:flex; align-items:center; gap:12px; }
+      #dossier .verdict .badge { font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:12px; letter-spacing:.1em; color:#157347; background:#E7F5EC; border:1px solid #BEE6CB; padding:6px 11px; border-radius:7px; }
+      #dossier .verdict .sc { font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:30px; color:#157347; }
+      #dossier .evi { margin-top:16px; padding-top:14px; border-top:1px dashed #D8CCB4; }
+      #dossier .evi .row { display:flex; gap:9px; align-items:flex-start; font-size:13px; color:#4d4130; margin-bottom:8px; font-family:'IBM Plex Mono',monospace; }
+      #dossier .evi .row i { color:#1F6B4D; font-style:normal; }
+      @media (max-width:720px){ #dossier .d-hero{ grid-template-columns:1fr; } }
+    </style>
+    <div class="d-wrap">
+      <div class="d-top">
+        <div class="d-brand"><b>✔</b> SafePlate</div>
+        <div class="d-file">CASE FILE · NUT ALLERGY · LONDON N1</div>
+      </div>
+      <div class="d-hero">
+        <div>
+          <h1>Open a file on<br/>where you’ll eat.</h1>
+          <p class="d-sub">&gt; we pull the menu, the allergen chart, the statements<br/>&gt; grade the nut risk for your profile<br/>&gt; and stamp every claim with how we know it</p>
+          <div class="d-cta"><button>Build my shortlist →</button></div>
+        </div>
+        <div class="case">
+          <div class="stamp">CONFIRMED</div>
+          <div class="k">Subject</div>
+          <div class="name">Mar176 Osteria</div>
+          <div class="verdict"><span class="sc">12</span><span class="badge">LOW · walnut oil flagged, contained</span></div>
+          <div class="evi">
+            <div class="row"><i>▸</i><span>Allergen matrix lists tree nuts on 3 of 41 dishes, all labelled.</span></div>
+            <div class="row"><i>▸</i><span>Kitchen statement: separate prep for nut-free orders.</span></div>
+            <div class="row"><i>▸</i><span>2 diner reports, no incident — <em style="color:#a06a1a;font-style:normal;">observed, unconfirmed</em>.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="swatches" style="margin-top:32px; border-radius:8px; overflow:hidden;">
+        <span style="background:#F3EEE3"></span><span style="background:#1F6B4D"></span><span style="background:#1c150c"></span><span style="background:#A6382E"></span><span style="background:#FBBF24"></span><span style="background:#22C55E"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- 03 · WAYFINDING                                                -->
+<!-- ============================================================= -->
+<section class="dir" id="wayfinding">
+  <div class="dir-meta">
+    <span class="tag">Direction 03</span>
+    <h2>Wayfinding</h2>
+    <p class="thesis">Signage you trust on instinct — the visual grammar of transit and airport boards, repurposed for allergy decisions. Bold functional type, strict high-contrast panels, and color that <em>always</em> pairs with a word and an icon. The verdict is a departure-board panel: unmissable, calm through order rather than warmth.</p>
+    <span class="risk">Risk taken: high-contrast panels can feel loud/institutional — the discipline is keeping it quiet between verdicts.</span>
+  </div>
+  <div class="stage">
+    <style>
+      #wayfinding .w-wrap { background:#FBFBFA; color:#12161A; font-family:Inter,sans-serif; padding:44px 44px 40px; }
+      #wayfinding .w-top { display:flex; justify-content:space-between; align-items:center; padding-bottom:28px; border-bottom:2px solid #12161A; margin-bottom:34px; }
+      #wayfinding .w-brand { font-family:'Archivo',sans-serif; font-weight:900; font-size:22px; letter-spacing:-.02em; text-transform:uppercase; display:flex; align-items:center; gap:10px; }
+      #wayfinding .w-brand b { width:28px;height:28px;background:#0B5D33;color:#fff;display:grid;place-items:center;border-radius:5px;font-size:15px; }
+      #wayfinding .w-tabs { display:flex; gap:2px; }
+      #wayfinding .w-tabs span { font-family:'Archivo',sans-serif; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.04em; padding:8px 14px; background:#EEF0EE; color:#3a4249; }
+      #wayfinding .w-tabs span.on { background:#12161A; color:#fff; }
+      #wayfinding h1 { font-family:'Archivo',sans-serif; font-weight:900; font-size:clamp(38px,5vw,64px); line-height:.98; letter-spacing:-.03em; text-transform:uppercase; max-width:14ch; }
+      #wayfinding .w-sub { margin-top:16px; font-size:15px; line-height:1.55; color:#3a4249; max-width:52ch; }
+      #wayfinding .board { margin-top:30px; border:2px solid #12161A; border-radius:6px; overflow:hidden; }
+      #wayfinding .brow { display:grid; grid-template-columns: 1.6fr 1fr 0.9fr; align-items:center; padding:16px 20px; border-bottom:2px solid #12161A; font-family:'Archivo',sans-serif; }
+      #wayfinding .brow:last-child{ border-bottom:0; }
+      #wayfinding .brow .place { font-weight:700; font-size:19px; letter-spacing:-.01em; }
+      #wayfinding .brow .place small { display:block; font-family:Inter; font-weight:500; font-size:12.5px; letter-spacing:0; color:#5b636a; text-transform:none; }
+      #wayfinding .panel { justify-self:start; font-weight:900; font-size:13px; letter-spacing:.06em; text-transform:uppercase; padding:8px 14px; border-radius:5px; display:flex; align-items:center; gap:8px; }
+      #wayfinding .p-lo { background:#0B5D33; color:#fff; }
+      #wayfinding .p-md { background:#B45309; color:#fff; }
+      #wayfinding .p-hi { background:#9B1C1C; color:#fff; }
+      #wayfinding .score { justify-self:end; font-family:'Archivo',sans-serif; font-weight:900; font-size:34px; letter-spacing:-.03em; }
+      #wayfinding .hdr { background:#12161A; color:#fff; font-family:'Archivo',sans-serif; font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:.14em; padding:9px 20px; display:grid; grid-template-columns:1.6fr 1fr 0.9fr; }
+      #wayfinding .hdr span:last-child{ text-align:right; }
+      @media (max-width:720px){ #wayfinding .w-tabs{display:none;} }
+    </style>
+    <div class="w-wrap">
+      <div class="w-top">
+        <div class="w-brand"><b>✔</b> Safeplate</div>
+        <div class="w-tabs"><span class="on">Nearby</span><span>Saved</span><span>Profile</span></div>
+      </div>
+      <h1>Which of these can you trust tonight?</h1>
+      <p class="w-sub">Six places within a 10-minute walk, graded for your tree-nut allergy. Every panel carries a word and an icon — never color on its own.</p>
+      <div class="board" role="table" aria-label="Restaurant risk board">
+        <div class="hdr"><span>Restaurant</span><span>Verdict</span><span>Score</span></div>
+        <div class="brow">
+          <div class="place">Saint Leonards <small>Modern British · Shoreditch</small></div>
+          <div class="panel p-lo">✓&nbsp; Low risk</div>
+          <div class="score" style="color:#0B5D33;">9</div>
+        </div>
+        <div class="brow">
+          <div class="place">Padella <small>Pasta · Borough</small></div>
+          <div class="panel p-md">▲&nbsp; Caution</div>
+          <div class="score" style="color:#B45309;">44</div>
+        </div>
+        <div class="brow">
+          <div class="place">Gökyüzü <small>Turkish grill · Green Lanes</small></div>
+          <div class="panel p-hi">✕&nbsp; Avoid</div>
+          <div class="score" style="color:#9B1C1C;">78</div>
+        </div>
+      </div>
+      <div class="swatches" style="margin-top:30px; border-radius:8px; overflow:hidden;">
+        <span style="background:#FBFBFA"></span><span style="background:#12161A"></span><span style="background:#0B5D33"></span><span style="background:#B45309"></span><span style="background:#9B1C1C"></span><span style="background:#EEF0EE"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- 04 · SPECTRUM                                                  -->
+<!-- ============================================================= -->
+<section class="dir" id="spectrum">
+  <div class="dir-meta">
+    <span class="tag">Direction 04</span>
+    <h2>Spectrum</h2>
+    <p class="thesis">One gesture organizes everything: a horizontal <em>safe → caution → avoid</em> axis. Restaurants aren’t a list of donuts, they’re plotted as positions along the spectrum, so “how do these compare?” is answered by the eye before you read a number. Minimal, airy, premium — the risk gradient is the only saturated thing on the page.</p>
+    <span class="risk">Risk taken: the axis metaphor must stay legible with many results and on mobile — the whole idea rides on that one component working.</span>
+  </div>
+  <div class="stage">
+    <style>
+      #spectrum .s-wrap { background:#FCFCFA; color:#14181A; font-family:'Inter',sans-serif; padding:46px 46px 44px; }
+      #spectrum .s-top { display:flex; justify-content:space-between; align-items:center; padding-bottom:36px; }
+      #spectrum .s-brand { font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:19px; letter-spacing:-.01em; display:flex; align-items:center; gap:9px; }
+      #spectrum .s-brand b { width:24px;height:24px;background:#14181A;color:#fff;display:grid;place-items:center;border-radius:6px;font-size:13px; }
+      #spectrum .s-nav { font-size:13px; color:#6a7175; display:flex; gap:22px; }
+      #spectrum h1 { font-family:'Spectral',serif; font-weight:400; font-size:clamp(36px,4.6vw,58px); line-height:1.05; letter-spacing:-.01em; max-width:16ch; }
+      #spectrum h1 em { font-style:italic; }
+      #spectrum .s-sub { margin-top:16px; font-size:15.5px; line-height:1.6; color:#4a5155; max-width:48ch; }
+      /* the spectrum instrument */
+      #spectrum .axis { margin-top:44px; position:relative; }
+      #spectrum .axis .bar { height:10px; border-radius:999px; background:linear-gradient(90deg,#16A34A 0%, #16A34A 30%, #FBBF24 55%, #F87171 80%, #DC2626 100%); }
+      #spectrum .axis .ends { display:flex; justify-content:space-between; margin-top:10px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; color:#7a8185; text-transform:uppercase; }
+      #spectrum .pins { position:relative; height:96px; margin-top:20px; }
+      #spectrum .pin { position:absolute; top:0; transform:translateX(-50%); text-align:center; width:150px; }
+      #spectrum .pin .dot { width:15px; height:15px; border-radius:50%; margin:0 auto 8px; border:3px solid #FCFCFA; box-shadow:0 0 0 1.5px currentColor; }
+      #spectrum .pin .nm { font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:14.5px; color:#14181A; }
+      #spectrum .pin .vd { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; margin-top:3px; }
+      #spectrum .pin .cu { font-size:11.5px; color:#8a9195; margin-top:2px; }
+      #spectrum .foot { margin-top:16px; font-size:12.5px; color:#8a9195; display:flex; align-items:center; gap:7px; }
+      @media (max-width:720px){ #spectrum .s-nav{display:none;} #spectrum .pin{ width:100px; } #spectrum .pin .nm{font-size:12.5px;} }
+    </style>
+    <div class="s-wrap">
+      <div class="s-top">
+        <div class="s-brand"><b>✔</b> SafePlate</div>
+        <div class="s-nav"><span>Nearby</span><span>How it works</span><span>Sign in</span></div>
+      </div>
+      <h1>See exactly where each place <em>falls</em>.</h1>
+      <p class="s-sub">Not a list to scroll — a spectrum to read. Nearby restaurants, placed by nut-allergy risk for your profile, evidence under every pin.</p>
+      <div class="axis">
+        <div class="bar"></div>
+        <div class="ends"><span>◂ Safe for you</span><span>Best to avoid ▸</span></div>
+        <div class="pins">
+          <div class="pin" style="left:11%; color:#15803D;">
+            <div class="dot" style="background:#22C55E;"></div>
+            <div class="nm">Rovi</div>
+            <div class="vd" style="color:#15803D;">LOW · 7</div>
+            <div class="cu">nut-free menu, confirmed</div>
+          </div>
+          <div class="pin" style="left:47%; color:#B45309;">
+            <div class="dot" style="background:#FBBF24;"></div>
+            <div class="nm">Bao Borough</div>
+            <div class="vd" style="color:#B45309;">CAUTION · 41</div>
+            <div class="cu">peanut in 4 dishes</div>
+          </div>
+          <div class="pin" style="left:84%; color:#B91C1C;">
+            <div class="dot" style="background:#F87171;"></div>
+            <div class="nm">Kaosarn</div>
+            <div class="vd" style="color:#B91C1C;">AVOID · 81</div>
+            <div class="cu">nuts across the menu</div>
+          </div>
+        </div>
+      </div>
+      <div class="foot">◈ Positions come from read menus &amp; allergen charts — tap any pin for the evidence.</div>
+      <div class="swatches" style="margin-top:34px; border-radius:8px; overflow:hidden;">
+        <span style="background:#FCFCFA"></span><span style="background:#14181A"></span><span style="background:#16A34A"></span><span style="background:#FBBF24"></span><span style="background:#DC2626"></span><span style="background:#EEF1F0"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div style="max-width:1080px;margin:0 auto;padding:0 32px 80px;color:#6a6b6d;font-size:13px;line-height:1.7;">
+  <p>All four hold the non-negotiables: risk carried by word + icon + position (never color alone), green reserved for “safe/confirmed,” provenance visible on every verdict. Tell me which thesis to build out — then I’ll produce a full, real screen for it (hero, results, evidence drawer) wired to the existing tokens.</p>
+</div>
+
+</body>
+</html>

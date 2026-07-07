@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafePlate — green, animated direction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --cream:#F5F1EA; --sand:#EDE6DA; --sand2:#F2ECE1; --paper:#FCF9F3;
+    --ink:#22201A; --ink2:#575247; --ink3:#8B8578; --line:#E5DDD0; --line2:#D2C8B9;
+    --clay:#1C5A44; --clay-deep:#123F30; --clay2:#2E8B6A; --clay-tint:#E4F0EA;
+    --safe-ink:#2F7D4F; --safe-ring:#48A566; --safe-tint:#EAF3E6;
+    --caut-ink:#8A5A12; --caut-ring:#D9A33A; --caut-tint:#FAF1DD;
+    --avoid-ink:#9B2C22; --avoid-ring:#C0392B; --avoid-tint:#FAEBE7;
+    --serif:'Fraunces', Georgia, 'Times New Roman', serif;
+    --sans:'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+    --mono:'Spline Sans Mono', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:var(--sans); color:var(--ink); background:var(--cream); -webkit-font-smoothing:antialiased; line-height:1.5;}
+  .wrap{max-width:1160px; margin:0 auto; padding:0 40px;}
+  ::selection{background:var(--clay-tint);}
+
+  .top{position:sticky; top:0; z-index:20; background:rgba(245,241,234,.86); backdrop-filter:blur(10px); border-bottom:1px solid var(--line);}
+  .top .wrap{display:flex; align-items:center; justify-content:space-between; height:74px;}
+  .brand{display:flex; align-items:center; gap:11px; font-family:var(--serif); font-weight:600; font-size:23px; letter-spacing:-.01em; color:var(--ink);}
+  .brand .mk{width:30px; height:30px; border-radius:9px; background:radial-gradient(circle at 50% 120%, var(--clay2), var(--clay) 60%, var(--clay-deep)); display:grid; place-items:center; color:#fff; font-family:var(--sans); font-weight:700; font-size:15px;}
+  nav.links{display:flex; gap:30px; font-size:14.5px; color:var(--ink2);}
+  nav.links a{color:inherit; text-decoration:none;}
+  nav.links a:hover{color:var(--ink);}
+  .top .right{display:flex; align-items:center; gap:18px;}
+  .login{font-size:14.5px; color:var(--ink); text-decoration:none;}
+  .pill{font-family:var(--sans); font-weight:600; font-size:14.5px; border:0; cursor:pointer; border-radius:999px; padding:12px 22px; background:var(--clay); color:#fff; transition:background .16s, transform .12s, box-shadow .2s;}
+  .pill:hover{background:var(--clay-deep); box-shadow:0 8px 22px -10px rgba(18,63,48,.6);}
+  .pill:active{transform:translateY(1px);}
+  .pill.ghost{background:transparent; color:var(--clay-deep); border:1.5px solid var(--line2);}
+  .pill.ghost:hover{border-color:var(--clay); background:var(--clay-tint); box-shadow:none;}
+  .pill.light{background:var(--paper); color:var(--clay-deep);}
+  .pill.light:hover{background:#fff;}
+
+  .hero{position:relative; margin:16px auto 0; max-width:1160px; padding:0 40px;}
+  .hero-frame{position:relative; border-radius:26px; overflow:hidden; min-height:600px; display:flex; align-items:flex-end;
+      background:
+        linear-gradient(180deg, rgba(16,20,14,0) 38%, rgba(12,24,16,.74) 100%),
+        radial-gradient(120% 90% at 78% 8%, #D8E0CE 0%, #8CA588 30%, #3E5D4C 60%, #1E3329 82%, #101C16 100%);}
+  .aurora{position:absolute; inset:-25% -15%; z-index:1; pointer-events:none;
+      background:radial-gradient(42% 55% at 32% 26%, rgba(60,170,120,.60), rgba(60,170,120,0) 70%);
+      filter:blur(28px); mix-blend-mode:screen; animation:drift 13s ease-in-out infinite alternate;}
+  .hero-frame::after{content:""; position:absolute; inset:0; z-index:1; background-image:repeating-linear-gradient(122deg, rgba(255,255,255,.045) 0 2px, transparent 2px 90px); pointer-events:none;}
+  .photo-note{position:absolute; top:16px; right:18px; z-index:2; font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.55); text-transform:uppercase;}
+  .hero-copy{position:relative; z-index:2; padding:44px; width:100%;}
+  .eyebrow{display:inline-block; font-family:var(--sans); font-weight:600; font-size:12.5px; letter-spacing:.02em; color:#fff; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); padding:7px 14px; border-radius:999px; margin-bottom:20px; backdrop-filter:blur(4px);}
+  h1.hero-h{font-family:var(--serif); font-weight:600; font-size:clamp(46px,6.6vw,90px); line-height:.98; letter-spacing:-.025em; color:#FBFAF3;}
+  h1.hero-h em{font-style:italic; color:var(--clay2);}
+  .hero-sub{margin-top:20px; max-width:46ch; font-size:16.5px; line-height:1.55; color:rgba(251,250,243,.9);}
+  .hero-row{display:flex; align-items:center; gap:30px; margin-top:30px; flex-wrap:wrap;}
+  .hero-stats{display:flex; gap:0; margin-left:auto;}
+  .hero-stats .s{padding:0 26px; border-left:1px solid rgba(255,255,255,.22);}
+  .hero-stats .s:first-child{border-left:0; padding-left:0;}
+  .hero-stats .s .n{font-family:var(--serif); font-weight:600; font-size:26px; color:#FBFAF3; letter-spacing:-.01em;}
+  .hero-stats .s .c{font-size:12.5px; color:rgba(251,250,243,.72); margin-top:2px;}
+  @media(max-width:860px){ .hero-stats{display:none;} .hero-frame{min-height:520px;} }
+
+  .how{padding:96px 0 40px; text-align:center;}
+  .sec-h{font-family:var(--serif); font-weight:600; font-size:clamp(34px,4.4vw,52px); letter-spacing:-.015em; line-height:1.05;}
+  .sec-h em{font-style:italic; color:var(--clay);}
+  .sec-lead{margin:16px auto 0; max-width:52ch; color:var(--ink2); font-size:16px;}
+  .cards{display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:52px; text-align:left;}
+  .card{background:var(--sand); border:1px solid var(--line); border-radius:20px; padding:30px 28px 28px; display:flex; flex-direction:column;}
+  .card .num{font-family:var(--serif); font-weight:600; font-size:19px; color:var(--clay); letter-spacing:.02em;}
+  .card h3{font-family:var(--serif); font-weight:600; font-size:26px; letter-spacing:-.01em; margin-top:6px;}
+  .card p{color:var(--ink2); font-size:14.5px; line-height:1.55; margin-top:8px;}
+  .card .demo{margin-top:22px; background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:16px;}
+
+  .rng{position:relative;}
+  .rng .zone{display:grid; grid-template-columns:64px 1fr; align-items:center; gap:12px; height:38px; font-family:var(--mono); font-size:10px; letter-spacing:.12em; color:var(--ink3); text-transform:uppercase;}
+  .rng .track{height:9px; border-radius:6px; background:var(--line);}
+  .rng .zone.avoid .track{background:var(--avoid-tint); box-shadow:inset 0 0 0 1px var(--avoid-ring);}
+  .rng .zone.caut  .track{background:var(--caut-tint);  box-shadow:inset 0 0 0 1px var(--caut-ring);}
+  .rng .zone.safe  .track{background:var(--safe-tint);  box-shadow:inset 0 0 0 1px var(--safe-ring); position:relative;}
+  .rng .marker{position:absolute; left:16%; top:-6px; width:2px; height:50px; background:var(--clay); z-index:3;}
+  .rng .marker .dot{position:absolute; left:-6px; top:16px; width:14px; height:14px; border-radius:50%; background:var(--clay); border:3px solid var(--paper); box-shadow:0 0 0 1px var(--clay);}
+  .rng .marker .val{position:absolute; left:-16px; top:-20px; font-family:var(--mono); font-weight:600; font-size:12px; color:var(--clay-deep); background:var(--paper); padding:1px 6px; border-radius:5px; border:1px solid var(--line);}
+
+  .how .btns{display:flex; gap:12px; justify-content:center; margin-top:46px;}
+
+  .results{padding:60px 0 110px;}
+  .results .head{display:flex; align-items:baseline; justify-content:space-between; padding-bottom:22px; border-bottom:1px solid var(--line2); margin-bottom:8px;}
+  .results .head .t{font-family:var(--serif); font-size:30px; font-weight:600; letter-spacing:-.01em;}
+  .results .head .t em{font-style:italic; color:var(--clay);}
+  .results .head .meta{font-size:13.5px; color:var(--ink2); font-family:var(--mono); letter-spacing:.02em;}
+  .rrow{display:grid; grid-template-columns:1.5fr 1.8fr auto; gap:28px; align-items:center; padding:26px 4px; border-bottom:1px solid var(--line);}
+  .rrow .name{font-family:var(--serif); font-size:25px; font-weight:600; letter-spacing:-.01em;}
+  .rrow .name .cui{display:block; font-family:var(--sans); font-size:13.5px; color:var(--ink2); margin-top:2px; letter-spacing:0; font-weight:400;}
+  .bar{position:relative; height:52px;}
+  .bar .lane{position:absolute; top:22px; left:0; right:0; height:8px; border-radius:999px; overflow:hidden; display:flex;}
+  .bar .lane i{height:100%;}
+  .bar .lane .z1{flex:0 0 40%; background:var(--safe-ring);}
+  .bar .lane .z2{flex:0 0 30%; background:var(--caut-ring);}
+  .bar .lane .z3{flex:1; background:var(--avoid-ring);}
+  .bar .pin{position:absolute; top:12px; transform:translateX(-50%);}
+  .bar .pin .p{width:16px; height:16px; border-radius:50%; background:var(--paper); border:4px solid currentColor; margin:0 auto;}
+  .bar .pin .lab{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; text-align:center; margin-top:5px; white-space:nowrap;}
+  .bar .ends{position:absolute; top:34px; left:0; right:0; display:flex; justify-content:space-between; font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; color:var(--ink3); text-transform:uppercase;}
+  .verdict{text-align:right; min-width:150px;}
+  .verdict .score{font-family:var(--mono); font-size:40px; font-weight:500; line-height:1; letter-spacing:-.01em; font-variant-numeric:tabular-nums;}
+  .verdict .word{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-weight:600; font-size:11px; letter-spacing:.1em; text-transform:uppercase; margin-top:8px; padding:5px 10px; border-radius:7px;}
+  .verdict .prov{font-size:12px; color:var(--ink2); margin-top:9px;}
+  .w-safe{color:var(--safe-ink); background:var(--safe-tint);}
+  .w-caut{color:var(--caut-ink); background:var(--caut-tint);}
+  .w-avoid{color:var(--avoid-ink); background:var(--avoid-tint);}
+  @media(max-width:860px){ .cards{grid-template-columns:1fr;} .rrow{grid-template-columns:1fr; gap:16px;} .verdict{text-align:left;} .wrap,.hero{padding-left:20px; padding-right:20px;} }
+
+  .foot{background:var(--sand); border-top:1px solid var(--line); padding:36px 0; text-align:center; color:var(--ink2); font-size:13.5px;}
+
+  @keyframes fadeUp{from{opacity:0; transform:translateY(18px)} to{opacity:1; transform:none}}
+  @keyframes drift{0%{transform:translate(-3%,-2%) scale(1)} 100%{transform:translate(7%,5%) scale(1.18)}}
+  .eyebrow{animation:fadeUp .7s .05s both;}
+  h1.hero-h{animation:fadeUp .85s .16s both;}
+  .hero-sub{animation:fadeUp .85s .30s both;}
+  .hero-row{animation:fadeUp .85s .44s both;}
+  .card,.rrow,.sec-h,.results .head{opacity:0; transform:translateY(20px); transition:opacity .7s ease, transform .75s cubic-bezier(.2,.7,.2,1), box-shadow .25s ease, translate .25s ease, background .2s ease;}
+  .in{opacity:1; transform:none;}
+  .card:hover{translate:0 -4px; box-shadow:0 18px 40px -22px rgba(24,55,42,.42);}
+  .rrow:hover{background:var(--sand2);}
+  .bar .lane{transform:scaleX(0); transform-origin:left; transition:transform .9s cubic-bezier(.2,.8,.2,1);}
+  .rrow.in .bar .lane{transform:scaleX(1);}
+  .bar .pin{left:0; opacity:0; transition:left 1s cubic-bezier(.2,.8,.2,1) .22s, opacity .5s .22s;}
+  .rrow.in .bar .pin{left:var(--pinL); opacity:1;}
+  @media (prefers-reduced-motion: reduce){
+    .eyebrow,h1.hero-h,.hero-sub,.hero-row{animation:none;}
+    .aurora{animation:none;}
+    .card,.rrow,.sec-h,.results .head,.bar .lane{opacity:1; transform:none; transition:none;}
+    .bar .pin{opacity:1; left:var(--pinL); transition:none;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><span class="mk">✔</span> SafePlate</div>
+    <nav class="links">
+      <a href="#">How it works</a><a href="#">What we check</a><a href="#">Evidence</a><a href="#">About</a>
+    </nav>
+    <div class="right">
+      <a class="login" href="#">Log in</a>
+      <button class="pill">Find safe places</button>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-frame">
+    <div class="aurora" aria-hidden="true"></div>
+    <span class="photo-note">Photography — warm table / restaurant scene</span>
+    <div class="hero-copy">
+      <span class="eyebrow">Nut allergy · your profile</span>
+      <h1 class="hero-h">Know it’s safe<br/>before you <em>sit down</em>.</h1>
+      <p class="hero-sub">We read the menu, allergen chart, and kitchen statements at every restaurant near you — then grade the nut risk against your profile, like a lab result you can trust.</p>
+      <div class="hero-row">
+        <button class="pill light">Find safe places near me</button>
+        <div class="hero-stats">
+          <div class="s"><div class="n">11</div><div class="c">nut types you can flag</div></div>
+          <div class="s"><div class="n">9</div><div class="c">allergens the chart reads</div></div>
+          <div class="s"><div class="n">Every</div><div class="c">score shows its evidence</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="how wrap">
+  <h2 class="sec-h">Deciding is <em>simple</em></h2>
+  <p class="sec-lead">Three steps between “I’m hungry” and a call you can act on — with the proof shown at every one.</p>
+  <div class="cards">
+    <div class="card">
+      <div class="num">01</div>
+      <h3>Find nearby places</h3>
+      <p>Share where you are. We pull the restaurants within walking distance and start reading.</p>
+      <div class="demo" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--ink2);background:var(--cream);border:1px solid var(--line);border-radius:8px;padding:8px 11px;">◍ Shoreditch, N1</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--safe-ink);background:var(--safe-tint);border:1px solid var(--safe-ring);border-radius:8px;padding:8px 11px;">14 places found</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="num">02</div>
+      <h3>Read the evidence</h3>
+      <p>Menus, allergen matrices, and statements — graded dish by dish, then placed on the risk range.</p>
+      <div class="demo">
+        <div class="rng">
+          <div class="marker"><span class="val">8</span><span class="dot"></span></div>
+          <div class="zone avoid"><span>Avoid</span><span class="track"></span></div>
+          <div class="zone caut"><span>Caution</span><span class="track"></span></div>
+          <div class="zone safe"><span>Safe</span><span class="track"></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="num">03</div>
+      <h3>Decide with proof</h3>
+      <p>A verdict, a rationale, and “how we know” — tap any claim to see the source it came from.</p>
+      <div class="demo" style="font-size:13px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;"><span style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--safe-ink);background:var(--safe-tint);border:1px solid var(--safe-ring);border-radius:6px;padding:3px 8px;">CONFIRMED</span><span style="color:var(--ink2);">Allergen chart, updated 4d ago</span></div>
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--caut-ink);background:var(--caut-tint);border:1px solid var(--caut-ring);border-radius:6px;padding:3px 8px;">OBSERVED</span><span style="color:var(--ink2);">2 diner reports, no incident</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="btns">
+    <button class="pill">Find safe places near me</button>
+    <button class="pill ghost">See how we score</button>
+  </div>
+</section>
+
+<section class="results wrap">
+  <div class="head">
+    <div class="t">Your places, <em>ranked by risk</em></div>
+    <div class="meta">14 nearby · nut allergy · safest first</div>
+  </div>
+
+  <div class="rrow">
+    <div class="name">Rovi <span class="cui">Vegetable-led · Fitzrovia</span></div>
+    <div class="bar">
+      <div class="lane"><i class="z1"></i><i class="z2"></i><i class="z3"></i></div>
+      <div class="pin" style="--pinL:12%; color:var(--safe-ring);"><div class="p"></div><div class="lab" style="color:var(--safe-ink);">✓ Safe</div></div>
+      <div class="ends"><span>Safe</span><span>Avoid</span></div>
+    </div>
+    <div class="verdict">
+      <div class="score" style="color:var(--safe-ink);">7</div>
+      <span class="word w-safe">✓ Low risk</span>
+      <div class="prov">Nut-free menu, confirmed</div>
+    </div>
+  </div>
+
+  <div class="rrow">
+    <div class="name">Bao Borough <span class="cui">Taiwanese · Borough</span></div>
+    <div class="bar">
+      <div class="lane"><i class="z1"></i><i class="z2"></i><i class="z3"></i></div>
+      <div class="pin" style="--pinL:52%; color:var(--caut-ring);"><div class="p"></div><div class="lab" style="color:var(--caut-ink);">▲ Caution</div></div>
+      <div class="ends"><span>Safe</span><span>Avoid</span></div>
+    </div>
+    <div class="verdict">
+      <div class="score" style="color:var(--caut-ink);">41</div>
+      <span class="word w-caut">▲ Caution</span>
+      <div class="prov">Peanut in 4 dishes · call ahead</div>
+    </div>
+  </div>
+
+  <div class="rrow">
+    <div class="name">Kaosarn <span class="cui">Thai · Brixton</span></div>
+    <div class="bar">
+      <div class="lane"><i class="z1"></i><i class="z2"></i><i class="z3"></i></div>
+      <div class="pin" style="--pinL:86%; color:var(--avoid-ring);"><div class="p"></div><div class="lab" style="color:var(--avoid-ink);">✕ Avoid</div></div>
+      <div class="ends"><span>Safe</span><span>Avoid</span></div>
+    </div>
+    <div class="verdict">
+      <div class="score" style="color:var(--avoid-ink);">81</div>
+      <span class="word w-avoid">✕ Avoid</span>
+      <div class="prov">Nuts across the menu</div>
+    </div>
+  </div>
+</section>
+
+<div class="foot">A direction study — SafePlate in a warm, green, animated editorial system. Risk is always word + icon + position, never color alone.</div>
+
+<script>
+(function(){
+  var rm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var scores = [].slice.call(document.querySelectorAll('.verdict .score'));
+  scores.forEach(function(el){ el.dataset.t = el.textContent.trim(); if(!rm){ el.textContent = '0'; } });
+  function count(el){
+    var target = parseInt(el.dataset.t,10)||0, startT = performance.now(), dur = 900;
+    function tick(now){ var p = Math.min(1,(now-startT)/dur), e = 1-Math.pow(1-p,3);
+      el.textContent = Math.round(e*target); if(p<1){ requestAnimationFrame(tick); } else { el.textContent = target; } }
+    requestAnimationFrame(tick);
+  }
+  if(rm || !('IntersectionObserver' in window)){
+    document.querySelectorAll('.card,.rrow,.sec-h,.results .head').forEach(function(e){ e.classList.add('in'); });
+    scores.forEach(function(el){ el.textContent = el.dataset.t; });
+    return;
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){
+        var el = en.target; el.classList.add('in');
+        if(el.classList.contains('rrow')){ var sc = el.querySelector('.score'); if(sc){ count(sc); } }
+        io.unobserve(el);
+      }
+    });
+  }, {threshold:0.16});
+  [].slice.call(document.querySelectorAll('.cards .card')).forEach(function(el,i){ el.style.transitionDelay = (i*0.09)+'s'; io.observe(el); });
+  [].slice.call(document.querySelectorAll('.rrow')).forEach(function(el,i){ el.style.transitionDelay = (i*0.07)+'s'; io.observe(el); });
+  document.querySelectorAll('.sec-h, .results .head').forEach(function(el){ io.observe(el); });
+})();
+</script>
+</body>
+</html>
