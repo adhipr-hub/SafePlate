@@ -418,7 +418,7 @@ def scan_deeper_site(
     pages: list[tuple[str, str]] = [(home.final_url, home.html)]
     for url in picked:
         try:
-            page = fetch_html_page(url, user_agent=user_agent, fetch_mode="static")
+            page = fetch_html_page(url, user_agent=user_agent, fetch_mode="auto")
             pages.append((page.final_url, page.html))
         except Exception:
             continue
@@ -471,6 +471,10 @@ def _menu_payload(target: Target, params: dict[str, Any]) -> dict[str, Any]:
         "longitude": target.longitude,
         "scoringEngine": params.get("scoringEngine") or "rules",
         "severity": params.get("severity") or "allergy",
+        # Deep dive is the slow, thorough surface: let extraction render
+        # JS-built menus (static-first; the browser only runs when the page
+        # looks JS-empty). The list/drawer never send this key.
+        "fetchMode": "auto",
     }
     if params.get("crossContact"):
         payload["crossContact"] = params["crossContact"]

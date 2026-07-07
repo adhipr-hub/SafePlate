@@ -113,3 +113,33 @@ def test_extract_and_assess_defaults_to_static(monkeypatch):
     captured = _capture_discover(monkeypatch)
     _run_extract()
     assert captured["fetch_mode"] == "static"
+
+
+import safeplate.page_fetch as page_fetch_mod
+from safeplate.dossier import Target, _menu_payload, scan_deeper_site
+
+
+def test_dossier_menu_payload_requests_auto_rendering():
+    target = Target(name="Tandoori Hut", website_url="http://tandoori.example",
+                    address="1 Curry Way", categories=["indian"],
+                    latitude=None, longitude=None)
+    payload = _menu_payload(target, {})
+    assert payload["fetchMode"] == "auto"
+
+
+def test_deeper_scan_internal_pages_use_auto(monkeypatch):
+    calls = []
+
+    def fake_fetch(url, *, user_agent, fetch_mode="static", use_cache=True):
+        calls.append((url, fetch_mode))
+        html = ('<html><body><a href="/allergy-info">Allergy info</a>'
+                "</body></html>")
+        return HtmlPage(requested_url=url, final_url=url, html=html,
+                        fetch_method="static_html")
+
+    monkeypatch.setattr(page_fetch_mod, "fetch_html_page", fake_fetch)
+    result = scan_deeper_site("http://tandoori.example", user_agent="t",
+                              api_key=None, model="gemini-test")
+    # Homepage + the /allergy-info internal page, both fetched with "auto".
+    assert [mode for _u, mode in calls] == ["auto", "auto"]
+    assert result.pages_scanned  # scan ran (api_key=None stops before Gemini)
