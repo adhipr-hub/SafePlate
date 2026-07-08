@@ -244,16 +244,13 @@ the dark ink for any text. Never set risk text in the vivid ring color on a tint
 **UI / Body Font:** Hanken Grotesk (system-ui / -apple-system fallback)
 **Figure Font:** Spline Sans Mono (ui-monospace fallback)
 
-**Green skin — display variant.** The alternate "green" editorial skin
-(`safeplate/app_template_green.html`, served at `/?theme=green`) swaps the display face
-to **Fraunces** (Georgia / Times fallback), used at **500–600 weight with italics for
-emphasis** — a heavier, contemporary high-contrast serif chosen so headlines read
+**Display face — Fraunces.** The app's single editorial skin uses **Fraunces**
+(Georgia / Times fallback) as its display face, set at **500–600 weight with italics
+for emphasis** — a heavier, contemporary high-contrast serif chosen so headlines read
 substantial rather than hairline. Hanken Grotesk (UI/body) and Spline Sans Mono
-(figures) are unchanged. The skin also deepens the brand to a **forest** green ramp
-(`--g0 #1C5A44`) on warmer **oat** paper (`--page #F5F1EA`) and layers a real
-photographic hero behind the aurora. The classic Playfair skin stays the default; both
-skins share one JS/DOM contract and the sacred risk palette, and a top-bar segmented
-control switches between them.
+(figures) round out the pairing. The brand runs a **forest** green ramp
+(`--g0 #1C5A44`) on warmer **oat** paper (`--page #F5F1EA`), with a real photographic
+hero layered behind the aurora.
 
 **Character:** A high-contrast serif/sans pairing on a true contrast axis. Playfair
 Display is a refined transitional serif — used at its **regular (400) weight, with

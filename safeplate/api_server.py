@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from safeplate.config import (
     get_brave_search_api_key,
@@ -347,15 +347,6 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             self.end_headers()
             return False
 
-        def _cookie(self, name: str) -> str | None:
-            """Read a single cookie value from the request's Cookie header, or None."""
-            raw = self.headers.get("Cookie", "")
-            for part in raw.split(";"):
-                key, _, value = part.strip().partition("=")
-                if key == name:
-                    return value or None
-            return None
-
         def _guard_paid_endpoint(self) -> bool:
             """Per-IP rate limit + process-wide daily cap for every route that
             triggers paid provider calls (the search/menu POSTs and the dossier
@@ -443,15 +434,11 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             self.end_headers()
             self._write_body(data)
 
-        def _send_html(
-            self, html: str, status: int = 200, *, set_cookie: str | None = None
-        ) -> None:
+        def _send_html(self, html: str, status: int = 200) -> None:
             encoded = html.encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(encoded)))
-            if set_cookie is not None:
-                self.send_header("Set-Cookie", set_cookie)
             self._apply_security_headers()
             self.end_headers()
             self._write_body(encoded)

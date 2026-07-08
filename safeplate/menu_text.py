@@ -377,12 +377,6 @@ def _fetch_bytes(url: str, user_agent: str) -> tuple[bytes, str]:
     return fetch_url_bytes(url, user_agent=user_agent, error_cls=MenuTextError)
 
 
-_MENU_CONTAINER_HINTS = (
-    "menu", "dish", "product", "food", "plat", "plato", "piatto",
-    "gericht", "comida", "speise",
-)
-
-
 def _extract_schema_org_menu_items_from_soup(soup: BeautifulSoup) -> list[MenuItemRecord]:
     records = []
     seen = set()

@@ -13,7 +13,7 @@ site surfaces new junk that needs a new rule. v2 draws a principled line:
   * rules survive only as a VERIFICATION guardrail (grounding, allergen vocab,
     confidence) -- a fixed contract that does not grow per-site.
 
-v1 is left fully intact as the comparison baseline (see eval/compare_engines.py).
+v1 has been removed; v2 is now the only extraction engine.
 """
 
 from safeplate.extraction2.pipeline import extract_menu

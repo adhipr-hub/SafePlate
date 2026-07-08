@@ -1,9 +1,9 @@
 """Engine-independent LLM judge for the extraction scorecard.
 
-The regex proxy (`compare_engines.looks_like_junk`) can't actually tell a dish
-from a book title or a legal sentence -- it just pattern-matches. This judge asks
-Gemini, per item, "is this a real orderable restaurant menu item?" so precision
-becomes a trustworthy number instead of a heuristic guess.
+A regex proxy can't actually tell a dish from a book title or a legal sentence --
+it just pattern-matches. This judge asks Gemini, per item, "is this a real
+orderable restaurant menu item?" so precision becomes a trustworthy number
+instead of a heuristic guess.
 
 Fairness + cost: each DISTINCT item string is judged exactly once (cached on disk
 by normalized name + model) and the verdict is reused across all engines, so the
