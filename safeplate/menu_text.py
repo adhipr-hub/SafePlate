@@ -11,9 +11,6 @@ from bs4 import BeautifulSoup
 from safeplate.concurrency import map_concurrent
 from safeplate.config import get_fetch_concurrency
 from safeplate.fetching import fetch_url_bytes
-from safeplate.io import timestamped_output_paths
-from safeplate.io import write_dataclass_csv
-from safeplate.io import write_dataclass_json
 from safeplate.page_fetch import PageFetchError, fetch_html_page
 from safeplate.schema_org import json_ld_items_from_soup as _json_ld_items_from_soup
 from safeplate.soup import make_soup
@@ -916,13 +913,6 @@ def _records_from_price_lines(
     return records
 
 
-def _extract_menu_items_from_text(text: str) -> list[MenuItemRecord]:
-    lines = [_clean_text(line) for line in text.splitlines() if _clean_text(line)]
-    return _records_from_price_lines(
-        lines, extraction_method="text_price_lines", allow_bare_prices=True, seen=set(),
-    )
-
-
 def _price_segments(
     line: str,
     *,
@@ -1036,73 +1026,6 @@ def _dedupe_price(value: str) -> str:
     if number.is_integer():
         return str(int(number))
     return str(number)
-
-
-def build_menu_text_output_paths(label: str, out_dir: Path) -> tuple[Path, Path]:
-    json_path, csv_path = timestamped_output_paths(
-        label,
-        out_dir,
-        "menu_text",
-        (".json", ".csv"),
-    )
-    return json_path, csv_path
-
-
-def write_menu_text_json(path: Path, rows: list[MenuTextRecord]) -> None:
-    write_dataclass_json(path, rows)
-
-
-def _join_terms_transform(record: dict[str, object], row: object) -> None:
-    """Serialize the term lists to '; '-joined strings for CSV. Shared by both the
-    text and item writers (their MenuTextRecord/MenuItemRecord both expose the fields)."""
-    record["dietary_terms"] = "; ".join(row.dietary_terms)
-    record["allergen_terms"] = "; ".join(row.allergen_terms)
-
-
-def write_menu_text_csv(path: Path, rows: list[MenuTextRecord]) -> None:
-    write_dataclass_csv(
-        path,
-        rows,
-        fieldnames=MENU_TEXT_CSV_FIELDS,
-        transform=_join_terms_transform,
-    )
-
-
-def build_menu_item_output_paths(label: str, out_dir: Path) -> tuple[Path, Path]:
-    json_path, csv_path = timestamped_output_paths(
-        label,
-        out_dir,
-        "menu_items",
-        (".json", ".csv"),
-    )
-    return json_path, csv_path
-
-
-def write_menu_items_json(path: Path, rows: list[MenuItemRecord]) -> None:
-    write_dataclass_json(path, rows)
-
-
-def write_menu_items_csv(path: Path, rows: list[MenuItemRecord]) -> None:
-    write_dataclass_csv(
-        path,
-        rows,
-        fieldnames=MENU_ITEM_CSV_FIELDS,
-        transform=_join_terms_transform,
-    )
-
-
-def _should_extract_row(
-    row: dict[str, str],
-    *,
-    include_unvalidated: bool,
-) -> bool:
-    if include_unvalidated:
-        return True
-    if row.get("validation_status") == "validated":
-        return True
-    if row.get("source_type") == "ordering_page":
-        return True
-    return row.get("source_type") == "image" and row.get("is_primary_menu_candidate") == "True"
 
 
 def _visible_lines_from_soup(soup: BeautifulSoup) -> list[str]:
