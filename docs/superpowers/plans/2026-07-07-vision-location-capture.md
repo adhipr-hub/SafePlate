@@ -1,10 +1,10 @@
-﻿# Vision Location Capture Implementation Plan
+# Vision Location Capture Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The Gemini-vision allergen-matrix read also transcribes visible location text (footer addresses, URLs, phone numbers, country names) so the existing deterministic detector can region-stamp image-only PDFs.
 
-**Architecture:** The vision response schema gains an optional `visible_location_text` array (transcription only â€” the LLM never asserts a region). Snippets flow `menu_fetch_llm` â†’ `interpret_pdf_matrix` (cached under a re-versioned key) â†’ `_interpret_one`'s new sixth return element â†’ the one coverage-build line that calls `detect_source_region`. Result-cache version bumps to "7" (user-decided cache clear).
+**Architecture:** The vision response schema gains an optional `visible_location_text` array (transcription only — the LLM never asserts a region). Snippets flow `menu_fetch_llm` → `interpret_pdf_matrix` (cached under a re-versioned key) → `_interpret_one`'s new sixth return element → the one coverage-build line that calls `detect_source_region`. Result-cache version bumps to "7" (user-decided cache clear).
 
 **Tech Stack:** Python 3.12, pytest; Gemini vision via the existing `_post_gemini_generate_content` plumbing.
 
@@ -14,9 +14,9 @@
 
 - The LLM only TRANSCRIBES visible text; the region verdict comes exclusively from the unchanged `extraction2.region.detect_source_region`.
 - Snippets: strings only, stripped, deduped, max 8, each truncated to 120 chars. They must never enter menu items, allergy/diet signals, or grounding.
-- Missing/empty `visible_location_text` (including old cache blobs) â†’ behavior byte-identical to today (region stamp computed from `payload.text` + URL exactly as before).
-- Cache clear mechanism exactly: `_RESULT_CACHE_VERSION` `"6"` â†’ `"7"` (with changelog comment, matching the file's convention) and pdfmatrix key prefix `b"pdfmatrix:"` â†’ `b"pdfmatrix2:"`.
-- Sanctioned pre-existing-test updates (return-type widening ONLY â€” assertions keep their meaning): `tests/test_menu_fallbacks.py:118` (expects `[]`, becomes `([], [])`) and `tests/test_matrix_vision_pages.py` (unpacks the widened return). Anything beyond mechanical widening â†’ stop and escalate.
+- Missing/empty `visible_location_text` (including old cache blobs) → behavior byte-identical to today (region stamp computed from `payload.text` + URL exactly as before).
+- Cache clear mechanism exactly: `_RESULT_CACHE_VERSION` `"6"` → `"7"` (with changelog comment, matching the file's convention) and pdfmatrix key prefix `b"pdfmatrix:"` → `b"pdfmatrix2:"`.
+- Sanctioned pre-existing-test updates (return-type widening ONLY — assertions keep their meaning): `tests/test_menu_fallbacks.py:118` (expects `[]`, becomes `([], [])`) and `tests/test_matrix_vision_pages.py` (unpacks the widened return). Anything beyond mechanical widening → stop and escalate.
 - Run tests with `python -m pytest <file> -v`; full suite baseline 752 passed, 1 skipped, 11 subtests.
 
 ---
@@ -30,9 +30,9 @@
 - Test: `tests/test_matrix_vision_location.py` (new)
 
 **Interfaces:**
-- Produces: `extract_allergen_matrix_via_gemini_pdf(...) -> tuple[list[MenuItemRecord], list[str]]` â€” `(items, location_texts)`, both empty on any failure; `_sanitize_location_texts(values) -> list[str]` module helper. Task 2 consumes the tuple.
+- Produces: `extract_allergen_matrix_via_gemini_pdf(...) -> tuple[list[MenuItemRecord], list[str]]` — `(items, location_texts)`, both empty on any failure; `_sanitize_location_texts(values) -> list[str]` module helper. Task 2 consumes the tuple.
 
-- [ ] **Step 1: Write the failing tests** â€” create `tests/test_matrix_vision_location.py`:
+- [ ] **Step 1: Write the failing tests** — create `tests/test_matrix_vision_location.py`:
 
 ```python
 """Vision matrix read also transcribes visible location text (spec:
@@ -105,11 +105,11 @@ if __name__ == "__main__":
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_matrix_vision_location.py -v`
-Expected: FAIL â€” `AttributeError: ... no attribute '_sanitize_location_texts'`; `test_no_key_returns_empty_tuple` fails unpacking (`[]` is not a 2-tuple); `_matrix_call` tests fail unpacking 3-tuple into 4 names.
+Expected: FAIL — `AttributeError: ... no attribute '_sanitize_location_texts'`; `test_no_key_returns_empty_tuple` fails unpacking (`[]` is not a 2-tuple); `_matrix_call` tests fail unpacking 3-tuple into 4 names.
 
 - [ ] **Step 3: Implement in `safeplate/menu_fetch_llm.py`:**
 
-(a) Schema â€” inside `ALLERGEN_MATRIX_SCHEMA["properties"]`, after the `"rows"` entry:
+(a) Schema — inside `ALLERGEN_MATRIX_SCHEMA["properties"]`, after the `"rows"` entry:
 
 ```python
         # Verbatim location clues visible in the image (address lines, footer
@@ -120,7 +120,7 @@ Expected: FAIL â€” `AttributeError: ... no attribute '_sanitize_location_te
 
 (`"required": ["rows"]` stays as-is.)
 
-(b) Prompt â€” append to the end of the `ALLERGEN_MATRIX_SYSTEM` string (inside the final parenthesis, as a new trailing string segment):
+(b) Prompt — append to the end of the `ALLERGEN_MATRIX_SYSTEM` string (inside the final parenthesis, as a new trailing string segment):
 
 ```python
     "\nAlso output `visible_location_text`: up to 8 short verbatim snippets of any "
@@ -130,7 +130,7 @@ Expected: FAIL â€” `AttributeError: ... no attribute '_sanitize_location_te
     "location; omit the field when no such text is visible."
 ```
 
-(c) `_matrix_call` â€” return 4-tuple; replace the last line and update the docstring's first line accordingly:
+(c) `_matrix_call` — return 4-tuple; replace the last line and update the docstring's first line accordingly:
 
 ```python
     return (parsed.get("rows", []), parsed.get("columns", []), truncated,
@@ -157,7 +157,7 @@ def _sanitize_location_texts(values) -> list[str]:
     return out
 ```
 
-(e) `_render_matrix_pages` â€” change signature end to `-> list[str]` and collect snippets. The batched branch becomes:
+(e) `_render_matrix_pages` — change signature end to `-> list[str]` and collect snippets. The batched branch becomes:
 
 ```python
     if len(images) > 1:
@@ -183,7 +183,7 @@ def _sanitize_location_texts(values) -> list[str]:
 
 (also change the early `return` after `if not images:` to `return []`).
 
-(f) `extract_allergen_matrix_via_gemini_pdf` â€” return type `tuple[list[MenuItemRecord], list[str]]`; the three early `return []` lines become `return [], []`; the body's tail becomes:
+(f) `extract_allergen_matrix_via_gemini_pdf` — return type `tuple[list[MenuItemRecord], list[str]]`; the three early `return []` lines become `return [], []`; the body's tail becomes:
 
 ```python
     records: list[MenuItemRecord] = []
@@ -203,7 +203,7 @@ def _sanitize_location_texts(values) -> list[str]:
 Update the docstring's "Returns [] on missing key/renderer/failure." to "Returns ([], []) on missing key/renderer/failure."
 
 - [ ] **Step 4: Widen the two other callers (sanctioned):**
-- `safeplate/menu_text.py:631`: `vision_items, _vision_location_texts = extract_allergen_matrix_via_gemini_pdf(` (v1 path deliberately ignores the snippets â€” out of the spec's scope).
+- `safeplate/menu_text.py:631`: `vision_items, _vision_location_texts = extract_allergen_matrix_via_gemini_pdf(` (v1 path deliberately ignores the snippets — out of the spec's scope).
 - `tests/test_menu_fallbacks.py:118`: `self.assertEqual(extract_allergen_matrix_via_gemini_pdf(b"%PDF-1.4", api_key=None), ([], []))`
 - `tests/test_matrix_vision_pages.py:37` area: widen the call's unpack the same way (read the surrounding assertion first; only the unpack may change).
 
@@ -231,7 +231,7 @@ git commit -m "feat(vision): matrix read transcribes visible location text"
 - Consumes: Task 1's `extract_allergen_matrix_via_gemini_pdf(...) -> (items, location_texts)`.
 - Produces: `interpret_pdf_matrix(...) -> tuple[list[MenuItemRecord], list[str]]`; cache blob `{"at", "items", "location_texts"}` under key prefix `b"pdfmatrix2:"`. Task 3 consumes the tuple.
 
-- [ ] **Step 1: Write the failing tests** â€” append to `tests/test_matrix_vision_location.py`:
+- [ ] **Step 1: Write the failing tests** — append to `tests/test_matrix_vision_location.py`:
 
 ```python
 import time
@@ -294,17 +294,17 @@ def test_pdf_matrix_saves_location_texts(monkeypatch, tmp_path):
     assert saved["blob"]["location_texts"] == ["12 Foo St, Sydney"]
 ```
 
-NOTE for the implementer: `_pdf_payload()` and `MenuItemRecord(item_name=...)` must match the real constructors â€” check `safeplate/extraction2/schema.py` (Payload, PayloadKind) and `safeplate/menu_text.py` (MenuItemRecord defaults) and adjust required kwargs; keep the assertions unchanged. If `MenuItemRecord` requires more fields, fill them with obvious defaults (`""`/`[]`/`0.0`).
+NOTE for the implementer: `_pdf_payload()` and `MenuItemRecord(item_name=...)` must match the real constructors — check `safeplate/extraction2/schema.py` (Payload, PayloadKind) and `safeplate/menu_text.py` (MenuItemRecord defaults) and adjust required kwargs; keep the assertions unchanged. If `MenuItemRecord` requires more fields, fill them with obvious defaults (`""`/`[]`/`0.0`).
 
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_matrix_vision_location.py -v -k pdf_matrix`
 Expected: prefix test FAILS (old `pdfmatrix:` prefix); hit/old-blob/save tests FAIL unpacking a list into 2 names.
 
-- [ ] **Step 3: Implement** â€” in `interpret_pdf_matrix`:
-- Return annotation â†’ `tuple[list[MenuItemRecord], list[str]]`; the `if not payload.content:` early return â†’ `return [], []`.
-- Key line â†’ `key = hashlib.sha1(b"pdfmatrix2:" + model.encode("utf-8") + b":" + payload.content).hexdigest()` with a comment: `# pdfmatrix2: v2 blobs carry location_texts; old v1 entries must not be served (user-decided cache clear, spec 2026-07-07-vision-location-capture).`
-- Cache-hit block â†’
+- [ ] **Step 3: Implement** — in `interpret_pdf_matrix`:
+- Return annotation → `tuple[list[MenuItemRecord], list[str]]`; the `if not payload.content:` early return → `return [], []`.
+- Key line → `key = hashlib.sha1(b"pdfmatrix2:" + model.encode("utf-8") + b":" + payload.content).hexdigest()` with a comment: `# pdfmatrix2: v2 blobs carry location_texts; old v1 entries must not be served (user-decided cache clear, spec 2026-07-07-vision-location-capture).`
+- Cache-hit block →
 
 ```python
     if use_cache:
@@ -319,7 +319,7 @@ Expected: prefix test FAILS (old `pdfmatrix:` prefix); hit/old-blob/save tests F
             pass
 ```
 
-- Fresh-call tail â†’
+- Fresh-call tail →
 
 ```python
     items, location_texts = extract_allergen_matrix_via_gemini_pdf(
@@ -342,7 +342,7 @@ Expected: prefix test FAILS (old `pdfmatrix:` prefix); hit/old-blob/save tests F
 - [ ] **Step 4: Run tests**
 
 Run: `python -m pytest tests/test_matrix_vision_location.py -v`
-Expected: all PASS. (Task 3 hasn't updated pipeline yet â€” do NOT run the full suite; `pipeline.py`'s caller still expects a bare list and its tests would fail. That's expected mid-stack; Task 3 restores it.)
+Expected: all PASS. (Task 3 hasn't updated pipeline yet — do NOT run the full suite; `pipeline.py`'s caller still expects a bare list and its tests would fail. That's expected mid-stack; Task 3 restores it.)
 
 - [ ] **Step 5: Commit**
 
@@ -361,9 +361,9 @@ git commit -m "feat(extraction2): pdfmatrix cache v2 carries location snippets"
 
 **Interfaces:**
 - Consumes: Task 2's `interpret_pdf_matrix -> (items, location_texts)`.
-- Produces: `_interpret_one(...) -> tuple[list[MenuItemRecord], str, str, int, bool, str]` â€” sixth element `region_text_extra` ("" everywhere except matrix-success paths).
+- Produces: `_interpret_one(...) -> tuple[list[MenuItemRecord], str, str, int, bool, str]` — sixth element `region_text_extra` ("" everywhere except matrix-success paths).
 
-- [ ] **Step 1: Write the failing test** â€” append to `tests/test_matrix_vision_location.py`:
+- [ ] **Step 1: Write the failing test** — append to `tests/test_matrix_vision_location.py`:
 
 ```python
 def test_matrix_location_text_stamps_coverage_region(monkeypatch):
@@ -425,16 +425,16 @@ def test_location_snippets_never_become_items(monkeypatch):
     assert [i.item_name for i in result.items] == ["Burger"]
 ```
 
-NOTE for the implementer: `extract_menu`' exact signature/`_default_policy()` â€” mirror an existing pipeline test (e.g. `tests/test_llm_call_accounting.py` or `tests/test_pipeline_inferred_allergens.py`) for how Policy and the call are constructed, and add a `_default_policy()` helper accordingly; keep the region assertions unchanged. The `_looks_allergen` gate must pass â€” the payload's `text` contains "allergen".
+NOTE for the implementer: `extract_menu`' exact signature/`_default_policy()` — mirror an existing pipeline test (e.g. `tests/test_llm_call_accounting.py` or `tests/test_pipeline_inferred_allergens.py`) for how Policy and the call are constructed, and add a `_default_policy()` helper accordingly; keep the region assertions unchanged. The `_looks_allergen` gate must pass — the payload's `text` contains "allergen".
 
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_matrix_vision_location.py -v -k stamps_coverage`
-Expected: FAIL â€” `ValueError: too many values to unpack`/`not enough values` inside `extract_menu` (5-name unpack vs the code paths), or region assert fails, depending on order of edits.
+Expected: FAIL — `ValueError: too many values to unpack`/`not enough values` inside `extract_menu` (5-name unpack vs the code paths), or region assert fails, depending on order of edits.
 
 - [ ] **Step 3: Implement:**
-(a) `_interpret_one`: change the return annotation to `tuple[list[MenuItemRecord], str, str, int, bool, str]` and the docstring's first line to include `region_text_extra` ("visible-location text transcribed by the vision matrix read; '' for every other path"). In the matrix branch, unpack `matrix, matrix_location_texts = interpret_llm.interpret_pdf_matrix(...)` (the `except LLMNotEnabled:` arm sets `matrix, matrix_location_texts = [], []`), define `matrix_region_text = " ".join(matrix_location_texts)`, and append it to BOTH matrix-success returns (`"gemini_pdf_matrix+text"` and the vision-only return below it). Then grep every other `return` statement inside `_interpret_one` and append `, ""` as the sixth element â€” including the VISUAL branch, the LLMNotEnabled arms, and all fallthrough paths.
-(b) `extract_menu` (~line 45): widen the unpack â€”
+(a) `_interpret_one`: change the return annotation to `tuple[list[MenuItemRecord], str, str, int, bool, str]` and the docstring's first line to include `region_text_extra` ("visible-location text transcribed by the vision matrix read; '' for every other path"). In the matrix branch, unpack `matrix, matrix_location_texts = interpret_llm.interpret_pdf_matrix(...)` (the `except LLMNotEnabled:` arm sets `matrix, matrix_location_texts = [], []`), define `matrix_region_text = " ".join(matrix_location_texts)`, and append it to BOTH matrix-success returns (`"gemini_pdf_matrix+text"` and the vision-only return below it). Then grep every other `return` statement inside `_interpret_one` and append `, ""` as the sixth element — including the VISUAL branch, the LLMNotEnabled arms, and all fallthrough paths.
+(b) `extract_menu` (~line 45): widen the unpack —
 
 ```python
         items, interpreter, reason, llm_used, payload_incomplete, region_extra = _interpret_one(
@@ -455,8 +455,8 @@ and change the region line inside the `CoverageReport(` construction to:
 
 - [ ] **Step 4: Run the new tests, then the full suite**
 
-Run: `python -m pytest tests/test_matrix_vision_location.py -v` â€” all PASS.
-Run: `python -m pytest -q` â€” fully green (this proves Task 2's mid-stack break is healed and no other consumer regressed).
+Run: `python -m pytest tests/test_matrix_vision_location.py -v` — all PASS.
+Run: `python -m pytest -q` — fully green (this proves Task 2's mid-stack break is healed and no other consumer regressed).
 
 - [ ] **Step 5: Commit**
 
@@ -476,11 +476,11 @@ git commit -m "feat(extraction2): matrix location snippets feed the region stamp
 **Interfaces:**
 - Consumes: nothing new. Produces: `_RESULT_CACHE_VERSION == "7"`.
 
-- [ ] **Step 1: Write the failing test** â€” append:
+- [ ] **Step 1: Write the failing test** — append:
 
 ```python
 def test_result_cache_version_bumped_for_location_capture():
-    # Protects the user's cache-clear decision (spec Â§Requirements 6): all
+    # Protects the user's cache-clear decision (spec §Requirements 6): all
     # pre-location-capture results must re-extract.
     from safeplate.extraction2 import discover
     assert discover._RESULT_CACHE_VERSION == "7"
@@ -489,9 +489,9 @@ def test_result_cache_version_bumped_for_location_capture():
 - [ ] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_matrix_vision_location.py::test_result_cache_version_bumped_for_location_capture -v`
-Expected: FAIL â€” version is "6".
+Expected: FAIL — version is "6".
 
-- [ ] **Step 3: Implement** â€” in `discover.py`, extend the changelog comment block above the constant and bump:
+- [ ] **Step 3: Implement** — in `discover.py`, extend the changelog comment block above the constant and bump:
 
 ```python
 # v7: vision location capture -- matrix-PDF sources gain region stamps from
@@ -521,4 +521,3 @@ git commit -m "feat(cache): result-cache v7 -- re-extract all with location capt
 After deploy (git pull + docker build + docker run on the EC2), old cache rows are unreferenced. Optional RDS tidy-up:
 `DELETE FROM cache_entries WHERE namespace IN ('extraction2_result', 'extraction2_pdfmatrix');`
 Re-extraction reuses still-valid text-LLM chunk caches; re-spend is mostly the vision reads. Verification: search a chain whose allergen matrix is an image-only PDF from another country and confirm the drawer's "Allergen data is from <country>" notice fires with the correct country.
-
