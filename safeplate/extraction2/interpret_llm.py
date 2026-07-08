@@ -138,7 +138,7 @@ def interpret_pdf_matrix(
     api_key: str | None = None,
     model: str | None = None,
     use_cache: bool = True,
-) -> list[MenuItemRecord]:
+) -> tuple[list[MenuItemRecord], list[str]]:
     """Read a chain's allergen-matrix PDF with Gemini vision (renders the pages),
     recovering the dish x allergen grid when rotated/icon headers defeat the
     pdfplumber table parser -- the case for most big chains. ``use_cache=False``
@@ -146,17 +146,21 @@ def interpret_pdf_matrix(
     if not api_key:
         raise LLMNotEnabled("GEMINI_API_KEY not set")
     if not payload.content:
-        return []
+        return [], []
     model = model or DEFAULT_MODEL
 
     # Cache by PDF bytes: multi-page vision is the most expensive call in the
     # pipeline and allergen matrices change rarely, so never re-pay for the same PDF.
-    key = hashlib.sha1(b"pdfmatrix:" + model.encode("utf-8") + b":" + payload.content).hexdigest()
+    # pdfmatrix2: v2 blobs carry location_texts; old v1 entries must not be served (user-decided cache clear, spec 2026-07-07-vision-location-capture).
+    key = hashlib.sha1(b"pdfmatrix2:" + model.encode("utf-8") + b":" + payload.content).hexdigest()
     if use_cache:
         blob = cache_store.load("extraction2_pdfmatrix", key)
         try:
             if blob is not None and time.time() - blob.get("at", 0) <= _CACHE_TTL:
-                return [MenuItemRecord(**item) for item in blob["items"]]
+                return (
+                    [MenuItemRecord(**item) for item in blob["items"]],
+                    list(blob.get("location_texts", [])),
+                )
         except (KeyError, TypeError):
             pass
 
@@ -164,7 +168,7 @@ def interpret_pdf_matrix(
 
     from safeplate.menu_fetch_llm import extract_allergen_matrix_via_gemini_pdf
 
-    items = extract_allergen_matrix_via_gemini_pdf(
+    items, location_texts = extract_allergen_matrix_via_gemini_pdf(
         payload.content,
         restaurant_name=payload.restaurant_name or "",
         restaurant_source_id=payload.restaurant_source_id or "",
@@ -175,9 +179,10 @@ def interpret_pdf_matrix(
         cache_store.save(
             "extraction2_pdfmatrix",
             key,
-            {"at": time.time(), "items": [asdict(i) for i in items]},
+            {"at": time.time(), "items": [asdict(i) for i in items],
+             "location_texts": location_texts},
         )
-    return items
+    return items, location_texts
 
 
 def _readable_text(payload: Payload) -> str:

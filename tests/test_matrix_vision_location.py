@@ -61,5 +61,71 @@ class ExtractReturnShapeTests(unittest.TestCase):
                          menu_fetch_llm.ALLERGEN_MATRIX_SCHEMA["required"])
 
 
+import time
+
+import pytest
+
+from safeplate import cache_store
+from safeplate.extraction2 import interpret_llm
+
+
+def _pdf_payload():
+    # Mirror how existing tests build a PDF Payload (see tests/test_pdfplumber_gating.py
+    # for the constructor convention); adjust field names to the real Payload dataclass.
+    from safeplate.extraction2.schema import Payload, PayloadKind
+    return Payload(url="https://x.example/allergens.pdf", kind=PayloadKind.VISUAL,
+                   source_type="pdf", text="allergen chart", content=b"%PDF-fake")
+
+
+def test_pdf_matrix_key_uses_v2_prefix(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(interpret_llm.cache_store, "load",
+                        lambda ns, key: seen.setdefault("key", key))
+    with pytest.raises(Exception):
+        # load returns a str (not a blob) -> downstream will fail; we only
+        # care that the KEY was computed with the new prefix before that.
+        interpret_llm.interpret_pdf_matrix(_pdf_payload(), api_key="k", model="m")
+    import hashlib
+    expected = hashlib.sha1(b"pdfmatrix2:" + b"m" + b":" + b"%PDF-fake").hexdigest()
+    assert seen["key"] == expected
+
+
+def test_pdf_matrix_cache_hit_returns_location_texts(monkeypatch):
+    blob = {"at": time.time(), "items": [], "location_texts": ["Sydney NSW"]}
+    monkeypatch.setattr(interpret_llm.cache_store, "load", lambda ns, key: blob)
+    items, texts = interpret_llm.interpret_pdf_matrix(_pdf_payload(), api_key="k", model="m")
+    assert texts == ["Sydney NSW"]
+
+
+def test_pdf_matrix_old_blob_without_field(monkeypatch):
+    blob = {"at": time.time(), "items": []}
+    monkeypatch.setattr(interpret_llm.cache_store, "load", lambda ns, key: blob)
+    items, texts = interpret_llm.interpret_pdf_matrix(_pdf_payload(), api_key="k", model="m")
+    assert items == [] and texts == []
+
+
+def test_pdf_matrix_saves_location_texts(monkeypatch, tmp_path):
+    from safeplate.menu_text import MenuItemRecord
+
+    monkeypatch.setattr(interpret_llm.cache_store, "load", lambda ns, key: None)
+    saved = {}
+    monkeypatch.setattr(interpret_llm.cache_store, "save",
+                        lambda ns, key, blob: saved.update(blob=blob))
+    fake_item = MenuItemRecord(
+        restaurant_name="", restaurant_source_id="", menu_source_url="",
+        category="", item_name="Burger", description="", price="",
+        dietary_terms=[], allergen_terms=[],
+        source_type="", extraction_method="", confidence=0.9,
+        raw_text="", fetched_at="",
+    )
+    monkeypatch.setattr(
+        "safeplate.menu_fetch_llm.extract_allergen_matrix_via_gemini_pdf",
+        lambda *a, **k: ([fake_item], ["12 Foo St, Sydney"]),
+    )
+    items, texts = interpret_llm.interpret_pdf_matrix(_pdf_payload(), api_key="k", model="m")
+    assert texts == ["12 Foo St, Sydney"]
+    assert saved["blob"]["location_texts"] == ["12 Foo St, Sydney"]
+
+
 if __name__ == "__main__":
     unittest.main()
