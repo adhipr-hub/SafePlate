@@ -115,7 +115,7 @@ class PdfAllergenMatrixTests(unittest.TestCase):
 
     def test_gemini_matrix_no_key_returns_empty(self) -> None:
         from safeplate.menu_fetch_llm import extract_allergen_matrix_via_gemini_pdf
-        self.assertEqual(extract_allergen_matrix_via_gemini_pdf(b"%PDF-1.4", api_key=None), [])
+        self.assertEqual(extract_allergen_matrix_via_gemini_pdf(b"%PDF-1.4", api_key=None), ([], []))
 
 
 if __name__ == "__main__":

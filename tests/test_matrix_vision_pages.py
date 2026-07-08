@@ -29,9 +29,10 @@ def test_matrix_vision_renders_all_pages_not_capped_at_six():
     def fake_matrix_call(payload, api_key, model):
         parts = payload["contents"][0]["parts"]
         captured["n_images"] = sum(1 for p in parts if "inline_data" in p)
-        # Return rows + columns + not-truncated so the batched call (which carries ALL
-        # rendered pages) short-circuits and we measure the real page count.
-        return [{"dish": "X", "allergens": ["milk"]}], ["milk"], False
+        # Return rows + columns + not-truncated + no location texts so the batched
+        # call (which carries ALL rendered pages) short-circuits and we measure the
+        # real page count.
+        return [{"dish": "X", "allergens": ["milk"]}], ["milk"], False, []
 
     with mock.patch.object(menu_fetch_llm, "_matrix_call", side_effect=fake_matrix_call):
         menu_fetch_llm.extract_allergen_matrix_via_gemini_pdf(

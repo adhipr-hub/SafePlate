@@ -166,6 +166,10 @@ ALLERGEN_MATRIX_SCHEMA: dict[str, Any] = {
                 "required": ["dish", "allergens"],
             },
         },
+        # Verbatim location clues visible in the image (address lines, footer
+        # URLs, phone numbers, country names). Transcription ONLY -- the region
+        # verdict stays with extraction2.region.detect_source_region.
+        "visible_location_text": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["rows"],
 }
@@ -189,6 +193,11 @@ ALLERGEN_MATRIX_SYSTEM = (
     "of the orderable dish it belongs to. Top-level orderable items have "
     "is_component=false. Still report every row's allergens either way. "
     "If the image is not an allergen grid, return an empty rows list."
+    "\nAlso output `visible_location_text`: up to 8 short verbatim snippets of any "
+    "text visible in the image that indicates WHERE this restaurant or menu is from "
+    "-- street address lines, footer website URLs, phone numbers, country names. "
+    "Transcribe exactly what is printed; never guess, infer, or normalize a "
+    "location; omit the field when no such text is visible."
 )
 
 
@@ -207,38 +216,39 @@ def extract_allergen_matrix_via_gemini_pdf(
     api_key: str | None,
     model: str = DEFAULT_MODEL,
     max_pages: int = _MATRIX_VISION_MAX_PAGES,
-) -> list[MenuItemRecord]:
+) -> tuple[list[MenuItemRecord], list[str]]:
     """Render an allergen-matrix PDF and read its dish x allergen grid with Gemini.
 
     Robust to rotated/icon column headers and image PDFs that table parsers miss.
-    Returns [] on missing key/renderer/failure.
+    Returns ([], []) on missing key/renderer/failure.
     """
     if not api_key or not pdf_bytes:
-        return []
+        return [], []
     try:
         import pypdfium2 as pdfium
     except ImportError:
-        return []
+        return [], []
     try:
         pdf = pdfium.PdfDocument(pdf_bytes)
     except Exception:
-        return []
+        return [], []
 
     records: list[MenuItemRecord] = []
     seen: set[str] = set()
+    location_texts: list[str] = []
     try:
-        _render_matrix_pages(pdf, max_pages, api_key, model, records, seen,
-                             restaurant_name, restaurant_source_id)
+        location_texts = _render_matrix_pages(pdf, max_pages, api_key, model, records, seen,
+                                              restaurant_name, restaurant_source_id)
     finally:
         try:
             pdf.close()
         except Exception:
             pass
-    return records
+    return records, location_texts
 
 
 def _render_matrix_pages(pdf, max_pages, api_key, model, records, seen,
-                         restaurant_name, restaurant_source_id) -> None:
+                         restaurant_name, restaurant_source_id) -> list[str]:
     import io
 
     images: list[bytes] = []
@@ -251,40 +261,61 @@ def _render_matrix_pages(pdf, max_pages, api_key, model, records, seen,
         except Exception:
             continue
     if not images:
-        return
+        return []
 
     # Cost: try ONE batched multi-image call instead of one per page. Accuracy: if
     # the model TRUNCATES (large matrix) or the call fails, fall back to per-page so
     # no dishes are ever lost. Single-page PDFs go straight to the one-image path.
     if len(images) > 1:
         try:
-            rows, columns, truncated = _matrix_call(_matrix_images_payload(images), api_key, model)
+            rows, columns, truncated, texts = _matrix_call(_matrix_images_payload(images), api_key, model)
             if rows and not truncated:
                 _absorb_matrix_rows(rows, records, seen, restaurant_name,
                                     restaurant_source_id, columns)
-                return
+                return texts
         except Exception:
             pass
 
+    location_texts: list[str] = []
     for image_bytes in images:
         try:
-            rows, columns, _truncated = _matrix_call(_matrix_image_payload(image_bytes), api_key, model)
+            rows, columns, _truncated, texts = _matrix_call(_matrix_image_payload(image_bytes), api_key, model)
         except Exception:
             continue
+        location_texts.extend(t for t in texts if t not in location_texts)
         _absorb_matrix_rows(rows, records, seen, restaurant_name, restaurant_source_id, columns)
+    return location_texts[:8]
 
 
 def _matrix_call(payload: dict[str, Any], api_key: str, model: str):
-    """Return (rows, columns, truncated). `columns` is the chart's allergen column
-    headers; `truncated` flags a MAX_TOKENS cut-off so the caller can fall back to
-    per-page extraction."""
+    """Return (rows, columns, truncated, location_texts). `columns` is the chart's
+    allergen column headers; `truncated` flags a MAX_TOKENS cut-off so the caller can
+    fall back to per-page extraction."""
     response = _post_gemini_generate_content(payload=payload, api_key=api_key, model=model)
     truncated = any(
         (candidate.get("finishReason") or "") == "MAX_TOKENS"
         for candidate in response.get("candidates", [])
     )
     parsed = _parse_gemini_json_response(response)
-    return parsed.get("rows", []), parsed.get("columns", []), truncated
+    return (parsed.get("rows", []), parsed.get("columns", []), truncated,
+            _sanitize_location_texts(parsed.get("visible_location_text")))
+
+
+def _sanitize_location_texts(values) -> list[str]:
+    """Clean the model's location snippets: strings only, stripped, deduped
+    (order-preserving), max 8 snippets of <=120 chars. Anything else -> []."""
+    if not isinstance(values, list):
+        return []
+    out: list[str] = []
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        text = value.strip()[:120]
+        if text and text not in out:
+            out.append(text)
+        if len(out) == 8:
+            break
+    return out
 
 
 def _canonical_allergens(values) -> list[str]:

@@ -628,7 +628,7 @@ def _extract_pdf_items_from_bytes(
             extract_allergen_matrix_via_gemini_pdf,
         )
 
-        vision_items = extract_allergen_matrix_via_gemini_pdf(
+        vision_items, _vision_location_texts = extract_allergen_matrix_via_gemini_pdf(
             raw,
             restaurant_name=restaurant_name,
             restaurant_source_id=restaurant_source_id,
