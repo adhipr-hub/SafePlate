@@ -38,7 +38,8 @@ def test_allergen_pdf_unions_matrix_and_text_keeping_allergens():
         _rec("Greens 3"),
     ]
     with mock.patch.object(pipeline, "interpret_structured", return_value=[]), \
-         mock.patch.object(interpret_llm, "interpret_pdf_matrix", return_value=matrix_items), \
+         mock.patch.object(interpret_llm, "interpret_pdf_matrix",
+                           return_value=(matrix_items, [])), \
          mock.patch.object(interpret_llm, "interpret_text",
                            return_value=(text_items, False, 2)), \
          mock.patch.object(pipeline, "verify", side_effect=lambda items, p, require_grounding: (items, [])):
@@ -118,7 +119,8 @@ def test_partial_text_grid_does_not_suppress_vision():
                     _rec("ShackBurger", allergens=["egg"])]
     text_items = [_rec("Fries")]
     with mock.patch.object(pipeline, "interpret_structured", return_value=structured_items), \
-         mock.patch.object(interpret_llm, "interpret_pdf_matrix", return_value=matrix_items) as vis, \
+         mock.patch.object(interpret_llm, "interpret_pdf_matrix",
+                           return_value=(matrix_items, [])) as vis, \
          mock.patch.object(interpret_llm, "interpret_text", return_value=(text_items, False, 1)), \
          mock.patch.object(pipeline, "verify", side_effect=lambda items, p, require_grounding: (items, [])):
         result = pipeline.extract_menu(
@@ -145,7 +147,8 @@ def test_text_llm_kept_when_vision_underreads():
     text_items = [_rec("Almond Milk Chocolate"), _rec("Beauty Tonic"),
                   _rec("Carrot Juice"), _rec("Greens 3")]                    # text: 4 (>1.5x)
     with mock.patch.object(pipeline, "interpret_structured", return_value=[]), \
-         mock.patch.object(interpret_llm, "interpret_pdf_matrix", return_value=matrix_items), \
+         mock.patch.object(interpret_llm, "interpret_pdf_matrix",
+                           return_value=(matrix_items, [])), \
          mock.patch.object(interpret_llm, "interpret_text", return_value=(text_items, False, 1)), \
          mock.patch.object(pipeline, "verify", side_effect=lambda items, p, require_grounding: (items, [])):
         result = pipeline.extract_menu(

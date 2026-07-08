@@ -42,7 +42,7 @@ def extract_menu(
     incomplete = False
 
     for payload in payloads:
-        items, interpreter, reason, llm_used, payload_incomplete = _interpret_one(
+        items, interpreter, reason, llm_used, payload_incomplete, region_extra = _interpret_one(
             payload,
             policy=policy,
             llm_enabled=llm_enabled,
@@ -71,7 +71,11 @@ def extract_menu(
                 # Stamped per source so the orchestrator can compare it to the diner's
                 # region and surface a from-another-region notice. Only sources that
                 # yielded items can ever surface a banner, so skip the scan otherwise.
-                region=(detect_source_region(payload.text or "", payload.url) or "")
+                region=(detect_source_region(
+                    (payload.text or "")
+                    + ((" " + region_extra) if region_extra else ""),
+                    payload.url,
+                ) or "")
                 if items else "",
             )
         )
@@ -117,22 +121,24 @@ def _interpret_one(
     api_key: str | None,
     model: str | None,
     use_cache: bool = True,
-) -> tuple[list[MenuItemRecord], str, str, int, bool]:
+) -> tuple[list[MenuItemRecord], str, str, int, bool, str]:
     """Returns (verified_items, interpreter_name, reason_if_empty, llm_calls_used,
-    incomplete). ``incomplete`` is True only when an LLM text chunk failed, leaving a
-    partial menu the caller must not cache as complete.
+    incomplete, region_text_extra). ``incomplete`` is True only when an LLM text
+    chunk failed, leaving a partial menu the caller must not cache as complete.
+    ``region_text_extra`` is visible-location text transcribed by the vision matrix
+    read; '' for every other path.
 
     Verification happens here, per provenance: structured items came from a parsed
     schema and are trusted as-is; LLM items must be grounded in the source text.
     """
     if payload.kind == PayloadKind.VISUAL:
         if not llm_enabled:
-            return [], "none", "visual source needs LLM vision (disabled)", 0, False
+            return [], "none", "visual source needs LLM vision (disabled)", 0, False, ""
         try:
             items = interpret_llm.interpret_visual(payload, api_key=api_key, model=model)
         except interpret_llm.LLMNotEnabled as exc:
-            return [], "none", str(exc), 0, False
-        return items, "llm_visual", "", 1, False
+            return [], "none", str(exc), 0, False, ""
+        return items, "llm_visual", "", 1, False, ""
 
     structured = interpret_structured(payload)
 
@@ -166,11 +172,15 @@ def _interpret_one(
         and _looks_allergen(payload.text)
     ):
         try:
-            matrix = interpret_llm.interpret_pdf_matrix(
+            matrix, matrix_location_texts = interpret_llm.interpret_pdf_matrix(
                 payload, api_key=api_key, model=model, use_cache=use_cache
             )
         except interpret_llm.LLMNotEnabled:
-            matrix = []
+            matrix, matrix_location_texts = [], []
+        # Visible-location text the vision read transcribed (footer addresses,
+        # URLs); handed to the caller so detect_source_region can stamp a region
+        # even for image-only PDFs whose text layer carries no tell.
+        matrix_region_text = " ".join(matrix_location_texts)
         if matrix:
             ran, llm_items, incomplete, calls = run_llm()
             # Keep the text LLM ONLY if it found materially more NET-NEW dishes than
@@ -185,42 +195,43 @@ def _interpret_one(
                 merged = _collapse_components(
                     _union(_union(matrix, llm_items, _dish_key), structured, _dish_key)
                 )
-                return merged, "gemini_pdf_matrix+text", "", (1 + calls), incomplete
+                return merged, "gemini_pdf_matrix+text", "", (1 + calls), incomplete, matrix_region_text
             # Vision has the full chart -> trust it; don't let the text LLM pad the list.
             merged = _collapse_components(_union(matrix, structured, _dish_key))
-            return merged, "gemini_pdf_matrix", "", (1 + calls), False
+            return merged, "gemini_pdf_matrix", "", (1 + calls), False, matrix_region_text
 
     if policy == Policy.HYBRID:
         if structured:
-            return structured, "structured", "", 0, False
+            return structured, "structured", "", 0, False, ""
         ran, llm_items, incomplete, calls = run_llm()
         if not ran:
-            return [], "none", "no machine-readable schema; LLM text disabled", 0, False
+            return [], "none", "no machine-readable schema; LLM text disabled", 0, False, ""
         return (
             llm_items,
             "llm_text",
             ("" if llm_items else "no schema; LLM found nothing"),
             calls,
             incomplete,
+            "",
         )
 
     if policy == Policy.LLM_FIRST:
         ran, llm_items, incomplete, calls = run_llm()
         if llm_items:
-            return llm_items, "llm_text", "", calls, incomplete
+            return llm_items, "llm_text", "", calls, incomplete, ""
         if structured:
             # Fell back to the complete schema items; the partial LLM read is discarded.
-            return structured, "structured", "LLM empty; used structured", calls, False
-        return [], "none", "no items from LLM or schema", calls, incomplete
+            return structured, "structured", "LLM empty; used structured", calls, False, ""
+        return [], "none", "no items from LLM or schema", calls, incomplete, ""
 
     # MERGE: union structured + grounded LLM -> a dish found by EITHER is kept.
     ran, llm_items, incomplete, calls = run_llm()
     merged = _union(structured, llm_items)
     used = calls
     if not merged:
-        return [], "none", "no items from LLM or schema", used, incomplete
+        return [], "none", "no items from LLM or schema", used, incomplete, ""
     label = "merge" if (structured and llm_items) else ("structured" if structured else "llm_text")
-    return merged, label, "", used, incomplete
+    return merged, label, "", used, incomplete, ""
 
 
 # Keep the text-LLM's items alongside a vision chart only when its NET-NEW dish count

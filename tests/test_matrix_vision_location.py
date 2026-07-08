@@ -127,5 +127,89 @@ def test_pdf_matrix_saves_location_texts(monkeypatch, tmp_path):
     assert saved["blob"]["location_texts"] == ["12 Foo St, Sydney"]
 
 
+def _matrix_pdf_payload():
+    # The pipeline's matrix branch requires a NON-VISUAL payload (VISUAL returns
+    # early via interpret_visual, never reaching the matrix check) with
+    # source_type="pdf" and allergen-y text so _looks_allergen fires. Task 2's
+    # _pdf_payload() (VISUAL) is deliberately left untouched.
+    from safeplate.extraction2.schema import Payload, PayloadKind
+    return Payload(url="https://x.example/allergens.pdf", kind=PayloadKind.TEXT,
+                   source_type="pdf", text="allergen chart", content=b"%PDF-fake")
+
+
+def _default_policy():
+    # Mirror tests/test_llm_call_accounting.py's extract_menu call shape.
+    from safeplate.extraction2.schema import Policy
+    return Policy.HYBRID
+
+
+def _matrix_item():
+    from safeplate.menu_text import MenuItemRecord
+    return MenuItemRecord(
+        restaurant_name="", restaurant_source_id="", menu_source_url="",
+        category="", item_name="Burger", description="", price="",
+        dietary_terms=[], allergen_terms=["milk"], source_type="",
+        extraction_method="gemini_pdf_matrix", confidence=0.9,
+        raw_text="", fetched_at="",
+    )
+
+
+def test_matrix_location_text_stamps_coverage_region(monkeypatch):
+    from safeplate.extraction2 import pipeline
+
+    fake_item = _matrix_item()
+    # The footer-URL snippet ("shakeshack.com.au") is what the unchanged
+    # detect_source_region keys on -- single-word country names ("Australia")
+    # are deliberately excluded as too noisy (see extraction2/region.py).
+    monkeypatch.setattr(
+        pipeline.interpret_llm, "interpret_pdf_matrix",
+        lambda p, **k: ([fake_item], ["Shake Shack Australia Pty Ltd, Sydney NSW",
+                                      "shakeshack.com.au"]),
+    )
+    # Text LLM finds nothing net-new -> the matrix-only return path is taken.
+    monkeypatch.setattr(pipeline.interpret_llm, "interpret_text",
+                        lambda p, **k: ([], False, 0))
+    payload = _matrix_pdf_payload()  # pdf + allergen-y text -> matrix branch fires
+    result = pipeline.extract_menu(
+        [payload], policy=_default_policy(), llm_enabled=True,
+        gemini_api_key="k", gemini_model="m",
+    )
+    assert result.coverage[0].region == "AU"
+
+
+def test_no_location_text_keeps_todays_stamp(monkeypatch):
+    from safeplate.extraction2 import pipeline
+
+    fake_item = _matrix_item()
+    monkeypatch.setattr(pipeline.interpret_llm, "interpret_pdf_matrix",
+                        lambda p, **k: ([fake_item], []))
+    monkeypatch.setattr(pipeline.interpret_llm, "interpret_text",
+                        lambda p, **k: ([], False, 0))
+    result = pipeline.extract_menu(
+        [_matrix_pdf_payload()], policy=_default_policy(), llm_enabled=True,
+        gemini_api_key="k", gemini_model="m",
+    )
+    assert result.coverage[0].region == ""  # "allergen chart" text has no region tell
+
+
+def test_location_snippets_never_become_items(monkeypatch):
+    # Spec req 4: snippets are provenance hints only. Even dish-like snippet
+    # text must not appear among extracted items.
+    from safeplate.extraction2 import pipeline
+
+    fake_item = _matrix_item()
+    monkeypatch.setattr(
+        pipeline.interpret_llm, "interpret_pdf_matrix",
+        lambda p, **k: ([fake_item], ["Peanut Chicken Special, 5 Sydney Rd"]),
+    )
+    monkeypatch.setattr(pipeline.interpret_llm, "interpret_text",
+                        lambda p, **k: ([], False, 0))
+    result = pipeline.extract_menu(
+        [_matrix_pdf_payload()], policy=_default_policy(), llm_enabled=True,
+        gemini_api_key="k", gemini_model="m",
+    )
+    assert [i.item_name for i in result.items] == ["Burger"]
+
+
 if __name__ == "__main__":
     unittest.main()
