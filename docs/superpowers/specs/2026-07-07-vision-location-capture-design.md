@@ -97,6 +97,13 @@ still-valid text-LLM chunk caches, so the re-spend is mostly vision reads.
 - A vision-read allergen matrix whose footer shows a foreign address gets
   a non-empty, correct region stamp, and the drawer shows the existing
   "data is from <country>" notice when it mismatches the diner's region.
+  **Scope truth-up (post-implementation):** the stamp lands only when the
+  transcribed footer text carries a detector tell (a ccTLD-bearing URL such
+  as `shakeshack.com.au`, or a corroborated multiword country name); a bare
+  street address with no such tell yields no stamp today, by the detector's
+  low-false-positive design. Widening this (a curated-snippet-only
+  country-name channel in `detect_source_region`, gated on the frozen
+  benchmarks) is an agreed fast-follow candidate, not part of this feature.
 - Zero behavior change for HTML/text sources and for matrices with no
   visible location text.
 - All cached restaurants re-extract with the new logic (version bumps).
