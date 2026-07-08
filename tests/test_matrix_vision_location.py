@@ -211,5 +211,12 @@ def test_location_snippets_never_become_items(monkeypatch):
     assert [i.item_name for i in result.items] == ["Burger"]
 
 
+def test_result_cache_version_bumped_for_location_capture():
+    # Protects the user's cache-clear decision (spec §Requirements 6): all
+    # pre-location-capture results must re-extract.
+    from safeplate.extraction2 import discover
+    assert discover._RESULT_CACHE_VERSION == "7"
+
+
 if __name__ == "__main__":
     unittest.main()
