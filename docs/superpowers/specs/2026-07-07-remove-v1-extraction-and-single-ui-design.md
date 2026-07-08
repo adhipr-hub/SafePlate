@@ -41,36 +41,63 @@ Non-goal: the `rules` vs `ai` **scoring** engines are out of scope — both stay
 
 ## Part A — Extraction: v2 becomes the only engine
 
-### What "v1" is here
-The prose-heuristic item extractors and their per-source dispatch cluster in
-`menu_text.py`:
-- `_extract_menu_items_from_html`
-- `_extract_menu_items_from_text`
-- `_extract_schema_org_menu_items_from_html`
-- internal callers that only exist to run the above: `extract_text_for_menu_source`,
-  `_extract_pdf_items_from_bytes`, `_recover_html_items`, and their dispatcher
+### What "v1" actually is (revised after tracing)
+A deeper trace showed the removable "v1" is the **orchestration layer** in
+`menu_text.py` — the `*_from_sources` public API and its per-source
+fetch/parse/dispatch cluster — plus the prose text parser. The low-level *soup*
+schema/allergen parsers are **shared with v2** and stay.
 
-…plus the eval scaffolding that exists only to run/compare v1.
+**v1 orchestration + prose parser (delete, subject to the reachability rule):**
+- `extract_menu_text_from_sources`, `extract_menu_items_from_sources`,
+  `extract_menu_from_sources` (top-level v1 API)
+- `_extract_source_once`, `_items_from_candidates`, `_build_text_record`,
+  `_stage_workers`, `_eligible_source_rows`, `_should_extract_row`
+- `extract_text_for_menu_source`, `extract_visible_text`, `extract_pdf_text`
+- `_extract_pdf_items_from_bytes`, `_recover_html_items`
+- html-string wrappers `_extract_menu_items_from_html`,
+  `_extract_schema_org_menu_items_from_html`
+- prose text parser `_extract_menu_items_from_text` and its private helpers
+  (`_records_from_price_lines`, `_price_segments`, `_price_matches`,
+  `_price_count`, `_is_plausible_bare_price`, `_dedupe_*`, etc.) **iff** grep
+  proves zero remaining non-def callers after the above go
+- the CLI writer helpers used only by the deleted script:
+  `build_menu_text_output_paths`, `write_menu_text_csv`, `write_menu_text_json`
+  (and `write_menu_items_*` / `build_menu_item_output_paths` iff orphaned)
 
-**Reachability rule (must verify per function during implementation):** delete a
-function only if, after removing eval + v1 tests, its *only* remaining callers
-were v1/eval. If a function is reachable from the live app path or from a
-surviving v2/shared consumer, keep it. The pytest suite + the offline gate are
-the safety net.
+**v1-exclusive external consumers (delete):**
+- `scripts/extract_menu_text.py` — the documented "backbone" CLI, built entirely
+  on the v1 `*_from_sources` API. (User decision: delete the tooling too.)
+- `eval/bench_cities.py` — city-coverage harness on the v1 API.
+- `eval/compare_engines.py` — v1-vs-v2 comparison; obsolete once v1 is gone.
+- v1-specific cases in `tests/test_menu_text.py` (those calling the deleted
+  extractors). Keep cases covering surviving primitives (`_matched_terms`, etc.).
+- README sections describing the `extract_menu_text.py` pipeline
+  (README.md ~lines 326, 376, 410, 454).
 
-### Delete
-- The v1 prose-heuristic item-extractor cluster in `menu_text.py` (verified
-  external callers today: `eval/bench_extraction.py`, `eval/compare_engines.py`,
-  `tests/test_menu_text.py` — all handled below).
-- `eval/compare_engines.py` — its whole purpose is the v1-vs-v2 comparison;
-  obsolete once v1 is gone.
-- The v1-specific tests in `tests/test_menu_text.py` (the cases that call the
-  deleted extractors). Keep tests covering surviving primitives such as
-  `_matched_terms`.
+**Reachability rule (verify per function):** delete a function only when grep
+across `safeplate/`, `eval/`, `tests/`, `scripts/` shows zero remaining non-`def`
+callers after its consumers are removed. If anything live/v2/shared still calls
+it, keep it. The pytest suite + offline gate are the safety net after every
+removal.
 
-### Preserve (v2 depends on these)
-`MenuItemRecord`, `ALLERGEN_TERMS`, `_matched_terms`, `_pdf_text_from_bytes`,
-`embedded_json.extract_items_from_embedded_json`, and all of `menu_sources.py`.
+### Preserve (v2 / shared consumers depend on these — DO NOT delete)
+- `MenuItemRecord`, `MenuTextRecord` (used by `demo_fixtures.py`,
+  `test_local_app_demo.py`)
+- `ALLERGEN_TERMS`, `_matched_terms`, `_matched_terms_in`, `_term_present`,
+  `_enclosing_word`, `_dietary_and_allergen_terms`
+- `_pdf_text_from_bytes` / `_pdf_text_from_bytes_inner` (used by
+  `extraction2/acquire.py`)
+- `_extract_schema_org_menu_items_from_soup` + its `_schema_*` / `_microdata_*`
+  helper web (used by `extraction2/interpret_structured.py`)
+- `_looks_like_item_name`, `_classlist_text`, `_clean_text` (used by
+  `allergen_matrix.py`, a live/v2 module)
+- `read_csv_rows` (used by `scripts/extract_menu_evidence_gemini.py`)
+- `embedded_json.extract_items_from_embedded_json`, and all of
+  `menu_sources.py` (live discovery via `brave_search.py` + extraction2)
+
+`scripts/extract_menu_evidence_gemini.py` is **kept** (not v1 orchestration; it
+reads a generic CSV). Its README workflow referenced the deleted CLI as an input
+producer — update that prose so the docs stay honest, but leave the script.
 
 ### Repoint (don't delete)
 `eval/bench_extraction.py` is a quality-gate live signal (worldwide /
@@ -99,6 +126,13 @@ benchmark meaningful against v2 and drops the v1 imports.
 - **Remove** `_APP_TEMPLATE_PATHS` / `_app_html_cache` per-theme structure
   (replace with a single path + single-slot cache), and the two-skin comment.
 - **Delete** `app_template_alt.html` and `app_template_alt2.html`.
+
+Rename safety: `tests/test_diet_sort_tiebreak.py` extracts a `@sort-core`
+sentinel block from `app_template.html`. The green template already contains an
+equivalent `@sort-core:start … @sort-core:end` block, so after the rename this
+test exercises green's sort logic and should stay green. `.impeccable/live/
+config.json` and `.claude/settings.local.json` already point at
+`app_template.html`, so the rename keeps them valid with no edits.
 
 ## Data flow / behavior impact
 
