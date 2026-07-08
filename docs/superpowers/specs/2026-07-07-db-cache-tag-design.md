@@ -61,8 +61,9 @@ plain, styling is quiet, and honesty about fallback beats polish.
 - One `.pvchip`-style chip (muted ink, dot prefix, existing chip geometry) in
   the drawer's provenance/"how we know" row, rendered only when the `cache`
   field is present:
-  - origin `postgres` → `from database`; origin `disk` → `from local cache`
-  - savedTo `postgres` → `saved to database`; savedTo `disk` → `saved locally`
+  - origin `postgres` → `From database`; origin `disk` → `From local cache`
+  - savedTo `postgres` → `Saved to database`; savedTo `disk` → `Saved locally`
+    (sentence case, matching neighboring chips like "Confirmed" / "Estimate")
   - origin wins if both are somehow present (a hit never also saves).
 - No new colors; use existing muted chip tokens. No animation. Calm register
   per PRODUCT.md — it's an operator's note, not a feature flourish.
