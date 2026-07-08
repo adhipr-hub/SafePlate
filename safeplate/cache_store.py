@@ -44,9 +44,15 @@ CREATE TABLE IF NOT EXISTS cache_entries (
 
 
 def load(namespace: str, key: str) -> dict[str, Any] | None:
-    """Cached blob or None. Postgres first (when configured); a Postgres MISS
-    falls through to disk and promotes a disk hit into Postgres (lazy migration
-    of a warm file cache); a Postgres ERROR degrades to disk."""
+    """Cached blob or None -- provenance-free wrapper over load_with_origin."""
+    return load_with_origin(namespace, key)[0]
+
+
+def load_with_origin(namespace: str, key: str) -> tuple[dict[str, Any] | None, str | None]:
+    """(blob, origin) where origin is "postgres", "disk", or None on a miss.
+    Postgres first (when configured); a Postgres MISS falls through to disk --
+    reported as "disk" (the promotion into Postgres is a side effect) -- and a
+    Postgres ERROR degrades to disk."""
     pool = _get_pool()
     if pool is not None:
         try:
@@ -60,21 +66,25 @@ def load(namespace: str, key: str) -> dict[str, Any] | None:
         else:
             if row is not None:
                 blob = row[0]
-                return blob if isinstance(blob, dict) else None
+                return (blob, "postgres") if isinstance(blob, dict) else (None, None)
             blob = _disk_load(namespace, key)
             if blob is not None:
                 _pg_save(pool, namespace, key, blob)  # promote warm file entry
-            return blob
-    return _disk_load(namespace, key)
+                return blob, "disk"
+            return None, None
+    blob = _disk_load(namespace, key)
+    return blob, ("disk" if blob is not None else None)
 
 
-def save(namespace: str, key: str, blob: dict[str, Any]) -> None:
+def save(namespace: str, key: str, blob: dict[str, Any]) -> str:
     """Upsert into Postgres when configured; disk otherwise. A Postgres error
-    writes to disk instead, so a paid result is never lost."""
+    writes to disk instead, so a paid result is never lost. Returns the backend
+    that actually took the write ("postgres" or "disk")."""
     pool = _get_pool()
     if pool is not None and _pg_save(pool, namespace, key, blob):
-        return
+        return "postgres"
     _disk_save(namespace, key, blob)
+    return "disk"
 
 
 # --------------------------------------------------------------------------- #

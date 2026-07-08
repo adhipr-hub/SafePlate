@@ -218,3 +218,60 @@ def test_live_database_round_trip(monkeypatch):
     cache_store._reset_for_tests()
     cache_store.save("cache_store_livetest", "k1", {"at": 1.0, "parsed": ["x"]})
     assert cache_store.load("cache_store_livetest", "k1") == {"at": 1.0, "parsed": ["x"]}
+
+
+# --------------------------------------------------------------------------- #
+# Task 1: load_with_origin + save returns origin
+
+
+def test_load_with_origin_disk_mode(tmp_path):
+    cache_store.save("diet_llm", "og1", {"at": 1.0})
+    assert cache_store.load_with_origin("diet_llm", "og1") == ({"at": 1.0}, "disk")
+    assert cache_store.load_with_origin("diet_llm", "missing") == (None, None)
+
+
+def test_save_returns_disk_in_disk_mode():
+    assert cache_store.save("diet_llm", "og2", {"at": 1.0}) == "disk"
+
+
+def test_load_still_returns_bare_blob():
+    cache_store.save("diet_llm", "og3", {"at": 2.0})
+    assert cache_store.load("diet_llm", "og3") == {"at": 2.0}
+
+
+def test_load_with_origin_pg_hit(monkeypatch, tmp_path):
+    pool = FakePool()
+    pool.rows[("extraction2_result", "og4")] = {"at": 1.0, "items": []}
+    _use_fake_pool(monkeypatch, pool)
+    assert cache_store.load_with_origin("extraction2_result", "og4") == (
+        {"at": 1.0, "items": []}, "postgres"
+    )
+
+
+def test_load_with_origin_pg_miss_reports_disk_and_promotes(monkeypatch, tmp_path):
+    pool = FakePool()
+    _use_fake_pool(monkeypatch, pool)
+    cache_store._disk_save("extraction2_result", "og5", {"at": 3.0})
+    assert cache_store.load_with_origin("extraction2_result", "og5") == ({"at": 3.0}, "disk")
+    assert pool.rows[("extraction2_result", "og5")] == {"at": 3.0}
+
+
+def test_load_with_origin_pg_error_reports_disk(monkeypatch, tmp_path):
+    pool = FakePool(fail=True)
+    _use_fake_pool(monkeypatch, pool)
+    cache_store._disk_save("extraction2_result", "og6", {"at": 4.0})
+    assert cache_store.load_with_origin("extraction2_result", "og6") == ({"at": 4.0}, "disk")
+
+
+def test_save_returns_postgres_on_pg_write(monkeypatch, tmp_path):
+    pool = FakePool()
+    _use_fake_pool(monkeypatch, pool)
+    assert cache_store.save("extraction2_result", "og7", {"at": 5.0}) == "postgres"
+    assert not list(tmp_path.rglob("*.json"))
+
+
+def test_save_returns_disk_on_pg_error(monkeypatch, tmp_path):
+    pool = FakePool(fail=True)
+    _use_fake_pool(monkeypatch, pool)
+    assert cache_store.save("extraction2_result", "og8", {"at": 6.0}) == "disk"
+    assert cache_store._disk_load("extraction2_result", "og8") == {"at": 6.0}
