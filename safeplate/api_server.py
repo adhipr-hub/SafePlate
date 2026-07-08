@@ -168,17 +168,7 @@ def create_app_handler(*, demo_mode: bool = False) -> type[BaseHTTPRequestHandle
             if not self._check_auth():
                 return
             if path == "/":
-                requested = (parse_qs(urlparse(self.path).query).get("theme") or [None])[0]
-                theme = requested or self._cookie("sp_theme") or "classic"
-                theme = "green" if theme == "green" else "classic"
-                # Persist the choice only when the toggle explicitly sets it, so a plain
-                # refresh keeps the last-picked skin.
-                set_cookie = (
-                    f"sp_theme={theme}; Path=/; Max-Age=31536000; SameSite=Lax"
-                    if requested in ("green", "classic")
-                    else None
-                )
-                self._send_html(app_html(theme), set_cookie=set_cookie)
+                self._send_html(app_html())
                 return
             if path.startswith("/static/"):
                 self._send_static(path)
@@ -508,17 +498,10 @@ def run_server(
     return ThreadingHTTPServer((host, port), create_app_handler(demo_mode=demo_mode))
 
 
-# Two skins share the same JS/DOM contract and the same backend: the original
-# "classic" template and the "green" editorial reskin. The UI toggle (and a cookie)
-# picks between them; both are served from "/".
-_APP_TEMPLATE_PATHS = {
-    "classic": Path(__file__).resolve().parent / "app_template.html",
-    "green": Path(__file__).resolve().parent / "app_template_green.html",
-}
-_app_html_cache: dict[str, dict[str, Any]] = {
-    "classic": {"mtime": None, "html": ""},
-    "green": {"mtime": None, "html": ""},
-}
+# The app page. Served from "/" for every request. Re-read on mtime change so
+# edits show on a plain browser refresh without a server restart.
+_APP_TEMPLATE_PATH = Path(__file__).resolve().parent / "app_template.html"
+_app_html_cache: dict[str, Any] = {"mtime": None, "html": ""}
 _app_html_lock = threading.Lock()
 
 # Bundled static assets (hero photography, etc.). Served only for bare filenames that
@@ -534,29 +517,21 @@ _STATIC_CONTENT_TYPES = {
 }
 
 
-def app_html(theme: str = "classic") -> str:
-    """Serve the page template, re-reading it when the file changes so edits show on
-    a plain browser refresh -- no server restart needed. Only re-reads when the file's
-    mtime changes (a cheap stat per request); on a transient read error (e.g. the file
-    caught mid-save) it keeps serving the last good copy.
-
-    ``theme`` picks the skin ("classic" or "green"); an unknown theme falls back to
-    classic. The lock makes the stat/read/return atomic under ThreadingHTTPServer:
-    without it a reader could observe a new mtime paired with the old html, and
-    concurrent first requests would all re-read the file at once."""
-    if theme not in _APP_TEMPLATE_PATHS:
-        theme = "classic"
-    path = _APP_TEMPLATE_PATHS[theme]
-    cache = _app_html_cache[theme]
+def app_html() -> str:
+    """Serve the single app template, re-reading it when the file changes so edits
+    show on a plain browser refresh -- no server restart needed. Only re-reads when
+    the file's mtime changes (a cheap stat per request); on a transient read error
+    (e.g. the file caught mid-save) it keeps serving the last good copy. The lock
+    makes the stat/read/return atomic under ThreadingHTTPServer."""
     with _app_html_lock:
         try:
-            mtime = path.stat().st_mtime
-            if mtime != cache["mtime"]:
-                cache["html"] = path.read_text(encoding="utf-8")
-                cache["mtime"] = mtime
+            mtime = _APP_TEMPLATE_PATH.stat().st_mtime
+            if mtime != _app_html_cache["mtime"]:
+                _app_html_cache["html"] = _APP_TEMPLATE_PATH.read_text(encoding="utf-8")
+                _app_html_cache["mtime"] = mtime
         except OSError:
             pass  # keep serving the last good copy
-        return cache["html"]
+        return _app_html_cache["html"]
 
 
 
