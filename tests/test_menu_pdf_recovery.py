@@ -109,6 +109,64 @@ def test_select_links_uses_llm_when_only_ambiguous_links(monkeypatch):
     assert called["n"] == 1  # ambiguous -> LLM consulted
 
 
+# --- Off-site locality gate (Cicero's San Jose <- Interlochen MI regression) --
+
+def _brave_recovery_result(monkeypatch, pdf_text):
+    """Run discover_and_extract with no on-site sources and ONE Brave menu-PDF
+    candidate whose extracted text is `pdf_text`; returns (extract_calls, result)."""
+    from types import SimpleNamespace
+
+    pdf_url = ("https://wnam-cdn.menuweb.menu/storage/media/companies_menu_pdf/"
+               "71638799/ciceros-pizza-parlor-interlochen-menu.pdf")
+    monkeypatch.setattr(discover, "discover_sources", lambda *a, **k: [])
+    monkeypatch.setattr(
+        discover, "_brave_menu_pdf_candidates",
+        lambda **k: [discover.Candidate(url=pdf_url, anchor_text="",
+                                        kind="menu", source="brave_menu_pdf")],
+    )
+    payload = SimpleNamespace(url=pdf_url, source_type="pdf", text=pdf_text)
+    monkeypatch.setattr("safeplate.extraction2.acquire.acquire",
+                        lambda *a, **k: payload)
+    calls = {"extract": 0}
+
+    def _fake_extract(payloads, **kwargs):
+        calls["extract"] += 1
+        return SimpleNamespace(
+            items=[SimpleNamespace(item_name="Cheese Pizza")],
+            coverage=[], llm_calls=1, incomplete=False,
+        )
+
+    monkeypatch.setattr("safeplate.extraction2.pipeline.extract_menu", _fake_extract)
+    _cands, result = discover.discover_and_extract(
+        "https://cicerospizza.com",
+        user_agent="SafePlateTest/1.0",
+        restaurant_name="Cicero's Pizza",
+        address="6138 Bollinger Rd, San Jose, CA 95129, USA",
+        api_key="k", brave_api_key="b",
+    )
+    return calls["extract"], result
+
+
+def test_brave_recovery_rejects_wrong_city_pdf(monkeypatch):
+    # Abridged REAL text of the Interlochen aggregator PDF: names the restaurant
+    # (passes _pdf_mentions) but declares Interlochen / Australia, never San Jose.
+    from tests.test_locality import CICEROS_INTERLOCHEN_PDF_TEXT
+
+    extract_calls, result = _brave_recovery_result(
+        monkeypatch, CICEROS_INTERLOCHEN_PDF_TEXT)
+    assert extract_calls == 0          # rejected BEFORE any extraction/merge
+    assert result.items == []          # better no menu than the wrong menu
+    assert result.coverage == []       # no coverage stamp (no from-Australia notice)
+
+
+def test_brave_recovery_keeps_right_city_pdf(monkeypatch):
+    text = ("Cicero's Pizza Menu\n6138 Bollinger Rd, San Jose, CA 95129\n"
+            "CHEESE PIZZA $10\nPEPPERONI PIZZA $12\n")
+    extract_calls, result = _brave_recovery_result(monkeypatch, text)
+    assert extract_calls == 1
+    assert [it.item_name for it in result.items] == ["Cheese Pizza"]
+
+
 def test_negative_cache_expires_sooner_than_positive(tmp_path, monkeypatch):
     import dataclasses, time
     from safeplate import cache_store

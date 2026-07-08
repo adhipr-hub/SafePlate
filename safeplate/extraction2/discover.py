@@ -448,7 +448,12 @@ def _is_structured_matrix(method: str | None) -> bool:
 # v7: vision location capture -- matrix-PDF sources gain region stamps from
 # footer text the vision read transcribes; invalidate so every cached result
 # re-extracts with location capture (user-decided cache clear).
-_RESULT_CACHE_VERSION = "7"
+# v8: off-site (Brave web-search) menu PDFs whose visible text declares a city that
+# contradicts the diner's address are now REJECTED before merging (Cicero's Pizza
+# San Jose CA <- same-name Interlochen MI aggregator PDF, whose Australian header
+# also stamped a false from-Australia notice) -- invalidate so any cached result
+# that already merged such a document is rebuilt without it.
+_RESULT_CACHE_VERSION = "8"
 _RESULT_CACHE_TTL = 7 * 24 * 60 * 60
 # "Nothing found" (no items + no signals) is cached too -- so a dead/empty site
 # doesn't re-run discovery + the Brave fallback every search -- but with a SHORTER
@@ -814,6 +819,8 @@ def discover_and_extract(
         and (len(result.items) < _MENU_PDF_THIN or _city_mismatch)
         and time.monotonic() < overall_deadline
     ):
+        from safeplate.extraction2 import locality
+
         seen_urls = {c.url for c in candidates}
         idx = {it.item_name.lower(): i for i, it in enumerate(result.items)}
         for cand in _brave_menu_pdf_candidates(
@@ -833,6 +840,13 @@ def discover_and_extract(
                 continue
             if not _pdf_mentions(payload.text, restaurant_name):
                 continue  # wrong-restaurant collision -> skip
+            # Same-NAME wrong-CITY collision: an aggregator PDF for another
+            # location/restaurant of the same name passes the name check but its
+            # printed address contradicts the diner's city (Cicero's San Jose <-
+            # Interlochen MI). Safety-asymmetric: better no menu than another
+            # restaurant's menu, so reject BEFORE its items/coverage can merge.
+            if locality.text_locality_contradiction(payload.text, address, restaurant_name):
+                continue
             sub = extract_menu(
                 [payload], policy=policy or Policy.HYBRID, llm_enabled=True,
                 gemini_api_key=api_key, gemini_model=model, use_cache=use_cache,
