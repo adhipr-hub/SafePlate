@@ -432,6 +432,7 @@
               font: 600 11px/1 var(--sans); padding: 5px 10px; border-radius: 6px;
               border: 1px solid var(--border); letter-spacing: .01em; }
     .pvchip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+    .pvchip.pv-cache { color: var(--tx3); }  /* operator's note: quietest ink */
     .pv-confirmed { color: var(--g0); background: var(--tl); border-color: var(--bl); }
     .pv-signal    { color: var(--signal); background: #EFF4FF; border-color: #CFE0FF; }
     .pv-inferred  { color: var(--md); background: var(--tm); border-color: var(--bm); }
@@ -1718,6 +1719,16 @@ function provenanceTier(basis, coverage) {
   }
 }
 function pvchip(t) { return `<span class="pvchip ${t.cls}">${esc(t.label)}</span>`; }
+function cacheChipHtml(c) {
+  /* Cache-provenance verification chip (see docs/superpowers/specs/2026-07-07-db-cache-tag-design.md).
+     Origin wins over savedTo: a cache hit never also saves. Silent when absent. */
+  if (!c) return "";
+  const label = c.origin === "postgres" ? "From database"
+              : c.origin === "disk"     ? "From local cache"
+              : c.savedTo === "postgres" ? "Saved to database"
+              : c.savedTo === "disk"     ? "Saved locally" : "";
+  return label ? `<span class="pvchip pv-cache">${label}</span>` : "";
+}
 
 /* ── config ──
    The topbar pill only surfaces states a diner should act on (demo data / offline);
@@ -2151,7 +2162,7 @@ function explanationHtml(risk) {
   </div>`;
 }
 
-function verdictHtml(risk, coverage, basis, perAllergen) {
+function verdictHtml(risk, coverage, basis, perAllergen, cache) {
   const v = risk?.risk??0.3;
   const conf = risk?.confidence!=null?`${confWord(risk.confidence)} confidence (${Math.round(risk.confidence*100)}%)`:"";
   const tierLbl = TIER_LABELS[risk?.tier]||"";
@@ -2164,7 +2175,7 @@ function verdictHtml(risk, coverage, basis, perAllergen) {
     ${ring(v,68)}
     <div class="verdict-body">
       <div class="verdict-label" style="color:${textClr(v)}">${riskWord(v)} ${esc(allergenPhrase(perAllergen))}</div>
-      <div class="verdict-prov">${pvchip(prov)}<span class="pv-blurb">${esc(prov.blurb)}</span>${personalChip}</div>
+      <div class="verdict-prov">${pvchip(prov)}<span class="pv-blurb">${esc(prov.blurb)}</span>${personalChip}${cacheChipHtml(cache)}</div>
       <div class="verdict-badges">
         ${tierLbl?`<span class="cbadge" style="border-color:${textClr(v)};color:${textClr(v)}">${esc(tierLbl)}</span>`:""}
         ${conf?cbadge(conf,""):""}
@@ -2349,7 +2360,7 @@ function renderMenu(m,r) {
     const _card = cardNode(r);
     if (_card) _card.innerHTML = cardMarkup(r);
     const v = $("#riskVerdict");
-    if (v) v.outerHTML = verdictHtml(menuRisk,r.coverageStatus,summary.evidenceBasis,summary.perAllergen);
+    if (v) v.outerHTML = verdictHtml(menuRisk,r.coverageStatus,summary.evidenceBasis,summary.perAllergen,m.cache);
   }
 
   const sig = summary.restaurantSignals||{};
