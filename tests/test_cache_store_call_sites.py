@@ -13,11 +13,11 @@ def test_result_cache_load_routes_through_store(monkeypatch):
 
     seen = {}
 
-    def fake_load(namespace, key):
+    def fake_load_with_origin(namespace, key):
         seen["args"] = (namespace, key)
-        return None
+        return (None, None)
 
-    monkeypatch.setattr(discover.cache_store, "load", fake_load)
+    monkeypatch.setattr(discover.cache_store, "load_with_origin", fake_load_with_origin)
     assert discover._load_result_cache("https://tacos.example", "gemini-x") is None
     namespace, key = seen["args"]
     assert namespace == "extraction2_result"
@@ -88,3 +88,27 @@ def test_llm_menu_cache_hit_serves_from_store(monkeypatch):
         if ns == "llm_menu" else None,
     )
     assert menu_fetch_llm._load_cache("https://pho.example/menu") == extraction
+
+
+def test_result_cache_hit_stamps_origin(monkeypatch):
+    from safeplate.extraction2 import discover
+
+    blob = {"at": time.time(), "items": [], "coverage": [], "signals": [], "diet_signals": []}
+    monkeypatch.setattr(
+        discover.cache_store, "load_with_origin",
+        lambda ns, key: (blob, "postgres") if ns == "extraction2_result" else (None, None),
+    )
+    result = discover._load_result_cache("https://tag.example", "m")
+    assert result is not None
+    assert result.cache_origin == "postgres"
+
+
+def test_result_cache_save_stamps_destination(monkeypatch):
+    from safeplate.extraction2 import discover
+    from safeplate.extraction2.schema import MenuExtractionResult
+
+    monkeypatch.setattr(discover.cache_store, "save", lambda ns, key, blob: "postgres")
+    result = MenuExtractionResult(items=[], coverage=[])
+    assert result.cache_saved_to is None
+    discover._save_result_cache("https://tag.example", "m", result)
+    assert result.cache_saved_to == "postgres"

@@ -500,7 +500,7 @@ def _load_result_cache(website_url: str, model: str, discriminator: str = ""):
     )
     from safeplate.menu_text import MenuItemRecord
 
-    blob = cache_store.load(
+    blob, origin = cache_store.load_with_origin(
         "extraction2_result", _result_cache_key(website_url, model, discriminator)
     )
     if blob is None:
@@ -518,6 +518,7 @@ def _load_result_cache(website_url: str, model: str, discriminator: str = ""):
             # Older cache blobs predate diet signals -- default to [] rather than KeyError.
             diet_signals=[DietSignal(**d) for d in blob.get("diet_signals", [])],
             llm_calls=0,
+            cache_origin=origin,
         )
     except (KeyError, TypeError):
         return None
@@ -526,7 +527,7 @@ def _load_result_cache(website_url: str, model: str, discriminator: str = ""):
 def _save_result_cache(website_url: str, model: str, result, discriminator: str = "") -> None:
     from dataclasses import asdict
 
-    cache_store.save(
+    result.cache_saved_to = cache_store.save(
         "extraction2_result",
         _result_cache_key(website_url, model, discriminator),
         {

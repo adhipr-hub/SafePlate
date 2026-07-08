@@ -98,3 +98,8 @@ class MenuExtractionResult:
     # chunk of a multi-chunk menu failed). Callers must NOT cache an incomplete result
     # as complete -- a missing chunk could omit a risky dish and wrongly look safer.
     incomplete: bool = False
+    # Cache-store provenance for the drawer's verification chip (never persisted
+    # in the cached blob): where a cached result was loaded from, and which
+    # backend took the fresh-result write. "postgres" | "disk" | None.
+    cache_origin: str | None = None
+    cache_saved_to: str | None = None
