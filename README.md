@@ -320,11 +320,7 @@ This creates a standalone `safeplate_dashboard_*.html` file with restaurant
 navigation, source-method breakdowns, category coverage, menu search, and
 Schema.org/HTML/dietary/allergen filters.
 
-After finding menu sources, extract visible menu text from validated HTML pages:
-
-```powershell
-python scripts/extract_menu_text.py --menu-sources-csv data/menu_sources_example.csv --html-report
-```
+After finding menu sources, extract visible menu text from validated HTML pages.
 
 For HTML menu pages, extraction fetches the page and passes the HTML through
 Beautiful Soup. It first reads embedded Schema.org JSON-LD `MenuItem` records
@@ -373,8 +369,9 @@ inferring hidden ingredients or making a safety guarantee.
 
 ## Gemini Menu Evidence Extraction
 
-After `extract_menu_text.py` creates cleaned visible text, SafePlate can send
-that evidence to Gemini for strict structured extraction:
+Given a menu-text CSV with the documented columns (raw menu text, price counts,
+dietary terms, and allergy-relevant keyword hits), SafePlate can send that
+evidence to Gemini for strict structured extraction:
 
 ```powershell
 $env:GEMINI_API_KEY="your-gemini-api-key"
@@ -406,8 +403,9 @@ The command writes:
 - `gemini_menu_evidence_*_items.csv` for flat menu item rows
 - `gemini_menu_evidence_*_notes.csv` for flat allergy/diet/policy notes
 
-For more complete menu coverage, use the deterministic item candidates from
-`extract_menu_text.py` as the backbone and let Gemini clean/enrich those rows:
+For more complete menu coverage, provide a menu-items CSV of deterministic item
+candidates (with the documented columns) as the backbone and let Gemini
+clean/enrich those rows:
 
 ```powershell
 python scripts/extract_menu_evidence_gemini.py --menu-text-csv data/menu_text_example.csv --menu-items-csv data/menu_items_example.csv
@@ -451,7 +449,6 @@ fixtures/
   demo/
 scripts/
   fetch_restaurants.py
-  extract_menu_text.py
   extract_menu_evidence_gemini.py
   find_menu_sources.py
   render_menu_report.py
