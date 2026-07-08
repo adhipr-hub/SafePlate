@@ -72,7 +72,8 @@ def _extract_and_assess_structured(
     caller (whichever fires later) pays nothing. ``cuisines`` / ``region`` are
     derived by the scorer when not supplied; callers that already have them (the
     search card renders the prior first) pass them in to skip the re-derivation.
-    Returns (assessment, menu_items, allergy_signals, coverage, errors, diet_signals)."""
+    Returns (assessment, menu_items, allergy_signals, coverage, errors, diet_signals,
+    cache_info)."""
     from safeplate.allergen_score import assess_restaurant_record
     from safeplate.extraction2.discover import discover_and_extract
 
@@ -81,6 +82,7 @@ def _extract_and_assess_structured(
     allergy_signals: list[Any] = []
     coverage: list[Any] = []
     diet_signals: list[Any] = []  # grounded website "can be made vegan/veg" statements
+    cache_info: dict[str, Any] | None = None
 
     if website_url:
         try:
@@ -102,6 +104,10 @@ def _extract_and_assess_structured(
             allergy_signals = result.allergy_signals
             coverage = result.coverage
             diet_signals = list(getattr(result, "diet_signals", []) or [])
+            origin = getattr(result, "cache_origin", None)
+            saved_to = getattr(result, "cache_saved_to", None)
+            if origin or saved_to:
+                cache_info = {"origin": origin, "savedTo": saved_to}
         except Exception as exc:  # never let extraction break the response
             errors.append({"source": "extraction2", "error": str(exc)})
     else:
@@ -132,7 +138,7 @@ def _extract_and_assess_structured(
             record, profile, menu_items=menu_items, signals=signals,
             cuisines=cuisines, region=region,
         )
-    return assessment, menu_items, allergy_signals, coverage, errors, diet_signals
+    return assessment, menu_items, allergy_signals, coverage, errors, diet_signals, cache_info
 
 
 def _region_notice_for(
@@ -267,6 +273,7 @@ def _structured_menu_response(
     scoring_engine: str = "rules",
     personalized: bool = False,
     diets: list[dict[str, Any]] | None = None,
+    cache_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the structured drawer payload (menuItems + allergySignals + assessment + the
     legacy-shaped summary the UI drawer reads). Shared so the SEARCH can embed this exact
@@ -344,7 +351,7 @@ def _structured_menu_response(
         # Only attached when the profile actually selected diets, so existing
         # responses (no diets picked) stay byte-unchanged.
         summary["diets"] = diets
-    return {
+    response = {
         "engine": "structured",
         "restaurantName": restaurant_name,
         "websiteUrl": website_url,
@@ -358,6 +365,12 @@ def _structured_menu_response(
         "summary": summary,
         "files": {},
     }
+    if cache_info and (cache_info.get("origin") or cache_info.get("savedTo")):
+        # Drawer verification chip: where this restaurant's cached extraction
+        # came from / where the fresh result was written. Omitted otherwise so
+        # untagged responses stay byte-identical.
+        response["cache"] = cache_info
+    return response
 
 
 def _fetch_mode_from_payload(payload: dict[str, Any]) -> str:
@@ -395,7 +408,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     cuisines = cuisines_for(categories, restaurant_name)
     region = region_from_address(address, latitude=latitude, longitude=longitude)
     api_key = get_gemini_api_key()
-    assessment, menu_items, allergy_signals, coverage, errors, diet_signals = _extract_and_assess_structured(
+    assessment, menu_items, allergy_signals, coverage, errors, diet_signals, cache_info = _extract_and_assess_structured(
         name=restaurant_name,
         website_url=website_url,
         address=address,
@@ -499,6 +512,7 @@ def _run_structured_menu_extraction(payload: dict[str, Any]) -> dict[str, Any]:
         scoring_engine=scoring_engine,
         personalized=bool(experience_history) and _is_ai_engine(scoring_engine),
         diets=diets_payload,
+        cache_info=cache_info,
     )
     response["communityQuotes"] = community_quotes
     return response
@@ -587,6 +601,7 @@ def _write_assessment_into_card(
     menu_items: list[Any], allergy_signals: list[Any], coverage: list[Any],
     errors: list[dict[str, str]], scoring_engine: str = "rules", address: str = "",
     diets: list[dict[str, Any]] | None = None,
+    cache_info: dict[str, Any] | None = None,
 ) -> None:
     """Write an assessment (and its menu-backed detail) into a result card. Used for
     both the deterministic build and the ai_assisted batched re-score, so the two stay in
@@ -627,6 +642,7 @@ def _write_assessment_into_card(
             errors=errors,
             scoring_engine=scoring_engine,
             diets=diets,
+            cache_info=cache_info,
         )
     else:
         payload.pop("menuDetail", None)
@@ -681,7 +697,7 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
     website_url = str(row.website_url or "").strip()
     address = str(row.address or "")
     with span("card_extract_assess"):
-        assessment, menu_items, allergy_signals, coverage, errors, diet_signals = _extract_and_assess_structured(
+        assessment, menu_items, allergy_signals, coverage, errors, diet_signals, cache_info = _extract_and_assess_structured(
             name=name,
             website_url=website_url,
             address=address,
@@ -723,7 +739,7 @@ def _menu_backed_card(row: Any, *, profile: Any, user_agent: str, api_key: str |
         prior=prior, cuisines=cuisines, region=region, name=name,
         website_url=website_url, address=address, menu_items=menu_items,
         allergy_signals=allergy_signals, coverage=coverage, errors=errors,
-        diets=diets_payload,
+        diets=diets_payload, cache_info=cache_info,
     )
     _write_assessment_into_card(payload, assessment, scoring_engine="rules", **rebuild)
     if isinstance(row.raw_payload, dict) and row.raw_payload.get("demo_scenario"):
