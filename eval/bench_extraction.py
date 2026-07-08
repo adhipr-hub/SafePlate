@@ -27,13 +27,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from safeplate.config import get_user_agent
-from safeplate.embedded_json import extract_items_from_embedded_json
+from safeplate.extraction2 import Policy, extract_menu
+from safeplate.extraction2.acquire import payload_from_html, payload_from_pdf_text
 from safeplate.menu_sources import discover_menu_sources_for_url, MenuSourceError
-from safeplate.menu_text import (
-    _extract_menu_items_from_html,
-    _extract_menu_items_from_text,
-    _extract_schema_org_menu_items_from_html,
-)
 from safeplate.page_fetch import fetch_html_page, PageFetchError
 from safeplate.http_client import http_get, HttpError, HttpConnectionError
 
@@ -184,13 +180,16 @@ def price_ok(price: str) -> bool:
 
 
 def extract_for_snapshot(entry: dict) -> list:
+    """Run the v2 structured engine over one frozen snapshot (offline, no LLM),
+    so each iteration is directly comparable and costs nothing."""
     text = (SNAP_DIR / entry["file"]).read_text(encoding="utf-8")
+    url = entry.get("url", "")
     if entry["file"].endswith(".pdf.txt"):
-        return _extract_menu_items_from_text(text)
-    items = _extract_schema_org_menu_items_from_html(text) + _extract_menu_items_from_html(text)
-    if not items:
-        items = extract_items_from_embedded_json(text)
-    return items
+        payload = payload_from_pdf_text(url, text)
+    else:
+        payload = payload_from_html(url, text)
+    result = extract_menu([payload], policy=Policy.HYBRID, llm_enabled=False, use_cache=False)
+    return result.items
 
 
 def bench() -> None:
