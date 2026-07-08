@@ -30,7 +30,7 @@ from safeplate.gemini_menu import (
     write_gemini_items_csv,
     write_gemini_notes_csv,
 )
-from safeplate.menu_text import read_csv_rows
+from safeplate.io import read_csv_rows
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,14 +42,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--menu-text-csv",
         help=(
-            "CSV from extract_menu_text.py with cleaned source text. Required for "
+            "CSV with cleaned source text. Required for "
             "text-only mode and optional context for candidate mode."
         ),
     )
     parser.add_argument(
         "--menu-items-csv",
         help=(
-            "CSV from extract_menu_text.py with deterministic menu item candidates. "
+            "CSV with deterministic menu item candidates. "
             "When provided, Gemini cleans/enriches candidates instead of discovering "
             "items from raw text."
         ),
