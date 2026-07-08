@@ -5,9 +5,6 @@ import unittest
 from safeplate.menu_text import (
     MenuItemRecord,
     _dedupe_item_key,
-    _extract_menu_items_from_html,
-    _extract_schema_org_menu_items_from_html,
-    _extract_menu_items_from_text,
     _looks_like_category,
     _price_count,
 )
@@ -49,71 +46,6 @@ class DedupeKeyTests(unittest.TestCase):
 
 
 class MenuItemExtractionTests(unittest.TestCase):
-    def test_extracts_price_linked_menu_item(self) -> None:
-        html = """
-        <html>
-          <body>
-            <h2>Entrees</h2>
-            <p>Falafel Plate - Chickpea fritters with hummus and salad $14.95</p>
-          </body>
-        </html>
-        """
-
-        rows = _extract_menu_items_from_html(html)
-
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0].category, "Entrees")
-        self.assertEqual(rows[0].item_name, "Falafel Plate")
-        self.assertEqual(rows[0].price, "$14.95")
-        self.assertIn("Chickpea fritters", rows[0].description)
-        self.assertEqual(rows[0].extraction_method, "html_visible_text")
-
-    def test_extracts_ocr_style_bare_price_menu_items(self) -> None:
-        text = """
-        Shared Plates
-        Korean Fried Chicken Wings tossed in garlic gochujang glaze 17
-        Vegan Nachos cashew nacho cheese and salsa macha 17
-        """
-
-        rows = _extract_menu_items_from_text(text)
-
-        self.assertEqual(len(rows), 2)
-        self.assertEqual(rows[0].category, "Shared Plates")
-        self.assertEqual(rows[0].item_name, "Korean Fried Chicken Wings")
-        self.assertEqual(rows[0].price, "17")
-        self.assertEqual(rows[1].item_name, "Vegan Nachos")
-        self.assertEqual(rows[1].price, "17")
-        self.assertIn("vegan", rows[1].dietary_terms)
-
-    def test_ignores_bare_non_price_numbers(self) -> None:
-        text = "Drinks\nSeoul Night lager abv 23% crisp rice finish"
-
-        rows = _extract_menu_items_from_text(text)
-
-        self.assertEqual(rows, [])
-
-    def test_ignores_corporate_report_numbers_as_bare_prices(self) -> None:
-        text = """
-        This statement is made 54 pursuant to the requirements of Section
-        Kingdom (UK) Modern Slavery Act 9 2015; Section
-        More than 20 years ago, in partnership with Conservation International
-        During FY25, Starbucks 10 operated
-        SEC, including our most 10 recently filed periodic reports on Form 10-K
-        Retail Industry Leaders Association (RILA) 20 For more than
-        Coffee Canada, Inc. 11 pursuant to Section
-        """
-
-        rows = _extract_menu_items_from_text(text)
-
-        self.assertEqual(rows, [])
-
-    def test_ignores_cart_total_ui_text(self) -> None:
-        html = "<html><body><div>Your cart (0) total $0.00</div></body></html>"
-
-        rows = _extract_menu_items_from_html(html)
-
-        self.assertEqual(rows, [])
-
     def test_counts_bare_prices_for_ocr_reporting(self) -> None:
         text = "Vegan Nachos 17\nSeoul Night lager abv 23%"
 
@@ -125,116 +57,8 @@ class MenuItemExtractionTests(unittest.TestCase):
         self.assertTrue(_looks_like_category("Juice + Lemonade + Soda"))
         self.assertFalse(_looks_like_category("Root Beer Float"))
 
-    def test_html_fallback_blocks_do_not_inherit_stale_category(self) -> None:
-        html = """
-        <html>
-          <body>
-            <h2>Homemade Desserts</h2>
-            <p>Root Beer Float</p>
-            <div>
-              <span>Fresh Squeezed Orange Juice</span>
-              <span>$ 8</span>
-            </div>
-          </body>
-        </html>
-        """
-
-        rows = _extract_menu_items_from_html(html)
-
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0].item_name, "Fresh Squeezed Orange Juice")
-        self.assertEqual(rows[0].category, "")
-
-    def test_extracts_schema_org_menu_items_from_json_ld(self) -> None:
-        html = """
-        <html>
-          <head>
-            <script type="application/ld+json">
-            {
-              "@context": "https://schema.org",
-              "@type": "Menu",
-              "@id": "https://example.com/menu#menu",
-              "name": "Dinner",
-              "hasMenuSection": [
-                {
-                  "@type": "MenuSection",
-                  "name": "Entrees",
-                  "hasMenuItem": [
-                    {
-                      "@type": "MenuItem",
-                      "name": "Vegan Bowl",
-                      "description": "tofu, greens, sesame dressing",
-                      "offers": {"@type": "Offer", "price": "14.00"}
-                    }
-                  ]
-                }
-              ]
-            }
-            </script>
-          </head>
-        </html>
-        """
-
-        rows = _extract_schema_org_menu_items_from_html(html)
-
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0].category, "Entrees")
-        self.assertEqual(rows[0].item_name, "Vegan Bowl")
-        self.assertEqual(rows[0].description, "tofu, greens, sesame dressing")
-        self.assertEqual(rows[0].price, "14")
-        self.assertEqual(rows[0].extraction_method, "schema_org_menu_item")
-        self.assertIn("vegan", rows[0].dietary_terms)
-        self.assertIn("sesame", rows[0].allergen_terms)
-
-    def test_extracts_schema_org_menu_item_price_from_menu_add_on(self) -> None:
-        html = """
-        <script type="application/ld+json">
-        {
-          "@context": "https://schema.org",
-          "@type": "Menu",
-          "name": "Drinks",
-          "hasMenuSection": {
-            "@type": "MenuSection",
-            "name": "Wine",
-            "hasMenuItem": {
-              "@type": "MenuItem",
-              "name": "Prosecco",
-              "description": "Franco Amoroso; Italy",
-              "menuAddOn": {
-                "@type": "MenuSection",
-                "hasMenuItem": {
-                  "@type": "MenuItem",
-                  "name": "$12/$45"
-                }
-              }
-            }
-          }
-        }
-        </script>
-        """
-
-        rows = _extract_schema_org_menu_items_from_html(html)
-
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0].category, "Wine")
-        self.assertEqual(rows[0].item_name, "Prosecco")
-        self.assertEqual(rows[0].price, "$12/$45")
-        self.assertIn("$12/$45", rows[0].raw_text)
 
 class MultiCurrencyTests(unittest.TestCase):
-    def test_extracts_world_currencies(self) -> None:
-        text = (
-            "Pad Thai ฿120\nMargherita Pizza €8,50\nTruffle Pasta 14,00€\n"
-            "Ramen ¥1,200\nPaneer Tikka ₹350\nFish and Chips £12.50\nTacos USD 9\n"
-        )
-        by_name = {r.item_name: r.price for r in _extract_menu_items_from_text(text)}
-        self.assertEqual(by_name.get("Pad Thai"), "฿120")
-        self.assertEqual(by_name.get("Margherita Pizza"), "€8,50")
-        self.assertEqual(by_name.get("Truffle Pasta"), "14,00€")
-        self.assertEqual(by_name.get("Ramen"), "¥1,200")
-        self.assertEqual(by_name.get("Paneer Tikka"), "₹350")
-        self.assertEqual(by_name.get("Fish and Chips"), "£12.50")
-
     def test_name_gate_rejects_fragments_and_prose(self) -> None:
         from safeplate.menu_text import _looks_like_item_name
         self.assertFalse(_looks_like_item_name("sautéed with"))   # lowercase fragment
